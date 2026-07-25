@@ -192,6 +192,9 @@ pub(crate) struct ChannelInfo {
     pub banner_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub banner_file_id: Option<String>,
+    /// Per-channel NSFW flag (distinct from the hub-wide discovery `nsfw` tag).
+    #[serde(default)]
+    pub nsfw: bool,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]

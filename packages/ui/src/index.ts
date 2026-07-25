@@ -118,6 +118,8 @@ export { SearchBar } from "./components/layout/SearchBar";
 export type { GlobalSearchResult } from "./types";
 export { DiscoverPage } from "./components/hubs/DiscoverPage";
 export type { HubListing } from "./types";
+export { HubSetupWizard } from "./components/hubs/HubSetupWizard";
+export type { HubSetupWizardActions, HubSetupWizardCreateChannelFields } from "./components/hubs/HubSetupWizard";
 export { Lobby } from "./components/layout/Lobby";
 export type { LobbyActions } from "./components/layout/Lobby";
 export { HubSidebar } from "./components/layout/HubSidebar";
@@ -192,8 +194,6 @@ export { SkinEditor, makeSeed } from "./components/SkinEditor";
 export { SkinsGallery } from "./components/SkinsGallery";
 export { AddHubModal } from "./components/hubs/AddHubModal";
 export { QuickInviteModal, type QuickInviteModalActions } from "./components/hubs/QuickInviteModal";
-export { CreateChannelModal, BANNER_MAX_BYTES, BANNER_MIME_TYPES } from "./components/channels/CreateChannelModal";
-export type { BannerSource } from "./components/channels/CreateChannelModal";
 export { WelcomeScreen } from "./components/layout/WelcomeScreen";
 export { UserContextMenu } from "./components/users/UserContextMenu";
 export type { UserContextMenuActions } from "./components/users/UserContextMenu";
@@ -244,8 +244,8 @@ export { ChannelBansTab } from "./components/channels/ChannelBansTab";
 export type { ChannelBansTabActions, ChannelBanRow, ChannelBansTabUser } from "./components/channels/ChannelBansTab";
 export { ChannelTalkPowerTab } from "./components/channels/ChannelTalkPowerTab";
 export type { ChannelTalkPowerTabActions } from "./components/channels/ChannelTalkPowerTab";
-export { ChannelSettingsModal } from "./components/channels/ChannelSettingsModal";
-export type { ChannelSettingsModalChannel } from "./components/channels/ChannelSettingsModal";
+export { ChannelSettingsModal, BANNER_MAX_BYTES, BANNER_MIME_TYPES } from "./components/channels/ChannelSettingsModal";
+export type { ChannelSettingsModalChannel, ChannelSettingsSaveFields, BannerSource } from "./components/channels/ChannelSettingsModal";
 
 // ---------------------------------------------------------------------------
 // ChannelSidebar (parity hoist, 2026-07-20)
@@ -259,8 +259,9 @@ export {
   resolveDrillInScope,
   flattenAllianceChannels,
   allianceChannelIcon,
+  computeDragIntent,
 } from "./components/layout/channelSidebarLayout";
-export type { IndentInfo, DrillInScope, AllianceFlatNode } from "./components/layout/channelSidebarLayout";
+export type { IndentInfo, DrillInScope, AllianceFlatNode, DragIntent, DragRect } from "./components/layout/channelSidebarLayout";
 export { WhisperPanel } from "./components/voice/WhisperPanel";
 export { SoundboardPopover } from "./components/voice/SoundboardPopover";
 export {

@@ -131,6 +131,7 @@ export function ForumView({ channelId, myRoles, myPubkey, isAdmin, actions, alli
           channelId={channelId}
           allianceId={allianceContext?.allianceId}
           forumRequireTag={forumRequireTag}
+          showNoTagsHint={isAdmin}
           actions={actions}
           onCreated={(postId) => { setComposing(false); setSelectedPostId(postId); }}
           onCancel={() => setComposing(false)}

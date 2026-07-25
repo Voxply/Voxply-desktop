@@ -14,10 +14,14 @@ export const AutoGrowTextarea = forwardRef<HTMLTextAreaElement, {
   onChange: (v: string) => void;
   placeholder?: string;
   ariaLabel?: string;
+  id?: string;
   maxLength?: number;
   minHeight?: number;
+  /** Defaults to the transparent WYSIWYG profile look; pass "" to fall back
+   * to the ordinary bordered input/textarea styling (e.g. forum composers). */
+  className?: string;
   style?: CSSProperties;
-}>(function AutoGrowTextarea({ value, onChange, placeholder, ariaLabel, maxLength, minHeight = 120, style }, forwardedRef) {
+}>(function AutoGrowTextarea({ value, onChange, placeholder, ariaLabel, id, maxLength, minHeight = 120, className = "profile-inline-input", style }, forwardedRef) {
   const ref = useRef<HTMLTextAreaElement>(null);
   useImperativeHandle(forwardedRef, () => ref.current as HTMLTextAreaElement);
   useEffect(() => {
@@ -29,7 +33,8 @@ export const AutoGrowTextarea = forwardRef<HTMLTextAreaElement, {
   return (
     <textarea
       ref={ref}
-      className="profile-inline-input"
+      id={id}
+      className={className}
       value={value}
       maxLength={maxLength}
       onChange={(e) => onChange(e.target.value)}

@@ -36,7 +36,7 @@ import { SoundboardPopover } from "../voice/SoundboardPopover";
 import { WhisperPanel } from "../voice/WhisperPanel";
 import {
   DRILL_DEPTH, computeIndent, resolveDrillInScope,
-  flattenAllianceChannels, allianceChannelIcon,
+  flattenAllianceChannels, allianceChannelIcon, computeDragIntent,
 } from "./channelSidebarLayout";
 import { isSpawnerChannel, resolveOwnerDisplayName } from "../../utils/spawnerChannels";
 
@@ -378,7 +378,13 @@ export function ChannelSidebar({
   function handleDragOver(e: DragOverEvent) {
     const overId = e.over ? String(e.over.id) : null;
     const overNode = overId ? flatVisible.find(n => n.node.id === overId) : null;
-    setDragOverId(overNode?.node.is_category ? overId : null);
+    if (!overNode?.node.is_category || !e.over) { setDragOverId(null); return; }
+    // Same edge-zone rule as the drag-end reparent decision: only highlight
+    // as a nest target when the drop would actually nest (nested-channels-ux
+    // drag&drop fix) — otherwise this always lit up for any drop on a
+    // category, even a root-level reorder past it.
+    const intent = computeDragIntent(e.active.rect.current.translated, e.over.rect, true);
+    setDragOverId(intent === "nest" ? overId : null);
   }
 
   function handleToggleVideo() {

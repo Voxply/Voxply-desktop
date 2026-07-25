@@ -31,13 +31,20 @@ describe("parseHubInput — farm-ready invite links (hub serial)", () => {
     expect(r?.inviteCode).toBe("codeX");
   });
 
-  it("buildInviteLink round-trips through parseHubInput", () => {
+  it("buildInviteLink emits the plain /join form and round-trips through parseHubInput", () => {
     const link = buildInviteLink("https://farm.example.com", "serial42", "welcome");
-    expect(link).toBe("wavvon://farm.example.com/i/serial42/welcome");
+    expect(link).toBe("https://farm.example.com/join/welcome");
     const r = parseHubInput(link);
     expect(r?.hubUrl).toBe("https://farm.example.com");
-    expect(r?.hubSerial).toBe("serial42");
     expect(r?.inviteCode).toBe("welcome");
+  });
+
+  it("buildInviteLink uses http for localhost hubs", () => {
+    const link = buildInviteLink("http://localhost:3000", "s", "247ba780be0b");
+    expect(link).toBe("http://localhost:3000/join/247ba780be0b");
+    const r = parseHubInput(link);
+    expect(r?.hubUrl).toBe("http://localhost:3000");
+    expect(r?.inviteCode).toBe("247ba780be0b");
   });
 
   it("legacy wavvon://host/code links keep working (no serial)", () => {

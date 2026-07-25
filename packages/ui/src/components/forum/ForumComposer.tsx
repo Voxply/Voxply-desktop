@@ -4,7 +4,12 @@ import type { ForumTagDef } from "../../types";
 import { describeForumWriteError } from "./forumErrors";
 import { ForumTagPicker } from "./ForumTagPicker";
 import { toggleTagSelection } from "../../utils/forumTags";
+import { AutoGrowTextarea } from "../profile/AutoGrowTextarea";
+import { EmojiPicker } from "../content/EmojiPicker";
 import type { ForumActions } from "./ForumView";
+
+// 5 text rows at the --leading-normal line-height (1.5 * 14px).
+const COMPOSER_MIN_HEIGHT = 5 * 21;
 
 interface Props {
   channelId: string;
@@ -16,6 +21,9 @@ interface Props {
   allianceId?: string;
   /** Channel setting (forum.md §10.1) -- block submit with no tags chosen. */
   forumRequireTag?: boolean;
+  /** Admin-only discoverability hint: the tag picker renders nothing when the
+   * forum has no tag definitions, which reads as "tagging doesn't exist". */
+  showNoTagsHint?: boolean;
 }
 
 interface PendingFile {
@@ -23,7 +31,7 @@ interface PendingFile {
   objectUrl: string;
 }
 
-export function ForumComposer({ channelId, actions, onCreated, onCancel, allianceId, forumRequireTag }: Props) {
+export function ForumComposer({ channelId, actions, onCreated, onCancel, allianceId, forumRequireTag, showNoTagsHint }: Props) {
   const { t } = useTranslation();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -101,14 +109,17 @@ export function ForumComposer({ channelId, actions, onCreated, onCancel, allianc
       </div>
       <div className="settings-section">
         <label className="settings-label" htmlFor="forum-body">Body</label>
-        <textarea
+        <AutoGrowTextarea
           id="forum-body"
-          rows={8}
+          className="forum-composer-textarea"
           value={body}
-          onChange={(e) => setBody(e.target.value)}
+          onChange={setBody}
           placeholder="Write your post…"
-          style={{ width: "100%" }}
+          minHeight={COMPOSER_MIN_HEIGHT}
         />
+        <div className="settings-row" style={{ marginTop: 4 }}>
+          <EmojiPicker buttonClassName="composer-btn" onPick={(emoji) => setBody((prev) => prev + emoji)} />
+        </div>
       </div>
       {!allianceId && (
         <ForumTagPicker
@@ -116,6 +127,9 @@ export function ForumComposer({ channelId, actions, onCreated, onCancel, allianc
           selected={selectedTagIds}
           onToggle={(id) => setSelectedTagIds((prev) => toggleTagSelection(prev, id))}
         />
+      )}
+      {!allianceId && showNoTagsHint && tags.length === 0 && (
+        <p className="muted">{t("forum.no_tags_hint")}</p>
       )}
       {actions.uploadAttachment && !allianceId && (
         <div className="settings-section">

@@ -23,6 +23,8 @@ export interface Channel {
   event_id?: string | null;
   /** Forum channels only (forum.md §10.1): require at least one tag on new posts. */
   forum_require_tag?: boolean;
+  /** Per-channel NSFW flag, distinct from the hub-wide discovery `nsfw` tag. */
+  nsfw?: boolean;
 }
 
 export interface TreeNode {

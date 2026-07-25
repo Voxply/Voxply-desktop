@@ -5,7 +5,6 @@ import { EmojiPicker } from "../content/EmojiPicker";
 import { ChannelIcon, CHANNEL_ICONS, ChannelIconGlyph } from "../Icons";
 import { ColorSwatchPicker } from "../admin/ColorSwatchPicker";
 import { sanitizeSvgMarkup } from "../../utils/svgSanitize";
-import { BANNER_MAX_BYTES, BANNER_MIME_TYPES, type BannerSource } from "./CreateChannelModal";
 import { ChannelPermissionsTab, type ChannelPermissionsTabActions } from "./ChannelPermissionsTab";
 import { ChannelBansTab, type ChannelBansTabActions, type ChannelBansTabUser } from "./ChannelBansTab";
 import { ChannelTalkPowerTab, type ChannelTalkPowerTabActions } from "./ChannelTalkPowerTab";
@@ -13,6 +12,17 @@ import { ForumTagManager, type ForumTagManagerActions } from "../forum/ForumTagM
 import type { HubIcon, ForumTagDef } from "../../types";
 
 type Tab = "settings" | "permissions" | "bans" | "moderation";
+
+// Hub-side banner upload cap (banner-channels.md): 512 KB, image formats only.
+export const BANNER_MAX_BYTES = 512 * 1024;
+export const BANNER_MIME_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+
+export interface BannerSource {
+  url?: string;
+  file?: File | null;
+}
+
+type ChannelKind = "text" | "forum" | "banner" | "spawner" | "category";
 
 export interface ChannelSettingsModalChannel {
   id: string;
@@ -27,10 +37,35 @@ export interface ChannelSettingsModalChannel {
   banner_file_id?: string | null;
   /** Forum channels only (forum.md §10.1). */
   forum_require_tag?: boolean;
+  nsfw?: boolean;
+}
+
+export interface ChannelSettingsSaveFields {
+  name: string;
+  description: string;
+  color: string | null;
+  icon: string | null;
+  customIconSvg: string | null;
+  nsfw: boolean;
+  banner?: BannerSource;
+  forumRequireTag?: boolean;
+  /** Create mode only ({@link ChannelSettingsModalChannel} channel === null). */
+  channelType?: string;
+  isCategory?: boolean;
+  spawnerNameTemplate?: string;
 }
 
 interface Props {
-  channel: ChannelSettingsModalChannel;
+  /** null = create mode: renders only the Settings tab plus the
+   *  channel-type/category picker, and the primary button creates the
+   *  channel instead of saving edits to an existing one. */
+  channel: ChannelSettingsModalChannel | null;
+  /** Create mode only: the category this channel is being created under. */
+  createParentId?: string | null;
+  createParentName?: string | null;
+  /** Create mode only: seeds the type picker as a category (e.g. opened via
+   *  a "new category" entry rather than the generic "new channel" one). */
+  createInitialIsCategory?: boolean;
   saving: boolean;
   deleting: boolean;
   error: string | null;
@@ -44,15 +79,7 @@ interface Props {
   myMaxPriority?: number;
   /** Hub base URL, used only to preview an already-uploaded banner file. */
   hubUrl?: string;
-  onSave: (
-    name: string,
-    description: string,
-    color: string | null,
-    icon: string | null,
-    customIconSvg: string | null,
-    banner?: BannerSource,
-    forumRequireTag?: boolean,
-  ) => void;
+  onSave: (fields: ChannelSettingsSaveFields) => void;
   onDelete: () => void;
   onClose: () => void;
   permissionsActions?: ChannelPermissionsTabActions;
@@ -67,31 +94,37 @@ interface Props {
    * File object (see client-parity notes on banner file upload). */
   bannerUploadSupported?: boolean;
   /** Forum channels only (forum.md §10.3) -- tag definitions editor. Unset
-   * hides the section (e.g. a client that hasn't wired tag CRUD yet). */
+   * hides the section (e.g. a client that hasn't wired tag CRUD yet). Also
+   * hidden in create mode: tags need a channel id that doesn't exist yet. */
   forumTagsActions?: ForumTagManagerActions;
   listForumTags?: (channelId: string) => Promise<ForumTagDef[]>;
 }
 
 export function ChannelSettingsModal({
-  channel, saving, deleting, error, canManageRoles, isAdmin, myMaxPriority, hubUrl,
+  channel, createParentId, createParentName, createInitialIsCategory,
+  saving, deleting, error, canManageRoles, isAdmin, myMaxPriority, hubUrl,
   onSave, onDelete, onClose,
   permissionsActions, bansActions, bansUsers, bansSupportReason, talkPowerActions, listHubIcons,
   bannerUploadSupported = true,
   forumTagsActions, listForumTags,
 }: Props) {
   const { t } = useTranslation();
+  const isCreate = channel === null;
   const [tab, setTab] = useState<Tab>(isAdmin ? "settings" : "permissions");
-  const [name, setName] = useState(channel.name);
-  const [description, setDescription] = useState(channel.description ?? "");
-  const [color, setColor] = useState<string | null>(channel.color ?? null);
-  const [icon, setIcon] = useState<string | null>(channel.icon ?? null);
-  const [customIconSvg, setCustomIconSvg] = useState<string | null>(channel.custom_icon_svg ?? null);
+  const [name, setName] = useState(channel?.name ?? "");
+  const [description, setDescription] = useState(channel?.description ?? "");
+  const [color, setColor] = useState<string | null>(channel?.color ?? null);
+  const [icon, setIcon] = useState<string | null>(channel?.icon ?? null);
+  const [customIconSvg, setCustomIconSvg] = useState<string | null>(channel?.custom_icon_svg ?? null);
+  const [nsfw, setNsfw] = useState(channel?.nsfw ?? false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [hubIcons, setHubIcons] = useState<HubIcon[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [requireTag, setRequireTag] = useState(channel.forum_require_tag ?? false);
+  const [requireTag, setRequireTag] = useState(channel?.forum_require_tag ?? false);
   const [forumTags, setForumTags] = useState<ForumTagDef[]>([]);
+  const [kind, setKind] = useState<ChannelKind>(createInitialIsCategory ? "category" : "text");
+  const [spawnerNameTemplate, setSpawnerNameTemplate] = useState("");
 
   useEffect(() => {
     if (!listHubIcons) return;
@@ -99,33 +132,37 @@ export function ChannelSettingsModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const isForum = channel.channel_type === "forum";
+  const isCategory = isCreate ? kind === "category" : channel.is_category;
+  const channelType = isCreate ? (isCategory ? "text" : kind) : channel.channel_type;
+  const isForum = channelType === "forum";
+  const isSpawner = isCreate && kind === "spawner";
 
   useEffect(() => {
-    if (!isForum || !listForumTags) return;
+    if (!isForum || !listForumTags || isCreate || !channel) return;
     listForumTags(channel.id).then(setForumTags).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isForum]);
+  }, [isForum, isCreate]);
 
-  const isBanner = channel.channel_type === "banner";
+  const isBanner = channelType === "banner";
   const [bannerSourceMode, setBannerSourceMode] = useState<"url" | "upload">(
-    channel.banner_file_id ? "upload" : "url",
+    channel?.banner_file_id ? "upload" : "url",
   );
-  const [bannerUrl, setBannerUrl] = useState(channel.banner_url ?? "");
+  const [bannerUrl, setBannerUrl] = useState(channel?.banner_url ?? "");
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [bannerFileError, setBannerFileError] = useState<string | null>(null);
 
-  const currentBannerSrc = channel.banner_url
+  const currentBannerSrc = channel?.banner_url
     ? channel.banner_url
-    : channel.banner_file_id && hubUrl
+    : channel?.banner_file_id && hubUrl
       ? `${hubUrl}/uploads/${channel.banner_file_id}`
       : undefined;
 
   const bannerDirty =
+    !isCreate &&
     isBanner &&
     (bannerSourceMode === "upload"
       ? bannerFile !== null
-      : bannerUrl.trim() !== (channel.banner_url ?? "") && bannerUrl.trim() !== "");
+      : bannerUrl.trim() !== (channel?.banner_url ?? "") && bannerUrl.trim() !== "");
 
   function handlePickBannerFile(file: File | null) {
     setBannerFileError(null);
@@ -168,13 +205,46 @@ export function ChannelSettingsModal({
   const isUploadedSvg = customIconSvg !== null && !hubIcons.some((hi) => hi.svg_content === customIconSvg);
 
   const dirty =
-    name.trim() !== channel.name ||
-    description.trim() !== (channel.description ?? "") ||
-    color !== (channel.color ?? null) ||
-    icon !== (channel.icon ?? null) ||
-    customIconSvg !== (channel.custom_icon_svg ?? null) ||
-    bannerDirty ||
-    requireTag !== (channel.forum_require_tag ?? false);
+    !isCreate &&
+    (name.trim() !== channel.name ||
+      description.trim() !== (channel.description ?? "") ||
+      color !== (channel.color ?? null) ||
+      icon !== (channel.icon ?? null) ||
+      customIconSvg !== (channel.custom_icon_svg ?? null) ||
+      bannerDirty ||
+      nsfw !== (channel.nsfw ?? false) ||
+      requireTag !== (channel.forum_require_tag ?? false));
+
+  const canSubmit = isCreate ? name.trim().length > 0 : name.trim().length > 0 && dirty;
+
+  function handleSubmit() {
+    if (!name.trim()) return;
+    const fields: ChannelSettingsSaveFields = {
+      name: name.trim(),
+      description: description.trim(),
+      color,
+      icon,
+      customIconSvg,
+      nsfw,
+    };
+    if (isForum) fields.forumRequireTag = requireTag;
+    if (isBanner) {
+      fields.banner = isCreate || bannerDirty
+        ? bannerSourceMode === "url"
+          ? { url: bannerUrl.trim() || undefined }
+          : { file: bannerFile }
+        : undefined;
+    }
+    if (isCreate) {
+      fields.channelType = channelType;
+      fields.isCategory = isCategory;
+      if (isSpawner) {
+        const trimmed = spawnerNameTemplate.trim();
+        fields.spawnerNameTemplate = trimmed.length > 0 ? trimmed : undefined;
+      }
+    }
+    onSave(fields);
+  }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -187,10 +257,12 @@ export function ChannelSettingsModal({
           onClick={(e) => e.stopPropagation()}
         >
           <h3 id="channel-settings-title">
-            {channel.is_category ? "Category Settings" : "Channel Settings"}
+            {isCreate
+              ? (isCategory ? t("channel.create.title_category") : t("channel.create.title_channel"))
+              : channel.is_category ? "Category Settings" : "Channel Settings"}
           </h3>
 
-          {canManageRoles && (
+          {!isCreate && canManageRoles && (
             <div style={{ display: "flex", gap: 8, marginBottom: "var(--space-3)", flexWrap: "wrap" }}>
               {isAdmin && (
                 <button
@@ -227,32 +299,81 @@ export function ChannelSettingsModal({
             </div>
           )}
 
-          {tab === "bans" && bansActions && canManageRoles && !channel.is_category ? (
+          {!isCreate && tab === "bans" && bansActions && canManageRoles && !channel.is_category ? (
             <ChannelBansTab
               channelId={channel.id}
               actions={bansActions}
               users={bansUsers}
               supportsReason={bansSupportReason}
             />
-          ) : tab === "moderation" && talkPowerActions && isAdmin && !channel.is_category ? (
+          ) : !isCreate && tab === "moderation" && talkPowerActions && isAdmin && !channel.is_category ? (
             <ChannelTalkPowerTab channelId={channel.id} actions={talkPowerActions} />
-          ) : (tab === "permissions" || !isAdmin) && permissionsActions && canManageRoles ? (
+          ) : !isCreate && (tab === "permissions" || !isAdmin) && permissionsActions && canManageRoles ? (
             <ChannelPermissionsTab channelId={channel.id} actions={permissionsActions} myMaxPriority={myMaxPriority} />
           ) : (
             <>
+              {isCreate && createParentName && (
+                <p className="muted" style={{ marginBottom: "var(--space-3)", fontSize: "var(--text-sm)" }}>
+                  <strong>{t("channel.create.under_category", { name: createParentName })}</strong>
+                </p>
+              )}
+
+              {isCreate && (
+                <label style={{ display: "block", marginBottom: "var(--space-2)" }}>
+                  <span className="label-text">{t("channel.create.type_label")}</span>
+                  <select
+                    value={kind}
+                    onChange={(e) => setKind(e.target.value as ChannelKind)}
+                    style={{ display: "block", width: "100%", marginTop: 4 }}
+                  >
+                    <option value="text">{t("channel.create.type_text")}</option>
+                    <option value="forum">{t("channel.create.type_forum")}</option>
+                    <option value="banner">{t("channel.create.type_banner")}</option>
+                    <option value="spawner">{t("channel.create.type_spawner")}</option>
+                    <option value="category">{t("channel.create.type_category")}</option>
+                  </select>
+                </label>
+              )}
+
               <label style={{ display: "block", marginBottom: "var(--space-2)" }}>
                 <span className="label-text">Name</span>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSubmit();
+                    if (e.key === "Escape") onClose();
+                  }}
+                  placeholder={isCreate
+                    ? (isCategory ? t("channel.create.name_placeholder_category") : t("channel.create.name_placeholder_channel"))
+                    : undefined}
                   autoFocus
                   style={{ display: "block", width: "100%", marginTop: 4 }}
                 />
               </label>
 
-              {!channel.is_category && (
+              {isSpawner && (
+                <label style={{ display: "block", marginBottom: "var(--space-3)" }}>
+                  <span className="label-text">{t("channel.create.spawner_template_label")}</span>
+                  <input
+                    type="text"
+                    value={spawnerNameTemplate}
+                    onChange={(e) => setSpawnerNameTemplate(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSubmit();
+                      if (e.key === "Escape") onClose();
+                    }}
+                    placeholder={t("channel.create.spawner_template_placeholder", { ph: "{user}" })}
+                    style={{ display: "block", width: "100%", marginTop: 4 }}
+                  />
+                  <span className="muted" style={{ fontSize: "var(--text-xs)" }}>
+                    {t("channel.create.spawner_template_hint", { ph: "{user}", def: "{user}'s room" })}
+                  </span>
+                </label>
+              )}
+
+              {!isCategory && !isSpawner && (
                 <label style={{ display: "block", marginBottom: "var(--space-3)" }}>
                   <span className="label-text">Description (optional)</span>
                   <input
@@ -266,6 +387,19 @@ export function ChannelSettingsModal({
                 </label>
               )}
 
+              {!isCategory && (
+                <div className="settings-section">
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={nsfw}
+                      onChange={(e) => setNsfw(e.target.checked)}
+                    />
+                    NSFW / mature content
+                  </label>
+                </div>
+              )}
+
               {isForum && (
                 <div className="settings-section">
                   <label className="checkbox-label">
@@ -276,7 +410,7 @@ export function ChannelSettingsModal({
                     />
                     Require a tag on new posts
                   </label>
-                  {forumTagsActions && (
+                  {!isCreate && forumTagsActions && (
                     <ForumTagManager
                       channelId={channel.id}
                       tags={forumTags}
@@ -344,7 +478,7 @@ export function ChannelSettingsModal({
               )}
 
               {/* Appearance (requires manage_channel_icons; server enforces). */}
-              {channel.is_category && (
+              {isCategory && (
                 <div style={{ marginBottom: "var(--space-3)" }}>
                   <span className="label-text">{t("channel.appearance.category_color")}</span>
                   <ColorSwatchPicker value={color} onChange={setColor} noColorLabel={t("channel.appearance.no_color")} />
@@ -438,7 +572,7 @@ export function ChannelSettingsModal({
               </div>
 
               <div className="modal-actions" style={{ alignItems: "center" }}>
-                {confirmDelete ? (
+                {!isCreate && confirmDelete ? (
                   <>
                     <span style={{ marginRight: "auto", color: "var(--danger)", fontSize: "var(--text-sm)" }}>
                       Delete <strong>{channel.name}</strong>? This cannot be undone.
@@ -452,33 +586,23 @@ export function ChannelSettingsModal({
                   </>
                 ) : (
                   <>
-                    <button
-                      className="btn-danger"
-                      style={{ marginRight: "auto" }}
-                      onClick={() => setConfirmDelete(true)}
-                    >
-                      Delete {channel.is_category ? "category" : "channel"}…
-                    </button>
+                    {!isCreate && (
+                      <button
+                        className="btn-danger"
+                        style={{ marginRight: "auto" }}
+                        onClick={() => setConfirmDelete(true)}
+                      >
+                        Delete {channel.is_category ? "category" : "channel"}…
+                      </button>
+                    )}
                     <button onClick={onClose} className="btn-secondary">Cancel</button>
                     <button
-                      onClick={() =>
-                        onSave(
-                          name.trim(),
-                          description.trim(),
-                          color,
-                          icon,
-                          customIconSvg,
-                          bannerDirty
-                            ? bannerSourceMode === "url"
-                              ? { url: bannerUrl.trim() }
-                              : { file: bannerFile }
-                            : undefined,
-                          isForum ? requireTag : undefined,
-                        )
-                      }
-                      disabled={saving || !name.trim() || !dirty}
+                      onClick={handleSubmit}
+                      disabled={saving || !canSubmit}
                     >
-                      {saving ? "Saving…" : "Save"}
+                      {isCreate
+                        ? (saving ? t("modal.creating") : t("modal.create"))
+                        : (saving ? "Saving…" : "Save")}
                     </button>
                   </>
                 )}

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildChannelTree, type Channel } from "@wavvon/core";
 import type { AllianceSharedChannel } from "../../../types";
-import { computeIndent, resolveDrillInScope, flattenAllianceChannels, allianceChannelIcon } from "../channelSidebarLayout";
+import { computeIndent, resolveDrillInScope, flattenAllianceChannels, allianceChannelIcon, computeDragIntent } from "../channelSidebarLayout";
 
 function makeChannel(id: string, parent_id: string | null, overrides: Partial<Channel> = {}): Channel {
   return {
@@ -100,6 +100,31 @@ describe("flattenAllianceChannels (alliance space-sharing v2)", () => {
     const orphan = makeShared("orphan", "not-shared");
     const flat = flattenAllianceChannels([orphan]);
     expect(flat).toEqual([{ channel: orphan, depth: 0 }]);
+  });
+});
+
+describe("computeDragIntent (nested-channels-ux.md drag&drop fix)", () => {
+  const over = { top: 100, height: 20 };
+
+  it("reorders as a sibling in the top edge zone of a category", () => {
+    expect(computeDragIntent({ top: 90, height: 10 }, over, true)).toBe("before");
+  });
+
+  it("reorders as a sibling in the bottom edge zone of a category", () => {
+    expect(computeDragIntent({ top: 113, height: 10 }, over, true)).toBe("after");
+  });
+
+  it("nests only in the middle band of a category", () => {
+    expect(computeDragIntent({ top: 105, height: 10 }, over, true)).toBe("nest");
+  });
+
+  it("never nests on a non-category — splits before/after at the midpoint", () => {
+    expect(computeDragIntent({ top: 90, height: 10 }, over, false)).toBe("before");
+    expect(computeDragIntent({ top: 108, height: 10 }, over, false)).toBe("after");
+  });
+
+  it("falls back to 'before' when the active rect isn't measured yet", () => {
+    expect(computeDragIntent(null, over, true)).toBe("before");
   });
 });
 

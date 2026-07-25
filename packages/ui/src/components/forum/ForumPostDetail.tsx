@@ -6,9 +6,13 @@ import { describeForumWriteError } from "./forumErrors";
 import { ForumTagPicker } from "./ForumTagPicker";
 import { toggleTagSelection } from "../../utils/forumTags";
 import { MessageContent } from "../MessageContent";
+import { AutoGrowTextarea } from "../profile/AutoGrowTextarea";
+import { EmojiPicker } from "../content/EmojiPicker";
 import type { ForumActions } from "./ForumView";
 
 const NO_MENTIONS = new Set<string>();
+// 5 text rows at the --leading-normal line-height (1.5 * 14px).
+const COMPOSER_MIN_HEIGHT = 5 * 21;
 
 function authorLabel(users: User[], pubkey: string): string {
   return users.find((u) => u.public_key === pubkey)?.display_name || formatPubkey(pubkey);
@@ -351,44 +355,48 @@ export function ForumPostDetail({
           {post.edited_at && ` · edited ${formatRelative(post.edited_at)}`}
           {post.author_hub && <span title={post.author_hub}> · via {formatPubkey(post.author_hub)}</span>}
         </div>
-        {canModerate && !post.is_deleted && (
-          <div className="forum-mod-actions">
-            <button className="btn-secondary" onClick={handlePin}>
-              {post.is_pinned ? "Unpin" : "Pin"}
-            </button>
-            <button className="btn-secondary" onClick={handleLock}>
-              {post.is_locked ? "Unlock" : "Lock"}
-            </button>
-          </div>
-        )}
-        {!readOnly && (canModerate || post.author_pubkey === publicKey) && !post.is_deleted && (
-          <div className="forum-author-actions">
-            <button
-              className="btn-secondary"
-              onClick={() => {
-                if (editingPostBody === null) {
-                  setEditingPostBody(post.body ?? "");
-                  setEditingTagIds(undefined);
-                } else {
-                  setEditingPostBody(null);
-                  setEditingTagIds(undefined);
-                }
-              }}
-            >
-              Edit
-            </button>
-            <button className="btn-secondary danger" onClick={handleDeletePost}>Delete</button>
+        {!post.is_deleted && (canModerate || (!readOnly && post.author_pubkey === publicKey)) && (
+          <div className="forum-post-actions">
+            {canModerate && (
+              <>
+                <button className="btn-secondary" onClick={handlePin}>
+                  {post.is_pinned ? "Unpin" : "Pin"}
+                </button>
+                <button className="btn-secondary" onClick={handleLock}>
+                  {post.is_locked ? "Unlock" : "Lock"}
+                </button>
+              </>
+            )}
+            {!readOnly && (canModerate || post.author_pubkey === publicKey) && (
+              <>
+                <button
+                  className="btn-secondary"
+                  onClick={() => {
+                    if (editingPostBody === null) {
+                      setEditingPostBody(post.body ?? "");
+                      setEditingTagIds(undefined);
+                    } else {
+                      setEditingPostBody(null);
+                      setEditingTagIds(undefined);
+                    }
+                  }}
+                >
+                  Edit
+                </button>
+                <button className="btn-secondary danger" onClick={handleDeletePost}>Delete</button>
+              </>
+            )}
           </div>
         )}
       </div>
 
       {editingPostBody !== null ? (
         <div className="forum-edit-post">
-          <textarea
-            rows={6}
+          <AutoGrowTextarea
+            className="forum-composer-textarea"
             value={editingPostBody}
-            onChange={(e) => setEditingPostBody(e.target.value)}
-            style={{ width: "100%" }}
+            onChange={setEditingPostBody}
+            minHeight={COMPOSER_MIN_HEIGHT}
           />
           {!allianceId && channelTags.length > 0 && (
             <ForumTagPicker
@@ -469,13 +477,16 @@ export function ForumPostDetail({
               <button className="btn-ghost" onClick={() => setReplyTo(undefined)} aria-label="Clear reply" title="Clear reply">×</button>
             </div>
           )}
-          <textarea
-            rows={3}
+          <AutoGrowTextarea
+            className="forum-composer-textarea"
             placeholder="Write a reply…"
             value={replyBody}
-            onChange={(e) => setReplyBody(e.target.value)}
-            style={{ width: "100%" }}
+            onChange={setReplyBody}
+            minHeight={3 * 21}
           />
+          <div className="settings-row" style={{ marginTop: 4 }}>
+            <EmojiPicker buttonClassName="composer-btn" onPick={(emoji) => setReplyBody((prev) => prev + emoji)} />
+          </div>
           {!allianceId && actions.uploadAttachment && (
             <>
               <input
@@ -568,11 +579,11 @@ function ForumReplyRow({
       </div>
       {isEditing ? (
         <div className="forum-edit-reply">
-          <textarea
-            rows={3}
+          <AutoGrowTextarea
+            className="forum-composer-textarea"
             value={editingBody}
-            onChange={(e) => onEditBodyChange(e.target.value)}
-            style={{ width: "100%" }}
+            onChange={onEditBodyChange}
+            minHeight={3 * 21}
           />
           <div className="forum-edit-actions">
             <button onClick={onEditSave}>Save</button>

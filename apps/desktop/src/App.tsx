@@ -56,8 +56,9 @@ import type {
 import { ScreenShareModal } from "./components/ScreenShareModal";
 import { ScreenShareOverlay } from "./components/ScreenShareOverlay";
 import { HubStreamsPanel } from "@wavvon/ui";
-import { BotAppLaunchCard, CreateHubWizard, KeyboardShortcuts, DiscoverPage, Lobby, FarmSettingsPage } from "@wavvon/ui";
-import { VoiceMoveMenu, VoiceMoveToast, VoiceMovePromptModal, SearchBar, moveChannelOptions, decideVoiceMove } from "@wavvon/ui";
+import { BotAppLaunchCard, CreateHubWizard, KeyboardShortcuts, DiscoverPage, Lobby, FarmSettingsPage, HubSetupWizard } from "@wavvon/ui";
+import type { HubSetupWizardCreateChannelFields } from "@wavvon/ui";
+import { VoiceMoveMenu, VoiceMoveToast, VoiceMovePromptModal, SearchBar, moveChannelOptions, decideVoiceMove, computeDragIntent } from "@wavvon/ui";
 import type { GlobalSearchResult } from "@wavvon/ui";
 import { useVoice } from "./hooks/useVoice";
 import { useSoundboard } from "./hooks/useSoundboard";
@@ -124,8 +125,7 @@ import type {
 import { AddHubModal } from "@wavvon/ui";
 import { QuickInviteModal } from "@wavvon/ui";
 import type { FarmAdminTab } from "@wavvon/ui";
-import { CreateChannelModal, type BannerSource } from "@wavvon/ui";
-import { ChannelSettingsModal } from "@wavvon/ui";
+import { ChannelSettingsModal, type BannerSource, type ChannelSettingsSaveFields } from "@wavvon/ui";
 import type {
   ChannelPermissionsTabActions,
   ChannelBansTabActions,
@@ -466,6 +466,33 @@ function App() {
   // Chat state
   const [channels, setChannels] = useState<Channel[]>([]);
   useEffect(() => { channelsRef.current = channels; }, [channels]);
+
+  // First-run hub setup wizard (decisions.md 2026-07-25): shown once per hub
+  // when an admin lands on an empty channel list. localStorage is fine here —
+  // purely cosmetic, same posture as wavvon.seenWelcome/memberSidebarHidden
+  // below, not worth a dedicated per-account local_store file+command.
+  const [showHubSetupWizard, setShowHubSetupWizard] = useState(false);
+  const [hubSetupWizardDone, setHubSetupWizardDone] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem("wavvon.hubSetupWizardDone") || "{}") as Record<string, boolean>; }
+    catch { return {}; }
+  });
+  function markHubSetupWizardDone(hubId: string) {
+    setHubSetupWizardDone((prev) => {
+      const next = { ...prev, [hubId]: true };
+      try { localStorage.setItem("wavvon.hubSetupWizardDone", JSON.stringify(next)); } catch { /* storage unavailable */ }
+      return next;
+    });
+  }
+
+  // First-run hub setup wizard trigger: same isAdmin gate the sidebar uses
+  // for its own "create channel" entry. loadHubData sets myRoles then
+  // channels in the same call, so there's no stale-isAdmin window here.
+  useEffect(() => {
+    if (!activeHubId || !isAdmin) return;
+    if (channels.length > 0) return;
+    if (hubSetupWizardDone[activeHubId]) return;
+    setShowHubSetupWizard(true);
+  }, [activeHubId, isAdmin, channels, hubSetupWizardDone]);
 
   // Refs kept in App so useTypingIndicators and useChannelMessages can share them.
   const selectedChannelForTypingRef = useRef<Channel | null>(null);
@@ -1616,16 +1643,24 @@ function App() {
     const forbidden = descendantIds(channelTree, activeId);
     if (forbidden.has(overId)) return;
 
-    // Determine the new parent: dropping ON a category = nest inside it;
-    // dropping next to anything else = become a sibling of that item.
+    // Determine the new parent: dropping on the top/bottom edge of an item
+    // reorders as a sibling; only the middle band of a category nests
+    // (nested-channels-ux drag&drop fix — dropping anywhere on a category
+    // used to always nest, so root-level items could never be reordered
+    // around one).
     const allFlat = flattenTree(channelTree);
     const activeFlat = allFlat.find((n) => n.node.id === activeId);
     const overFlat = allFlat.find((n) => n.node.id === overId);
     if (!activeFlat || !overFlat) return;
 
+    const intent = over.rect
+      ? computeDragIntent(active.rect.current.translated, over.rect, overFlat.node.is_category)
+      : "before";
+    const willNest = intent === "nest";
+
     if (maxChannelDepth > 0) {
       const maxCodeDepth = maxChannelDepth - 1;
-      const parentForDepth = overFlat.node.is_category ? overFlat.node.id : overFlat.parentId;
+      const parentForDepth = willNest ? overFlat.node.id : overFlat.parentId;
       const newDepth = parentForDepth !== null
         ? computeDepth(channels, parentForDepth) + 1
         : 0;
@@ -1633,7 +1668,7 @@ function App() {
       if (activeFlat.node.is_category && newDepth >= maxCodeDepth) return;
     }
 
-    const newParentId = overFlat.node.is_category ? overFlat.node.id : overFlat.parentId;
+    const newParentId = willNest ? overFlat.node.id : overFlat.parentId;
     const parentChanged = newParentId !== activeFlat.node.parent_id;
 
     // Optimistic parent update so the reorder below sees the new shape.
@@ -1660,25 +1695,24 @@ function App() {
     }
   }
 
-  async function handleCreateChannel(
-    name: string,
-    channelType: string,
-    isCategory: boolean,
-    description: string,
-    spawnerNameTemplate?: string,
-    banner?: BannerSource,
-  ) {
+  // ChannelSettingsModal's create mode (unify-create-with-editing): create_channel
+  // doesn't take icon/color, so those ride a follow-up update_channel_appearance
+  // against the just-created id — same "create then patch" pattern the banner
+  // upload below already used.
+  async function handleCreateChannel(fields: ChannelSettingsSaveFields) {
+    const { channelType, isCategory, banner } = fields;
     setCreateChannelLoading(true);
     setCreateChannelError(null);
     try {
       const channel = await invoke<Channel>("create_channel", {
-        name,
+        name: fields.name,
         parentId: newChannelParentId,
-        isCategory,
+        isCategory: isCategory ?? false,
         channelType: isCategory ? undefined : channelType,
-        description: description ? description : null,
+        description: fields.description ? fields.description : null,
         bannerUrl: channelType === "banner" ? (banner?.url || null) : null,
-        spawnerNameTemplate: channelType === "spawner" ? (spawnerNameTemplate ?? null) : null,
+        spawnerNameTemplate: channelType === "spawner" ? (fields.spawnerNameTemplate ?? null) : null,
+        nsfw: fields.nsfw,
       });
 
       if (channelType === "banner" && banner?.file) {
@@ -1702,6 +1736,18 @@ function App() {
         }
       }
 
+      if (fields.icon !== null || fields.color !== null || fields.customIconSvg !== null) {
+        await invoke("update_channel_appearance", {
+          channelId: channel.id,
+          icon: fields.icon,
+          color: fields.color,
+          customIconSvg: fields.customIconSvg,
+        });
+        channel.icon = fields.icon;
+        channel.color = fields.color;
+        channel.custom_icon_svg = fields.customIconSvg;
+      }
+
       setChannels((prev) => [...prev, channel]);
       setNewChannelParentId(null);
       setShowCreateChannel(false);
@@ -1713,6 +1759,39 @@ function App() {
     } finally {
       setCreateChannelLoading(false);
     }
+  }
+
+  // HubSetupWizard's onCreateChannel — a plain create call (templates don't
+  // touch icon/color/banner), reusing the same create_channel command as
+  // handleCreateChannel above.
+  async function createChannelForWizard(fields: HubSetupWizardCreateChannelFields): Promise<{ id: string }> {
+    const channel = await invoke<Channel>("create_channel", {
+      name: fields.name,
+      parentId: fields.parentId,
+      isCategory: fields.isCategory,
+      channelType: fields.isCategory ? undefined : fields.channelType,
+      description: null,
+      bannerUrl: null,
+      spawnerNameTemplate: null,
+      nsfw: false,
+    });
+    return { id: channel.id };
+  }
+
+  function closeHubSetupWizard(hubId: string) {
+    markHubSetupWizardDone(hubId);
+    setShowHubSetupWizard(false);
+  }
+
+  async function handleHubSetupWizardComplete(firstChannelId: string | null) {
+    if (!activeHubId) return;
+    closeHubSetupWizard(activeHubId);
+    try {
+      const list = await invoke<Channel[]>("list_channels");
+      setChannels(list);
+      const first = firstChannelId ? list.find((c) => c.id === firstChannelId) : undefined;
+      if (first) channelMessages.selectChannel(first);
+    } catch { /* cosmetic refresh only */ }
   }
 
   function openEditDescription(channel: Channel) {
@@ -1790,22 +1869,18 @@ function App() {
   // Tauri commands the settings tab touches. A banner *file* goes through
   // upload_file_bytes (base64 over the IPC boundary — webview Files carry
   // bytes but no filesystem path).
-  async function handleSaveChannelSettings(
-    name: string,
-    description: string,
-    color: string | null,
-    icon: string | null,
-    customIconSvg: string | null,
-    banner?: BannerSource,
-    forumRequireTag?: boolean,
-  ) {
+  async function handleSaveChannelSettings(fields: ChannelSettingsSaveFields) {
     if (!channelSettingsModal) return;
     const channel = channelSettingsModal;
+    const { name, description, color, icon, customIconSvg, banner, forumRequireTag, nsfw } = fields;
     setChannelSettingsSaving(true);
     setChannelSettingsError(null);
     try {
       if (forumRequireTag !== undefined && forumRequireTag !== (channel.forum_require_tag ?? false)) {
         await invoke("set_forum_require_tag", { channelId: channel.id, requireTag: forumRequireTag });
+      }
+      if (nsfw !== (channel.nsfw ?? false)) {
+        await invoke("set_channel_nsfw", { channelId: channel.id, nsfw });
       }
       if (name !== channel.name) {
         await invoke("rename_channel", { channelId: channel.id, name });
@@ -1849,6 +1924,7 @@ function App() {
                 custom_icon_svg: customIconSvg,
                 banner_url: banner?.url ?? c.banner_url,
                 forum_require_tag: forumRequireTag ?? c.forum_require_tag,
+                nsfw,
               }
             : c
         )
@@ -1922,6 +1998,7 @@ function App() {
   }
 
   function openCreateChannelUnder(parentId: string | null) {
+    setChannelSettingsModal(null);
     setNewChannelParentId(parentId);
     setShowCreateChannel(true);
     setContextMenu(null);
@@ -2586,7 +2663,7 @@ function App() {
                   onOpenCreateChannel={openCreateChannelUnder}
                   onSelectChannel={channelMessages.selectChannel}
                   onChannelContextMenu={openContextMenu}
-                  onOpenChannelSettings={(ch) => setChannelSettingsModal(ch)}
+                  onOpenChannelSettings={(ch) => { setShowCreateChannel(false); setChannelSettingsModal(ch); }}
                   onVoiceJoin={voice.handleVoiceJoin}
                   onVoiceLeave={voice.handleVoiceLeave}
                   onParticipantContextMenu={canMoveMembers ? (e, p, channelId) => {
@@ -2865,17 +2942,6 @@ function App() {
           />
         )}
 
-        {showCreateChannel && (
-          <CreateChannelModal
-            parentId={newChannelParentId}
-            parentName={newChannelParentId ? (channels.find((c) => c.id === newChannelParentId)?.name ?? null) : null}
-            loading={createChannelLoading}
-            error={createChannelError}
-            onSubmit={handleCreateChannel}
-            onClose={() => { setShowCreateChannel(false); setCreateChannelError(null); }}
-          />
-        )}
-
         {showFriends && (
           <FriendsModal
             actions={{
@@ -2932,19 +2998,24 @@ function App() {
           />
         )}
 
-        {channelSettingsModal && (
+        {(showCreateChannel || channelSettingsModal) && (
           <ChannelSettingsModal
             channel={channelSettingsModal}
-            saving={channelSettingsSaving}
+            createParentId={newChannelParentId}
+            createParentName={newChannelParentId ? (channels.find((c) => c.id === newChannelParentId)?.name ?? null) : null}
+            saving={channelSettingsModal ? channelSettingsSaving : createChannelLoading}
             deleting={channelSettingsDeleting}
-            error={channelSettingsError}
+            error={channelSettingsModal ? channelSettingsError : createChannelError}
             canManageRoles={isAdmin || myRoles.some((r) => r.permissions?.includes("manage_roles"))}
             isAdmin={isAdmin}
             myMaxPriority={myRoles.reduce((m, r) => Math.max(m, r.priority), 0)}
             hubUrl={hubs.find((h) => h.hub_id === activeHubId)?.hub_url}
-            onSave={handleSaveChannelSettings}
+            onSave={channelSettingsModal ? handleSaveChannelSettings : handleCreateChannel}
             onDelete={handleDeleteChannelSettings}
-            onClose={() => { setChannelSettingsModal(null); setChannelSettingsError(null); }}
+            onClose={() => {
+              setShowCreateChannel(false); setCreateChannelError(null);
+              setChannelSettingsModal(null); setChannelSettingsError(null);
+            }}
             permissionsActions={channelPermissionsTabActions}
             bansActions={channelBansTabActions}
             bansUsers={users}
@@ -2965,6 +3036,14 @@ function App() {
                 }),
               deleteTag: (tagId) => invoke<void>("forum_delete_tag", { tagId }),
             }}
+          />
+        )}
+
+        {showHubSetupWizard && activeHubId && (
+          <HubSetupWizard
+            actions={{ onCreateChannel: createChannelForWizard }}
+            onDismiss={() => closeHubSetupWizard(activeHubId)}
+            onComplete={handleHubSetupWizardComplete}
           />
         )}
 

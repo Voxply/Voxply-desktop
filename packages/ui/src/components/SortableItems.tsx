@@ -297,6 +297,9 @@ export function SortableChannelItem({
         {isTemporary && (
           <span className="channel-temp-badge">{t("channel.temp.badge")}</span>
         )}
+        {channel.nsfw && (
+          <span className="channel-temp-badge" title="NSFW / mature content">NSFW</span>
+        )}
         {!isSpawner && activeHubId && hasDraft?.(`${activeHubId}/${channel.id}`) && (
           <span className="channel-draft-badge" title="Unsent draft">Draft</span>
         )}

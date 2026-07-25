@@ -61,12 +61,13 @@ import type { HubStreamInfo } from "./types";
 import { AddHubModal } from "@wavvon/ui";
 import { isPasskeySupported } from "@platform";
 import { QuickInviteModal } from "@wavvon/ui";
-import { CreateChannelModal, ChannelSettingsModal } from "@wavvon/ui";
+import { ChannelSettingsModal, type ChannelSettingsSaveFields } from "@wavvon/ui";
 import type { ChannelPermissionsTabActions, ChannelBansTabActions, ChannelTalkPowerTabActions } from "@wavvon/ui";
 import { CreateHubFork } from "@components/hubs/CreateHubFork";
-import { BotAppLaunchCard, EventComposer, PollComposer, FocusTrap, GameModal, KeyboardShortcuts, HoverSubmenu, VoiceMoveMenu, VoiceMoveToast, VoiceMovePromptModal, SearchBar, DiscoverPage, Lobby, FarmSettingsPage } from "@wavvon/ui";
+import { BotAppLaunchCard, EventComposer, PollComposer, FocusTrap, GameModal, KeyboardShortcuts, HoverSubmenu, VoiceMoveMenu, VoiceMoveToast, VoiceMovePromptModal, SearchBar, DiscoverPage, Lobby, FarmSettingsPage, HubSetupWizard } from "@wavvon/ui";
+import type { HubSetupWizardCreateChannelFields } from "@wavvon/ui";
 import { createEvent, createPoll } from "@platform";
-import { moveChannelOptions, decideVoiceMove } from "@wavvon/ui";
+import { moveChannelOptions, decideVoiceMove, computeDragIntent } from "@wavvon/ui";
 import {
   HubAdminPage,
   type RolesSectionActions,
@@ -288,6 +289,21 @@ export default function App({ initialView }: AppProps = {}) {
   const [createChannelCtx, setCreateChannelCtx] = useState<{ parentId: string | null; isCategory: boolean } | null>(null);
   const [createChannelLoading, setCreateChannelLoading] = useState(false);
   const [createChannelError, setCreateChannelError] = useState<string | null>(null);
+  // First-run hub setup wizard (decisions.md 2026-07-25): shown once per hub
+  // when an admin lands on an empty channel list. "Done" covers both
+  // "picked a template" and "started blank" — never re-nag either way.
+  const [showHubSetupWizard, setShowHubSetupWizard] = useState(false);
+  const [hubSetupWizardDone, setHubSetupWizardDone] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(getScoped("wavvon.hubSetupWizardDone") || "{}") as Record<string, boolean>; }
+    catch { return {}; }
+  });
+  function markHubSetupWizardDone(hubId: string) {
+    setHubSetupWizardDone((prev) => {
+      const next = { ...prev, [hubId]: true };
+      try { setScoped("wavvon.hubSetupWizardDone", JSON.stringify(next)); } catch { /* storage unavailable */ }
+      return next;
+    });
+  }
   const [channelCtxMenu, setChannelCtxMenu] = useState<{ channel: Channel; x: number; y: number } | null>(null);
   const [channelSettingsCtx, setChannelSettingsCtx] = useState<Channel | null>(null);
   // "Create event"/"create poll" from the channel context menu (create-anything
@@ -1560,8 +1576,13 @@ export default function App({ initialView }: AppProps = {}) {
 
   // === Channel / messages ===
 
-  async function handleCreateChannel(name: string, channelType: string, isCategory: boolean, description: string, spawnerNameTemplate?: string, banner?: { url?: string; file?: File | null }) {
+  // ChannelSettingsModal's create mode (unify-create-with-editing): the hub's
+  // create-channel route doesn't take icon/color, so those ride a follow-up
+  // PATCH against the just-created id — same "create then patch" pattern the
+  // banner upload below already used.
+  async function handleCreateChannel(fields: ChannelSettingsSaveFields) {
     if (!createChannelCtx) return;
+    const { channelType, isCategory, banner } = fields;
     setCreateChannelLoading(true);
     setCreateChannelError(null);
     try {
@@ -1569,25 +1590,33 @@ export default function App({ initialView }: AppProps = {}) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name,
+          name: fields.name,
           parent_id: createChannelCtx.parentId ?? undefined,
-          is_category: isCategory,
+          is_category: isCategory ?? false,
           channel_type: isCategory ? undefined : channelType,
-          description: description || undefined,
-          spawner_name_template: !isCategory && channelType === "spawner" ? spawnerNameTemplate : undefined,
+          description: fields.description || undefined,
+          spawner_name_template: !isCategory && channelType === "spawner" ? fields.spawnerNameTemplate : undefined,
           banner_url: channelType === "banner" ? banner?.url : undefined,
+          nsfw: fields.nsfw,
         }),
       });
+      const created = (await res.json()) as Channel;
       // Hub-uploaded banner (banner-channels.md §upload flow): the channel
       // must exist first, then the image is uploaded to it, then the channel
       // is patched with the returned file id.
       if (channelType === "banner" && banner?.file) {
-        const created = (await res.json()) as Channel;
         const uploaded = await uploadFile(created.id, banner.file);
         await hubFetch(`/channels/${created.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ banner_file_id: uploaded.id }),
+        });
+      }
+      if (fields.icon !== null || fields.color !== null || fields.customIconSvg !== null) {
+        await hubFetch(`/channels/${created.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ icon: fields.icon, color: fields.color, custom_icon_svg: fields.customIconSvg }),
         });
       }
       setCreateChannelCtx(null);
@@ -1599,7 +1628,40 @@ export default function App({ initialView }: AppProps = {}) {
     }
   }
 
-  async function handleSaveChannelSettings(name: string, description: string, color?: string | null, icon?: string | null, customIconSvg?: string | null, banner?: { url?: string; file?: File | null }, forumRequireTag?: boolean) {
+  // HubSetupWizard's onCreateChannel — a plain create call (templates don't
+  // touch icon/color/banner), reusing the same POST /channels route as
+  // handleCreateChannel above.
+  async function createChannelForWizard(fields: HubSetupWizardCreateChannelFields): Promise<{ id: string }> {
+    const res = await hubFetch("/channels", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: fields.name,
+        parent_id: fields.parentId ?? undefined,
+        is_category: fields.isCategory,
+        channel_type: fields.isCategory ? undefined : fields.channelType,
+      }),
+    });
+    const created = (await res.json()) as Channel;
+    return { id: created.id };
+  }
+
+  function closeHubSetupWizard(hubId: string) {
+    markHubSetupWizardDone(hubId);
+    setShowHubSetupWizard(false);
+  }
+
+  function handleHubSetupWizardComplete(firstChannelId: string | null) {
+    if (!activeHubId) return;
+    closeHubSetupWizard(activeHubId);
+    hubFetch("/channels").then((r) => r.json() as Promise<Channel[]>).then((list) => {
+      setChannels(list);
+      const first = firstChannelId ? list.find((c) => c.id === firstChannelId) : undefined;
+      if (first) handleSelectChannel(first);
+    }).catch(() => {});
+  }
+
+  async function handleSaveChannelSettings(fields: ChannelSettingsSaveFields) {
     if (!channelSettingsCtx) return;
     setChannelSettingsSaving(true);
     setChannelSettingsError(null);
@@ -1607,8 +1669,8 @@ export default function App({ initialView }: AppProps = {}) {
       // A replacement banner image is uploaded first so its file id can ride
       // the same PATCH as the rest (the hub clears the other source column).
       let bannerFileId: string | undefined;
-      if (banner?.file) {
-        bannerFileId = (await uploadFile(channelSettingsCtx.id, banner.file)).id;
+      if (fields.banner?.file) {
+        bannerFileId = (await uploadFile(channelSettingsCtx.id, fields.banner.file)).id;
       }
       await hubFetch(`/channels/${channelSettingsCtx.id}`, {
         method: "PATCH",
@@ -1616,14 +1678,15 @@ export default function App({ initialView }: AppProps = {}) {
         // color/icon are appearance fields (require manage_channel_icons);
         // only sent when provided so a plain rename doesn't touch them.
         body: JSON.stringify({
-          name,
-          description: description || null,
-          color,
-          icon,
-          custom_icon_svg: customIconSvg,
-          banner_url: banner?.url,
+          name: fields.name,
+          description: fields.description || null,
+          color: fields.color,
+          icon: fields.icon,
+          custom_icon_svg: fields.customIconSvg,
+          banner_url: fields.banner?.url,
           banner_file_id: bannerFileId,
-          forum_require_tag: forumRequireTag,
+          forum_require_tag: fields.forumRequireTag,
+          nsfw: fields.nsfw,
         }),
       });
       setChannelSettingsCtx(null);
@@ -1754,9 +1817,18 @@ export default function App({ initialView }: AppProps = {}) {
     const overFlat = allFlat.find((n) => n.node.id === overId);
     if (!activeFlat || !overFlat) return;
 
+    // Edge-zone rule (nested-channels-ux drag&drop fix): dropping on the
+    // top/bottom edge of a category reorders as a sibling instead of always
+    // nesting — otherwise root-level items could never be reordered around
+    // a category.
+    const intent = over.rect
+      ? computeDragIntent(active.rect.current.translated, over.rect, overFlat.node.is_category)
+      : "before";
+    const willNest = intent === "nest";
+
     if (maxChannelDepth > 0) {
       const maxCodeDepth = maxChannelDepth - 1;
-      const parentForDepth = overFlat.node.is_category ? overFlat.node.id : overFlat.parentId;
+      const parentForDepth = willNest ? overFlat.node.id : overFlat.parentId;
       const newDepth = parentForDepth !== null
         ? computeDepth(channels, parentForDepth) + 1
         : 0;
@@ -1764,7 +1836,7 @@ export default function App({ initialView }: AppProps = {}) {
       if (activeFlat.node.is_category && newDepth >= maxCodeDepth) return;
     }
 
-    const newParentId = overFlat.node.is_category ? overFlat.node.id : overFlat.parentId;
+    const newParentId = willNest ? overFlat.node.id : overFlat.parentId;
     const parentChanged = newParentId !== activeFlat.node.parent_id;
 
     const channelsWithNewParent = parentChanged
@@ -2227,6 +2299,17 @@ export default function App({ initialView }: AppProps = {}) {
     () => meInfo?.roles?.some((r) => r.permissions?.includes("admin")) ?? false,
     [meInfo],
   );
+
+  // First-run hub setup wizard trigger: same isAdmin gate the sidebar uses
+  // for its own "create channel" entry, fired once channels/meInfo have
+  // actually loaded for this hub (both land in the same loadHubData batch,
+  // so there's no window where isAdmin is stale relative to channels).
+  useEffect(() => {
+    if (!activeHubId || !isAdmin) return;
+    if (channels.length > 0) return;
+    if (hubSetupWizardDone[activeHubId]) return;
+    setShowHubSetupWizard(true);
+  }, [activeHubId, isAdmin, channels, hubSetupWizardDone]);
 
   const canManageRoles = useMemo(
     () => meInfo?.roles?.some((r) => r.permissions?.includes("admin") || r.permissions?.includes("manage_roles")) ?? false,
@@ -2822,7 +2905,7 @@ export default function App({ initialView }: AppProps = {}) {
         onOpenHubAdmin={() => void openHubAdmin()}
         onOpenHubAdminInvites={() => { void openHubAdmin(); setHubAdminTab("invites"); }}
         onOpenQuickInvite={() => setShowQuickInvite(true)}
-        onOpenCreateChannel={(parentId, isCategory) => { setCreateChannelCtx({ parentId, isCategory }); setCreateChannelError(null); }}
+        onOpenCreateChannel={(parentId, isCategory) => { setChannelSettingsCtx(null); setCreateChannelCtx({ parentId, isCategory }); setCreateChannelError(null); }}
         onSelectChannel={handleSelectChannel}
         onChannelContextMenu={(e, channel) => { e.preventDefault(); setChannelCtxMenu({ channel, x: e.clientX, y: e.clientY }); }}
         canOpenChannelSettings={isAdmin || canManageRoles}
@@ -2849,7 +2932,7 @@ export default function App({ initialView }: AppProps = {}) {
             }, ttlMinutes * 60_000);
           }
         }}
-        onOpenChannelSettings={(channel) => { setChannelSettingsCtx(channel); setChannelSettingsError(null); }}
+        onOpenChannelSettings={(channel) => { setCreateChannelCtx(null); setChannelSettingsCtx(channel); setChannelSettingsError(null); }}
         onVoiceJoin={(ch) => ch && void handleVoiceJoin(ch.id)}
         onVoiceLeave={handleVoiceLeave}
         onParticipantContextMenu={canMoveMembers ? (e, p, channelId) => {
@@ -3234,18 +3317,6 @@ export default function App({ initialView }: AppProps = {}) {
         />
       )}
 
-      {createChannelCtx && (
-        <CreateChannelModal
-          initialIsCategory={createChannelCtx.isCategory}
-          parentId={createChannelCtx.parentId}
-          parentName={createChannelCtx.parentId ? (channels.find((c) => c.id === createChannelCtx.parentId)?.name ?? null) : null}
-          loading={createChannelLoading}
-          error={createChannelError}
-          onSubmit={handleCreateChannel}
-          onClose={() => { setCreateChannelCtx(null); setCreateChannelError(null); }}
-        />
-      )}
-
       {eventComposerChannelId && (
         <EventComposer
           channelId={eventComposerChannelId}
@@ -3267,19 +3338,25 @@ export default function App({ initialView }: AppProps = {}) {
         />
       )}
 
-      {channelSettingsCtx && (
+      {(createChannelCtx || channelSettingsCtx) && (
         <ChannelSettingsModal
           channel={channelSettingsCtx}
-          saving={channelSettingsSaving}
+          createParentId={createChannelCtx?.parentId ?? null}
+          createParentName={createChannelCtx?.parentId ? (channels.find((c) => c.id === createChannelCtx.parentId)?.name ?? null) : null}
+          createInitialIsCategory={createChannelCtx?.isCategory}
+          saving={channelSettingsCtx ? channelSettingsSaving : createChannelLoading}
           deleting={channelSettingsDeleting}
-          error={channelSettingsError}
+          error={channelSettingsCtx ? channelSettingsError : createChannelError}
           canManageRoles={canManageRoles}
           isAdmin={isAdmin}
           myMaxPriority={myMaxPriority}
           hubUrl={hubs.find((h) => h.hub_id === activeHubId)?.hub_url}
-          onSave={handleSaveChannelSettings}
+          onSave={channelSettingsCtx ? handleSaveChannelSettings : handleCreateChannel}
           onDelete={handleDeleteChannel}
-          onClose={() => { setChannelSettingsCtx(null); setChannelSettingsError(null); }}
+          onClose={() => {
+            setCreateChannelCtx(null); setCreateChannelError(null);
+            setChannelSettingsCtx(null); setChannelSettingsError(null);
+          }}
           permissionsActions={channelPermissionsTabActions}
           bansActions={channelBansTabActions}
           bansUsers={users}
@@ -3287,6 +3364,14 @@ export default function App({ initialView }: AppProps = {}) {
           listHubIcons={listHubIcons}
           listForumTags={forumListTags}
           forumTagsActions={{ createTag: forumCreateTag, editTag: forumEditTag, deleteTag: forumDeleteTag }}
+        />
+      )}
+
+      {showHubSetupWizard && activeHubId && (
+        <HubSetupWizard
+          actions={{ onCreateChannel: createChannelForWizard }}
+          onDismiss={() => closeHubSetupWizard(activeHubId)}
+          onComplete={handleHubSetupWizardComplete}
         />
       )}
 
@@ -3396,28 +3481,28 @@ export default function App({ initialView }: AppProps = {}) {
               <hr style={{ margin: "4px 0", border: "none", borderTop: "1px solid var(--border)" }} />
             )}
             {isAdmin && channelCtxMenu.channel.is_category && (
-              <button className="context-menu-item" onClick={() => { const ch = channelCtxMenu; setChannelCtxMenu(null); setCreateChannelCtx({ parentId: ch.channel.id, isCategory: false }); setCreateChannelError(null); }}>
+              <button className="context-menu-item" onClick={() => { const ch = channelCtxMenu; setChannelCtxMenu(null); setChannelSettingsCtx(null); setCreateChannelCtx({ parentId: ch.channel.id, isCategory: false }); setCreateChannelError(null); }}>
                 {t("channel.ctx.create_in", { name: channelCtxMenu.channel.name })}
               </button>
             )}
             {isAdmin && (
-              <button className="context-menu-item" onClick={() => { setChannelCtxMenu(null); setCreateChannelCtx({ parentId: null, isCategory: false }); setCreateChannelError(null); }}>
+              <button className="context-menu-item" onClick={() => { setChannelCtxMenu(null); setChannelSettingsCtx(null); setCreateChannelCtx({ parentId: null, isCategory: false }); setCreateChannelError(null); }}>
                 {t("channel.create.button")}
               </button>
             )}
             {isAdmin && (
-              <button className="context-menu-item" onClick={() => { setChannelCtxMenu(null); setCreateChannelCtx({ parentId: null, isCategory: true }); setCreateChannelError(null); }}>
+              <button className="context-menu-item" onClick={() => { setChannelCtxMenu(null); setChannelSettingsCtx(null); setCreateChannelCtx({ parentId: null, isCategory: true }); setCreateChannelError(null); }}>
                 {t("channel.ctx.create_category")}
               </button>
             )}
             {isAdmin && <hr style={{ margin: "4px 0", border: "none", borderTop: "1px solid var(--border)" }} />}
             {isAdmin && (
-              <button className="context-menu-item" onClick={() => { const ch = channelCtxMenu!.channel; setChannelCtxMenu(null); setChannelSettingsCtx(ch); setChannelSettingsError(null); }}>
+              <button className="context-menu-item" onClick={() => { const ch = channelCtxMenu!.channel; setChannelCtxMenu(null); setCreateChannelCtx(null); setChannelSettingsCtx(ch); setChannelSettingsError(null); }}>
                 {t("channel.ctx.edit_name", { name: channelCtxMenu.channel.name })}
               </button>
             )}
             {isAdmin && (
-              <button className="context-menu-item danger" onClick={() => { const ch = channelCtxMenu!.channel; setChannelCtxMenu(null); setChannelSettingsCtx(ch); setChannelSettingsError(null); }}>
+              <button className="context-menu-item danger" onClick={() => { const ch = channelCtxMenu!.channel; setChannelCtxMenu(null); setCreateChannelCtx(null); setChannelSettingsCtx(ch); setChannelSettingsError(null); }}>
                 {t("channel.ctx.delete_name", { name: channelCtxMenu.channel.name })}
               </button>
             )}

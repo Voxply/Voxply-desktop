@@ -124,6 +124,7 @@ pub fn run() {
             channels::move_channel,
             channels::update_channel_appearance,
             channels::set_forum_require_tag,
+            channels::set_channel_nsfw,
             channels::delete_channel,
             channels::reorder_channels,
             channels::subscribe_channel,

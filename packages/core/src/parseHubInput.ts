@@ -81,15 +81,18 @@ function parseDeepLinkTarget(codePart: string): HubInputResult["target"] {
  * Returns null for empty / unparseable input.
  */
 /**
- * Build a farm-ready invite link: `wavvon://<host>/i/<hubSerial>/<inviteCode>`.
- * The host is the connection target (a hub host today, a farm domain later),
- * the serial identifies which hub, and the code is the join credential.
+ * Build the invite link users copy/share: the plain browser form
+ * `http(s)://<host>/join/<inviteCode>` (UX decision 2026-07-25 — the
+ * wavvon://…/i/<serial>/<code> deep link is too long to hand around; it
+ * remains accepted by parseHubInput for old links).
  * Round-trips through parseHubInput.
  */
-export function buildInviteLink(hubUrl: string, hubSerial: string, inviteCode: string): string {
+// ponytail: hubSerial unused until farm-hosted hubs need serial routing in links
+export function buildInviteLink(hubUrl: string, _hubSerial: string, inviteCode: string): string {
   let host = hubUrl.trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
   host = host.replace(/^wavvon:\/\//i, "");
-  return `wavvon://${host}/i/${hubSerial}/${inviteCode}`;
+  const isLocal = host.startsWith("localhost") || host.startsWith("127.");
+  return `${isLocal ? "http" : "https"}://${host}/join/${inviteCode}`;
 }
 
 export function parseHubInput(raw: string): HubInputResult | null {

@@ -65,7 +65,12 @@ export function ChannelHeader({
               <span className="channel-breadcrumb-item current"># {selectedChannel.name}</span>
             </nav>
           )}
-          <h3># {selectedChannel.name}</h3>
+          <h3>
+            # {selectedChannel.name}
+            {selectedChannel.nsfw && (
+              <span className="channel-temp-badge" style={{ marginLeft: 8 }} title="NSFW / mature content">NSFW</span>
+            )}
+          </h3>
           {selectedChannel.description ? (
             <p
               className={`channel-description ${isAdmin ? "editable" : ""}`}

@@ -3900,6 +3900,14 @@ select:focus-visible {
   color: var(--text);
 }
 
+/* Shared markdown output (chat, forum posts/replies). marked() emits a soft
+   line break within a paragraph as a literal "\n" text node, not a <br> --
+   default `white-space: normal` collapses it to a space. pre-wrap preserves
+   author-typed newlines while still wrapping long lines. */
+.md-content {
+  white-space: pre-wrap;
+}
+
 .message-time {
   margin-left: var(--space-1);
   font-size: var(--text-xs);
@@ -5281,8 +5289,7 @@ select:focus-visible {
   margin-bottom: var(--space-2);
 }
 
-.forum-mod-actions,
-.forum-author-actions {
+.forum-post-actions {
   display: flex;
   gap: var(--space-2);
   margin-top: var(--space-2);
@@ -5299,6 +5306,12 @@ select:focus-visible {
 .forum-edit-actions {
   display: flex;
   gap: var(--space-2);
+}
+
+.forum-composer-textarea {
+  width: 100%;
+  resize: none;
+  line-height: var(--leading-normal);
 }
 
 .forum-post-body {

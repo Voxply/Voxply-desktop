@@ -44,6 +44,7 @@ pub(crate) async fn create_channel(
     channel_type: Option<String>,
     banner_url: Option<String>,
     spawner_name_template: Option<String>,
+    nsfw: Option<bool>,
     state: State<'_, AppState>,
 ) -> Result<ChannelInfo, String> {
     let (hub_url, token) = active_session(&state)?;
@@ -59,6 +60,7 @@ pub(crate) async fn create_channel(
             "channel_type": channel_type,
             "banner_url": banner_url,
             "spawner_name_template": spawner_name_template,
+            "nsfw": nsfw.unwrap_or(false),
         }))
         .send()
         .await
@@ -170,6 +172,27 @@ pub(crate) async fn set_forum_require_tag(
         .patch(format!("{hub_url}/channels/{channel_id}"))
         .bearer_auth(&token)
         .json(&serde_json::json!({ "forum_require_tag": require_tag }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(resp.text().await.unwrap_or_default());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) async fn set_channel_nsfw(
+    channel_id: String,
+    nsfw: bool,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let (hub_url, token) = active_session(&state)?;
+    let resp = state
+        .http_client
+        .patch(format!("{hub_url}/channels/{channel_id}"))
+        .bearer_auth(&token)
+        .json(&serde_json::json!({ "nsfw": nsfw }))
         .send()
         .await
         .map_err(|e| format!("Failed: {e}"))?;
