@@ -173,8 +173,26 @@ pub(crate) async fn get_dm_messages(
     let identity = crate::identity::Identity::load(&identity_path).ok();
     let own_plaintexts = load_own_plaintexts();
 
+    // Sender DH keys are only needed to responder-init a missing DR session
+    // (first inbound v2 message) — skip the fetches entirely when a session
+    // already exists. One fetch per distinct sender per call otherwise.
+    let have_dr_session = load_dr_sessions()
+        .map(|s| s.contains_key(&conversation_id))
+        .unwrap_or(false);
+    let mut dh_key_cache: std::collections::HashMap<String, Option<String>> =
+        std::collections::HashMap::new();
+
     let mut result = Vec::with_capacity(raw.len());
     for msg in raw {
+        let sender_dh_key: Option<String> = if !have_dr_session && msg.is_encrypted {
+            if !dh_key_cache.contains_key(&msg.sender) {
+                let fetched = fetch_dh_key_http(&client, &hub_url, &token, &msg.sender).await;
+                dh_key_cache.insert(msg.sender.clone(), fetched);
+            }
+            dh_key_cache.get(&msg.sender).cloned().flatten()
+        } else {
+            None
+        };
         let content = if (msg.is_encrypted || msg.is_group_encrypted)
             && own_plaintexts.contains_key(&msg.id)
         {
@@ -186,7 +204,7 @@ pub(crate) async fn get_dm_messages(
             if let Some(ref env) = msg.encrypted_envelope {
                 let is_v2 = env["v"].as_u64().unwrap_or(1) == 2;
                 if is_v2 {
-                    decrypt_dm_dr_inner(&conversation_id, env)
+                    decrypt_dm_dr_inner(&conversation_id, env, sender_dh_key.as_deref())
                         .unwrap_or_else(|_| "[decryption failed]".to_string())
                 } else if let Some(ref id) = identity {
                     decrypt_dm_inner(&conversation_id, env, id)
@@ -195,7 +213,7 @@ pub(crate) async fn get_dm_messages(
                     "[encrypted]".to_string()
                 }
             } else if let Some(ref env) = msg.dr_envelope {
-                decrypt_dm_dr_inner(&conversation_id, env)
+                decrypt_dm_dr_inner(&conversation_id, env, sender_dh_key.as_deref())
                     .unwrap_or_else(|_| "[decryption failed]".to_string())
             } else {
                 "[encrypted]".to_string()
@@ -393,6 +411,24 @@ pub(crate) async fn publish_dh_key(state: State<'_, AppState>) -> Result<(), Str
             .await;
     }
     Ok(())
+}
+
+/// Fetch a user's published static DH key from a hub. Returns None on any
+/// failure (unpublished key, network error) — callers treat that as
+/// "cannot responder-init".
+async fn fetch_dh_key_http(
+    client: &reqwest::Client,
+    hub_url: &str,
+    token: &str,
+    pubkey: &str,
+) -> Option<String> {
+    let url = format!("{hub_url}/identity/{pubkey}/dh-key");
+    let resp = client.get(&url).bearer_auth(token).send().await.ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    let v: serde_json::Value = resp.json().await.ok()?;
+    v["dh_pubkey_hex"].as_str().map(|s| s.to_string())
 }
 
 #[tauri::command]
@@ -1283,49 +1319,40 @@ fn public_key_from_hex(hex_str: &str) -> Result<x25519_dalek::PublicKey, String>
     Ok(x25519_dalek::PublicKey::from(arr))
 }
 
-/// Initialise a Double Ratchet v2 session as Alice (the initiator).
-///
-/// Idempotent: if the session already exists for `conv_id`, returns Ok immediately.
-#[tauri::command]
-pub(crate) async fn init_dr_session(
-    conv_id: String,
-    their_dh_pub_hex: String,
-) -> Result<(), String> {
+/// rk0 = HKDF(ikm=X25519(my_static, their_static), salt=conv_id,
+/// info="wavvon/dr-init/v2", len=32) — the shared DR root both sides derive.
+fn dr_root_key(
+    conv_id: &str,
+    my_static_priv: &x25519_dalek::StaticSecret,
+    their_static_pub: &x25519_dalek::PublicKey,
+) -> Result<[u8; 32], String> {
     use hkdf::Hkdf;
     use sha2::Sha256;
-
-    let mut sessions = load_dr_sessions()?;
-    if sessions.contains_key(&conv_id) {
-        return Ok(());
-    }
-
-    let identity_path = crate::identity::Identity::default_path().map_err(|e| e.to_string())?;
-    let identity = crate::identity::Identity::load(&identity_path).map_err(|e| e.to_string())?;
-    let (my_dh_priv, _) = identity.dh_keypair();
-
-    let their_static_pub = public_key_from_hex(&their_dh_pub_hex)?;
-
-    // Step 1: static_shared = X25519(my_static, their_static)
-    let static_shared = my_dh_priv.diffie_hellman(&their_static_pub);
-
-    // Step 2: rk0 = HKDF(ikm=static_shared, salt=conv_id, info="wavvon/dr-init/v2", len=32)
+    let static_shared = my_static_priv.diffie_hellman(their_static_pub);
     let hk = Hkdf::<Sha256>::new(Some(conv_id.as_bytes()), static_shared.as_bytes());
     let mut rk0 = [0u8; 32];
     hk.expand(b"wavvon/dr-init/v2", &mut rk0)
         .map_err(|e| e.to_string())?;
+    Ok(rk0)
+}
 
-    // Step 3: fresh ephemeral ratchet keypair
+/// Initialise a DR v2 session as Alice (the initiator). Pure — no disk I/O.
+fn initiator_init_session(
+    conv_id: &str,
+    my_static_priv: &x25519_dalek::StaticSecret,
+    their_dh_pub_hex: &str,
+) -> Result<DrSession, String> {
+    let their_static_pub = public_key_from_hex(their_dh_pub_hex)?;
+    let rk0 = dr_root_key(conv_id, my_static_priv, &their_static_pub)?;
+
+    // Fresh ephemeral ratchet keypair; (rk, cks) = KDF_RK(rk0, X25519(eph, their_static))
     let (eph_priv_hex, eph_pub_hex) = generate_ratchet_keypair();
     let eph_priv = static_secret_from_hex(&eph_priv_hex)?;
-
-    // Step 4: dh_out = X25519(eph_priv, their_static)
     let dh_out = eph_priv.diffie_hellman(&their_static_pub);
-
-    // Step 5: (rk, cks) = KDF_RK(rk0, dh_out)
     let dh_out_arr: [u8; 32] = *dh_out.as_bytes();
     let (rk, cks) = kdf_rk(&rk0, &dh_out_arr);
 
-    let session = DrSession {
+    Ok(DrSession {
         rk: hex::encode(rk),
         cks: Some(hex::encode(cks)),
         ckr: None,
@@ -1336,8 +1363,67 @@ pub(crate) async fn init_dr_session(
         dhs_pub: eph_pub_hex,
         dhr: None,
         mkskipped: std::collections::HashMap::new(),
-    };
+    })
+}
 
+/// Initialise a DR v2 session as Bob (the responder), from the first inbound
+/// envelope's ratchet key. Pure — no disk I/O. Mirrors packages/core
+/// `decryptDmDr`'s empty-session branch: the receiving chain must equal the
+/// initiator's sending chain (KDF_RK(rk0, X25519(my_static, their_eph))),
+/// and our own fresh ratchet keypair seeds the sending chain the initiator
+/// will derive on its next ratchet step.
+fn responder_init_session(
+    conv_id: &str,
+    my_static_priv: &x25519_dalek::StaticSecret,
+    their_static_dh_pub_hex: &str,
+    incoming_dhr_hex: &str,
+) -> Result<DrSession, String> {
+    let their_static_pub = public_key_from_hex(their_static_dh_pub_hex)?;
+    let incoming_dhr = public_key_from_hex(incoming_dhr_hex)?;
+    let rk0 = dr_root_key(conv_id, my_static_priv, &their_static_pub)?;
+
+    let dh_recv = my_static_priv.diffie_hellman(&incoming_dhr);
+    let dh_recv_arr: [u8; 32] = *dh_recv.as_bytes();
+    let (rk, ckr) = kdf_rk(&rk0, &dh_recv_arr);
+
+    let (eph_priv_hex, eph_pub_hex) = generate_ratchet_keypair();
+    let eph_priv = static_secret_from_hex(&eph_priv_hex)?;
+    let dh_send = eph_priv.diffie_hellman(&incoming_dhr);
+    let dh_send_arr: [u8; 32] = *dh_send.as_bytes();
+    let (rk2, cks) = kdf_rk(&rk, &dh_send_arr);
+
+    Ok(DrSession {
+        rk: hex::encode(rk2),
+        cks: Some(hex::encode(cks)),
+        ckr: Some(hex::encode(ckr)),
+        ns: 0,
+        nr: 0,
+        pn: 0,
+        dhs_priv: eph_priv_hex,
+        dhs_pub: eph_pub_hex,
+        dhr: Some(incoming_dhr_hex.to_string()),
+        mkskipped: std::collections::HashMap::new(),
+    })
+}
+
+/// Initialise a Double Ratchet v2 session as Alice (the initiator).
+///
+/// Idempotent: if the session already exists for `conv_id`, returns Ok immediately.
+#[tauri::command]
+pub(crate) async fn init_dr_session(
+    conv_id: String,
+    their_dh_pub_hex: String,
+) -> Result<(), String> {
+    let mut sessions = load_dr_sessions()?;
+    if sessions.contains_key(&conv_id) {
+        return Ok(());
+    }
+
+    let identity_path = crate::identity::Identity::default_path().map_err(|e| e.to_string())?;
+    let identity = crate::identity::Identity::load(&identity_path).map_err(|e| e.to_string())?;
+    let (my_dh_priv, _) = identity.dh_keypair();
+
+    let session = initiator_init_session(&conv_id, &my_dh_priv, &their_dh_pub_hex)?;
     sessions.insert(conv_id, session);
     save_dr_sessions(&sessions)
 }
@@ -1412,24 +1498,31 @@ pub(crate) async fn encrypt_dm_dr(
 
 /// Decrypt a Double Ratchet v2 DM from a JSON-serialised `DrDmEnvelope`.
 ///
-/// If the session is not initialised, returns `Err("dr_session_not_initialised")`
-/// so the UI can call `init_dr_session` and retry.
+/// `sender_dh_pub_hex` (the sender's published static DH key) enables the
+/// responder init when no session exists yet; without it a missing session
+/// returns `Err("dr_session_not_initialised")`.
 #[tauri::command]
 pub(crate) async fn decrypt_dm_dr(
     conv_id: String,
     envelope_json: String,
+    sender_dh_pub_hex: Option<String>,
 ) -> Result<String, String> {
     let env: DrDmEnvelope =
         serde_json::from_str(&envelope_json).map_err(|e| format!("bad envelope: {e}"))?;
     let result = decrypt_dm_dr_inner(
         &conv_id,
         &serde_json::to_value(&env).map_err(|e| e.to_string())?,
+        sender_dh_pub_hex.as_deref(),
     )?;
     Ok(result)
 }
 
 /// Inner synchronous DR decrypt used both by `decrypt_dm_dr` and `get_dm_messages`.
-fn decrypt_dm_dr_inner(conv_id: &str, envelope: &serde_json::Value) -> Result<String, String> {
+fn decrypt_dm_dr_inner(
+    conv_id: &str,
+    envelope: &serde_json::Value,
+    sender_static_dh_pub_hex: Option<&str>,
+) -> Result<String, String> {
     use aes_gcm::aead::{Aead, KeyInit};
     use aes_gcm::{Aes256Gcm, Key, Nonce};
 
@@ -1445,6 +1538,22 @@ fn decrypt_dm_dr_inner(conv_id: &str, envelope: &serde_json::Value) -> Result<St
     let prev_count = envelope["prev_count"].as_u64().unwrap_or(0) as u32;
 
     let mut sessions = load_dr_sessions()?;
+    if !sessions.contains_key(conv_id) {
+        // First inbound DR message of a conversation this side never sent
+        // in: responder-init from the envelope's ratchet key + the sender's
+        // published static DH key. Only for a MISSING session — an existing
+        // initiator session (ckr still None) must take the DH-ratchet step
+        // below instead, never re-init.
+        let Some(sender_key) = sender_static_dh_pub_hex else {
+            return Err("dr_session_not_initialised".to_string());
+        };
+        let identity_path = crate::identity::Identity::default_path().map_err(|e| e.to_string())?;
+        let identity =
+            crate::identity::Identity::load(&identity_path).map_err(|e| e.to_string())?;
+        let (my_dh_priv, _) = identity.dh_keypair();
+        let session = responder_init_session(conv_id, &my_dh_priv, sender_key, dh_pubkey_hex)?;
+        sessions.insert(conv_id.to_string(), session);
+    }
     let session = sessions
         .get_mut(conv_id)
         .ok_or_else(|| "dr_session_not_initialised".to_string())?;
@@ -1643,4 +1752,79 @@ fn decrypt_group_dm_inner(
     let plaintext: serde_json::Value =
         serde_json::from_slice(&plaintext_bytes).map_err(|e| e.to_string())?;
     Ok(plaintext["content"].as_str().unwrap_or("").to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn static_keypair(seed_byte: u8) -> (x25519_dalek::StaticSecret, String) {
+        // Same ed25519-seed -> x25519 derivation as Identity::dh_keypair /
+        // packages/core dhKeypairFromSeed.
+        use sha2::{Digest, Sha512};
+        let seed = [seed_byte; 32];
+        let hash = Sha512::digest(seed);
+        let mut scalar = [0u8; 32];
+        scalar.copy_from_slice(&hash[..32]);
+        scalar[0] &= 248;
+        scalar[31] &= 127;
+        scalar[31] |= 64;
+        let secret = x25519_dalek::StaticSecret::from(scalar);
+        let public = x25519_dalek::PublicKey::from(&secret);
+        (secret, hex::encode(public.as_bytes()))
+    }
+
+    /// The responder's receiving chain must equal the initiator's sending
+    /// chain — the load-bearing equality behind first-message decryption.
+    #[test]
+    fn responder_receiving_chain_matches_initiator_sending_chain() {
+        let (alice_priv, alice_pub_hex) = static_keypair(1);
+        let (bob_priv, bob_pub_hex) = static_keypair(2);
+
+        let alice = initiator_init_session("conv-t", &alice_priv, &bob_pub_hex).unwrap();
+        let bob =
+            responder_init_session("conv-t", &bob_priv, &alice_pub_hex, &alice.dhs_pub).unwrap();
+
+        assert_eq!(bob.ckr, alice.cks);
+        assert_eq!(bob.dhr.as_deref(), Some(alice.dhs_pub.as_str()));
+    }
+
+    /// Cross-language vector: a real envelope produced by packages/core
+    /// (TS initiator, seeds 0x07/0x08, conv "conv-vector") must decrypt via
+    /// the Rust responder init + chain advance — the exact web->desktop DM
+    /// path. Regenerate with initDrSession + encryptDmDr if the DR scheme
+    /// ever changes version.
+    #[test]
+    fn decrypts_ts_initiator_envelope() {
+        use aes_gcm::aead::{Aead, KeyInit};
+        use aes_gcm::{Aes256Gcm, Key, Nonce};
+
+        let alice_static_dh_pub =
+            "761d88ec830413919dfe9d4d1d56f17e653c8c994082df5b137b90a0ae6edf74";
+        let envelope_dh_pub = "3425a8a1af9131f1eb9b254629a36f169beb721ee972d9f0475597abb2f1826a";
+        let ciphertext_hex = "82d09b7ad0a6c8096a96579fabb071904f59db8cdf6ebeed0d762f2206985b81396b3bb664865dcc2c187730258966011dd950";
+
+        let (bob_priv, _) = static_keypair(0x08);
+        let session = responder_init_session(
+            "conv-vector",
+            &bob_priv,
+            alice_static_dh_pub,
+            envelope_dh_pub,
+        )
+        .unwrap();
+
+        // Advance the receiving chain to message_index 0 and decrypt —
+        // the same steps decrypt_dm_dr_inner performs after init.
+        let ckr_bytes = hex::decode(session.ckr.unwrap()).unwrap();
+        let ckr: [u8; 32] = ckr_bytes.try_into().unwrap();
+        let (mk, _) = kdf_ck(&ckr);
+        let nonce_bytes = derive_nonce_dr(&mk);
+        let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&mk));
+        let ct = hex::decode(ciphertext_hex).unwrap();
+        let plaintext_bytes = cipher
+            .decrypt(Nonce::from_slice(&nonce_bytes), ct.as_slice())
+            .expect("TS-initiator envelope must decrypt under the Rust responder chain");
+        let v: serde_json::Value = serde_json::from_slice(&plaintext_bytes).unwrap();
+        assert_eq!(v["content"], "cross-language vector");
+    }
 }
