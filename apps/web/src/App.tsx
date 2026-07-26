@@ -1105,6 +1105,15 @@ export default function App({ initialView }: AppProps = {}) {
         setChannels(list);
       }).catch(() => {});
     },
+    onLagged: (hubId) => {
+      if (hubId !== activeHubIdRef.current) return;
+      // An unknown number of events of any kind was dropped — resync the
+      // event-maintained state that has no other healing path: channels,
+      // the member roster (presence), and who's in which voice channel.
+      hubFetch("/channels").then((r) => r.json() as Promise<Channel[]>).then(setChannels).catch(() => {});
+      hubFetch("/users").then((r) => r.json() as Promise<User[]>).then(setUsers).catch(() => {});
+      fetchVoiceRoster().then(setVoicePartByChannel).catch(() => {});
+    },
     onHubUpdated: (hubId) => {
       refreshHubInfo(hubId).then((info) => {
         if (!info) return;
