@@ -462,62 +462,6 @@ pub(crate) async fn fetch_dh_key(
 }
 
 #[tauri::command]
-pub(crate) async fn encrypt_dm(
-    conv_id: String,
-    content: String,
-    recipient_dh_pubkey_hex: String,
-) -> Result<serde_json::Value, String> {
-    use aes_gcm::aead::{Aead, KeyInit};
-    use aes_gcm::{Aes256Gcm, Key, Nonce};
-    use hkdf::Hkdf;
-    use rand::RngCore;
-    use sha2::Sha256;
-
-    let identity_path = crate::identity::Identity::default_path().map_err(|e| e.to_string())?;
-    let identity = crate::identity::Identity::load(&identity_path).map_err(|e| e.to_string())?;
-    let (my_dh_sec, my_dh_pub) = identity.dh_keypair();
-
-    let rec_bytes = hex::decode(&recipient_dh_pubkey_hex).map_err(|e| e.to_string())?;
-    let rec_arr: [u8; 32] = rec_bytes
-        .try_into()
-        .map_err(|_| "bad DH key length".to_string())?;
-    let rec_pub = x25519_dalek::PublicKey::from(rec_arr);
-
-    let shared = my_dh_sec.diffie_hellman(&rec_pub);
-
-    let hk = Hkdf::<Sha256>::new(Some(conv_id.as_bytes()), shared.as_bytes());
-    let mut key_bytes = [0u8; 32];
-    hk.expand(b"wavvon/dm-key/v1", &mut key_bytes)
-        .map_err(|e| e.to_string())?;
-
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key_bytes));
-    let mut nonce_bytes = [0u8; 12];
-    rand::thread_rng().fill_bytes(&mut nonce_bytes);
-    let nonce = Nonce::from_slice(&nonce_bytes);
-    let plaintext = serde_json::json!({ "content": content }).to_string();
-    let ciphertext = cipher
-        .encrypt(nonce, plaintext.as_bytes())
-        .map_err(|e| e.to_string())?;
-
-    let ciphertext_hex = hex::encode(&ciphertext);
-    let nonce_hex = hex::encode(nonce_bytes);
-    let dh_pubkey_hex = hex::encode(my_dh_pub.as_bytes());
-
-    let signing_msg =
-        dm_envelope_signing_bytes(&conv_id, &ciphertext_hex, &nonce_hex, &dh_pubkey_hex);
-    let sig = hex::encode(identity.sign(&signing_msg).to_bytes());
-
-    Ok(serde_json::json!({
-        "sender_pubkey": identity.public_key_hex(),
-        "conv_id": conv_id,
-        "ciphertext_hex": ciphertext_hex,
-        "nonce_hex": nonce_hex,
-        "dh_pubkey_hex": dh_pubkey_hex,
-        "signature_hex": sig,
-    }))
-}
-
-#[tauri::command]
 pub(crate) async fn decrypt_dm(
     conv_id: String,
     envelope: serde_json::Value,

@@ -254,10 +254,16 @@ export function useDms({
         return;
       }
 
-      const envelope = await invoke<object>("encrypt_dm", {
+      // DR v2, same scheme web sends. init_dr_session is idempotent — a
+      // no-op when a session already exists (including one responder-inited
+      // by receiving first).
+      await invoke("init_dr_session", {
+        convId: conv.id,
+        theirDhPubHex: dhPubkey,
+      });
+      const envelope = await invoke<object>("encrypt_dm_dr", {
         convId: conv.id,
         content,
-        recipientDhPubkeyHex: dhPubkey,
       });
       await doSend(envelope);
     } catch {

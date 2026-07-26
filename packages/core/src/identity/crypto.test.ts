@@ -245,4 +245,33 @@ describe("DR two-way conversation", () => {
     const d4 = decryptDmDr(m4.envelope, alice, aliceSeed, bytesToHex(bobDhPub));
     expect(d4.plaintext).toBe("great!");
   });
+
+  // Reverse cross-language vector: a real envelope produced by the desktop
+  // Rust initiator (apps/desktop/src-tauri/src/dm.rs initiator_init_session
+  // + the encrypt_dm_dr chain, seeds 0x07/0x08, conv "conv-rvector") must
+  // decrypt via the TS responder init — the exact desktop→web DM path.
+  // The Rust suite pins the opposite direction (decrypts_ts_initiator_envelope).
+  it("the TS responder decrypts a Rust-initiator envelope", () => {
+    const bobSeed = "08".repeat(32);
+    const bob = {
+      rk: "", cks: null, ckr: null,
+      ns: 0, nr: 0, pn: 0,
+      dhsPriv: "", dhsPub: "", dhr: null,
+      mkskipped: {},
+    };
+    const envelope = {
+      sender_pubkey: "", // signature is verified separately, not in decryptDmDr
+      conv_id: "conv-rvector",
+      ciphertext_hex: "466f21a4b3e2f2e6f968583ed6ced3deb2177a816ee3200eedaec138ffd13604d2696fe1f7d87662e55c5c3dd2e042",
+      nonce_hex: "",
+      dh_pubkey_hex: "a63af13d1025ab617aca92c355abd75dccbf221ff602f01070a7c7ac765b7074",
+      signature_hex: "",
+      v: 2 as const,
+      message_index: 0,
+      prev_count: 0,
+    };
+    const aliceStaticDhPub = "761d88ec830413919dfe9d4d1d56f17e653c8c994082df5b137b90a0ae6edf74";
+    const { plaintext } = decryptDmDr(envelope, bob, bobSeed, aliceStaticDhPub);
+    expect(plaintext).toBe("rust to ts vector");
+  });
 });
