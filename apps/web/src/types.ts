@@ -49,16 +49,7 @@ export interface RemoteAttachment {
   mime_type: string;
 }
 
-export interface PinnedMessage {
-  id: string;
-  channel_id: string;
-  sender: string;
-  sender_name: string | null;
-  content: string;
-  created_at: number;
-  pinned_at: number;
-  pinned_by: string;
-}
+export type { PinnedMessageEntry as PinnedMessage } from "@wavvon/ui";
 
 import type { BadgeSummary, FavoriteHub, UserProfile, RoleInfo, RoleCategory } from "@wavvon/ui";
 export type { BadgeSummary, FavoriteHub, UserProfile, RoleInfo, RoleCategory };

@@ -33,8 +33,9 @@ import {
   type RsvpStatus,
   type EventMoveAssignment,
   type EventRsvp,
+  type PinnedMessageEntry,
+  PinnedMessagesModal,
 } from "@wavvon/ui";
-import { PinnedMessages } from "./PinnedMessages";
 
 function domainOf(url: string): string {
   try { return new URL(url).hostname; } catch { return url; }
@@ -366,11 +367,22 @@ export function ContentArea(props: Props) {
         onShowPinned={() => setShowPinned(true)}
       />
       {showPinned && activeHub && selectedChannel && (
-        <PinnedMessages
-          hubUrl={activeHub.hub_url}
-          channelId={selectedChannel.id}
+        <PinnedMessagesModal
           channelName={selectedChannel.name}
-          isAdmin={isAdmin}
+          canUnpin={isAdmin}
+          getPins={() =>
+            invoke<PinnedMessageEntry[]>("get_pinned_messages", {
+              hubUrl: activeHub.hub_url,
+              channelId: selectedChannel.id,
+            })
+          }
+          unpinMessage={(messageId) =>
+            invoke("unpin_message", {
+              hubUrl: activeHub.hub_url,
+              channelId: selectedChannel.id,
+              messageId,
+            })
+          }
           onClose={() => setShowPinned(false)}
           onScrollToMessage={onScrollToMessage}
         />

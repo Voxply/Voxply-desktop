@@ -25,11 +25,11 @@ import {
   type HubEvent,
   type RsvpStatus,
   type HubEmoji,
+  PinnedMessagesModal,
 } from "@wavvon/ui";
-import { PinnedMessagesModal } from "@components/content/PinnedMessagesModal";
 import {
   hubFetch, getPolls, createPoll, getBotProfile, sendBotAppJoin,
-  pinMessage, unpinMessage, votePoll, deletePoll, fetchLinkPreview, reportMessage,
+  pinMessage, unpinMessage, getPins, votePoll, deletePoll, fetchLinkPreview, reportMessage,
   forumListPosts, forumGetPost, forumCreatePost, forumEditPost, forumDeletePost,
   forumCreateReply, forumEditReply, forumDeleteReply, forumPinPost, forumLockPost,
   markPostRead, forumAddPostReaction, forumRemovePostReaction, forumAddReplyReaction,
@@ -277,8 +277,10 @@ export function ContentArea(props: Props) {
 
       {showPinsModal && selectedChannel && (
         <PinnedMessagesModal
-          channelId={selectedChannel.id}
           channelName={selectedChannel.name}
+          canUnpin={isAdmin}
+          getPins={() => getPins(selectedChannel.id)}
+          unpinMessage={(messageId) => unpinMessage(selectedChannel.id, messageId)}
           onClose={() => setShowPinsModal(false)}
           onScrollToMessage={onScrollToMessage}
         />
