@@ -64,6 +64,7 @@ import { AddHubModal } from "@wavvon/ui";
 import { isPasskeySupported } from "@platform";
 import { QuickInviteModal } from "@wavvon/ui";
 import { ChannelSettingsModal, type ChannelSettingsSaveFields } from "@wavvon/ui";
+import { EditDescriptionModal } from "@wavvon/ui";
 import type { ChannelPermissionsTabActions, ChannelBansTabActions, ChannelTalkPowerTabActions } from "@wavvon/ui";
 import { CreateHubFork } from "@components/hubs/CreateHubFork";
 import { BotAppLaunchCard, EventComposer, PollComposer, FocusTrap, GameModal, KeyboardShortcuts, HoverSubmenu, VoiceMoveMenu, VoiceMoveToast, VoiceMovePromptModal, SearchBar, DiscoverPage, Lobby, FarmSettingsPage, HubSetupWizard } from "@wavvon/ui";
@@ -315,6 +316,8 @@ export default function App({ initialView }: AppProps = {}) {
   const [pollComposerChannelId, setPollComposerChannelId] = useState<string | null>(null);
   // Temp-room owner rename (temp-voice-channels.md §3): a non-admin owner
   // gets a minimal rename modal, not the full channel-settings surface.
+  const [editDescChannel, setEditDescChannel] = useState<Channel | null>(null);
+  const [editDescValue, setEditDescValue] = useState("");
   const [renameRoomCtx, setRenameRoomCtx] = useState<Channel | null>(null);
   const [renameRoomName, setRenameRoomName] = useState("");
   const [renameRoomSaving, setRenameRoomSaving] = useState(false);
@@ -1725,6 +1728,25 @@ export default function App({ initialView }: AppProps = {}) {
       setChannelSettingsError(e instanceof HubApiError ? e.message : String(e));
     } finally {
       setChannelSettingsSaving(false);
+    }
+  }
+
+  async function handleSaveDescription() {
+    if (!editDescChannel) return;
+    const desc = editDescValue.trim() || null;
+    try {
+      await hubFetch(`/channels/${editDescChannel.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: desc }),
+      });
+      setChannels((prev) => prev.map((c) => (c.id === editDescChannel.id ? { ...c, description: desc } : c)));
+      if (selectedChannel?.id === editDescChannel.id) {
+        setSelectedChannel({ ...selectedChannel, description: desc });
+      }
+      setEditDescChannel(null);
+    } catch (e) {
+      showHubError(e instanceof HubApiError ? e.message : String(e));
     }
   }
 
@@ -3147,7 +3169,7 @@ export default function App({ initialView }: AppProps = {}) {
         onPingDmTyping={pingDmTyping}
         onSetPendingAttachments={setPendingAttachments}
         onAttachFiles={() => {}}
-        onOpenEditDescription={() => {}}
+        onOpenEditDescription={(ch) => { setEditDescChannel(ch); setEditDescValue(ch.description ?? ""); }}
         firstNotifyingMessageId={firstNotifyingMessageId}
         onClearFirstNotify={() => setFirstNotifyingMessageId(null)}
         onScrollToMessage={handleScrollToMessage}
@@ -3552,6 +3574,16 @@ export default function App({ initialView }: AppProps = {}) {
             )}
           </div>
         </div>
+      )}
+
+      {editDescChannel && (
+        <EditDescriptionModal
+          channel={editDescChannel}
+          description={editDescValue}
+          onDescriptionChange={setEditDescValue}
+          onSave={() => void handleSaveDescription()}
+          onClose={() => setEditDescChannel(null)}
+        />
       )}
 
       {renameRoomCtx && (

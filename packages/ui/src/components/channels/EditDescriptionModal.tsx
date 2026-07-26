@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
-import type { Channel } from "../types";
-import { FocusTrap } from "@wavvon/ui";
+import type { Channel } from "@wavvon/core";
+import { FocusTrap } from "../FocusTrap";
 
 interface Props {
   channel: Channel;

@@ -241,6 +241,7 @@ export {
 } from "./utils/channelPermissions";
 export type { TriState } from "./utils/channelPermissions";
 export { ChannelIconPicker } from "./components/channels/ChannelIconPicker";
+export { EditDescriptionModal } from "./components/channels/EditDescriptionModal";
 export { ChannelPermissionsTab } from "./components/channels/ChannelPermissionsTab";
 export type { ChannelPermissionsTabActions } from "./components/channels/ChannelPermissionsTab";
 export { ChannelBansTab } from "./components/channels/ChannelBansTab";

@@ -136,7 +136,7 @@ import type {
   HubIcon,
 } from "@wavvon/ui";
 import { FriendsModal } from "@wavvon/ui";
-import { EditDescriptionModal } from "./components/EditDescriptionModal";
+import { EditDescriptionModal } from "@wavvon/ui";
 import { ChannelContextMenu } from "./components/ChannelContextMenu";
 import { ChannelAppearanceModal } from "./components/ChannelAppearanceModal";
 import { BannerEditModal } from "./components/BannerEditModal";
