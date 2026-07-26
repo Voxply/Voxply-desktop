@@ -38,6 +38,7 @@ export type {
   DmMessage,
   WhisperTarget,
   WhisperList,
+  WhisperReplyBind,
   SoundboardChip,
 } from "./types";
 export { AudioProfileSection } from "./components/AudioProfileSection";

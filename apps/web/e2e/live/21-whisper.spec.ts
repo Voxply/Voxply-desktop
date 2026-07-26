@@ -196,6 +196,46 @@ test("role-target whisper via the Roles tab reaches a role member in voice", asy
   }
 });
 
+test("reply key (hold mode): whispers back at the last whisperer", async ({ page, browser }) => {
+  test.setTimeout(120000);
+  await page.goto("/");
+  await expectInHub(page);
+
+  const channel = uniqueName("wreply");
+  await createChannel(page, channel);
+  await joinVoice(page, channel);
+
+  const { context, page: member } = await newMemberPage(browser, uniqueName("ReplyMate"));
+  try {
+    await joinVoice(member, channel);
+    await expect(channelButton(page, channel)).toHaveAccessibleName(/2 (people|persons) in voice/, { timeout: 15000 });
+
+    // Member binds F10 as their reply key (hold is the default mode).
+    await member.getByTitle("Whisper").click();
+    const memberPanel = member.locator(".whisper-panel");
+    await expect(memberPanel).toBeVisible({ timeout: 15000 });
+    await memberPanel.locator(".whisper-reply-row").getByRole("button", { name: "Bind key" }).click();
+    await member.keyboard.press("F10");
+    await expect(memberPanel.locator(".whisper-reply-row").getByText("Reply key: F10")).toBeVisible();
+    await memberPanel.locator(".whisper-panel-close").click();
+
+    // Owner whispers the member, then stops — the inbox entry persists, so
+    // the reply key still knows who to answer.
+    await startWhisperAtFirstUser(page);
+    await expect(member.locator(".whisper-inbox-row").first()).toBeVisible({ timeout: 15000 });
+    await stopWhisper(page);
+    await expect(member.locator(".participant-whisper-badge")).toBeHidden({ timeout: 15000 });
+
+    // Member holds F10 → the OWNER sees the whisper indicator; release → clears.
+    await member.keyboard.down("F10");
+    await expect(page.locator(".participant-whisper-badge").first()).toBeVisible({ timeout: 15000 });
+    await member.keyboard.up("F10");
+    await expect(page.locator(".participant-whisper-badge")).toBeHidden({ timeout: 15000 });
+  } finally {
+    await context.close();
+  }
+});
+
 test("per-list keybind (hold mode): whispers while the key is held", async ({ page, browser }) => {
   test.setTimeout(120000);
   await page.goto("/");

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import type { WhisperTarget, WhisperList } from "../../types";
+import type { WhisperTarget, WhisperList, WhisperReplyBind } from "../../types";
 
 interface Props {
   voiceParticipants: Array<{ public_key: string; display_name: string | null }>;
@@ -20,6 +20,10 @@ interface Props {
    *  Loaded lazily when the Roles tab is first opened; the tab is hidden
    *  entirely when this prop is absent. */
   onListWhisperRoles?: () => Promise<Array<{ id: string; name: string }>>;
+  /** Dedicated reply key ("whisper back at whoever whispered me last").
+   *  Row hidden entirely when the handler is absent. */
+  whisperReplyBind?: WhisperReplyBind;
+  onSetWhisperReplyBind?: (bind: WhisperReplyBind) => void;
 }
 
 // Human label for a KeyboardEvent.code — mirrors apps/web's PushToTalkSection.
@@ -38,13 +42,26 @@ export function WhisperPanel({
   isWhispering, whisperTargets, whisperLists,
   onStartWhisper, onStopWhisper, onSaveList, onDeleteList, onClose,
   whisperOptout, onSetWhisperOptout, onListWhisperRoles,
+  whisperReplyBind, onSetWhisperReplyBind,
 }: Props) {
   const [selected, setSelected] = useState<WhisperTarget[]>(whisperTargets);
   const [tab, setTab] = useState<"users" | "channels" | "roles" | "lists">("users");
   const [listName, setListName] = useState("");
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [bindingListId, setBindingListId] = useState<string | null>(null);
+  const [bindingReply, setBindingReply] = useState(false);
   const [roles, setRoles] = useState<Array<{ id: string; name: string }> | null>(null);
+
+  useEffect(() => {
+    if (!bindingReply || !onSetWhisperReplyBind) return;
+    function onKey(e: KeyboardEvent) {
+      e.preventDefault();
+      onSetWhisperReplyBind!({ key: e.code, mode: whisperReplyBind?.mode ?? "hold" });
+      setBindingReply(false);
+    }
+    window.addEventListener("keydown", onKey, { once: true });
+    return () => window.removeEventListener("keydown", onKey);
+  }, [bindingReply, onSetWhisperReplyBind, whisperReplyBind]);
 
   useEffect(() => {
     if (tab !== "roles" || roles !== null || !onListWhisperRoles) return;
@@ -189,6 +206,27 @@ export function WhisperPanel({
               }}>Save</button>
               <button onClick={() => { setShowSaveForm(false); setListName(""); }}>Cancel</button>
             </div>
+          )}
+        </div>
+      )}
+
+      {onSetWhisperReplyBind && (
+        <div className="whisper-list-keybind-row whisper-reply-row">
+          <span className="muted">Reply key: {whisperReplyBind?.key ? keyLabel(whisperReplyBind.key) : "none"}</span>
+          <button onClick={() => setBindingReply(true)} disabled={bindingReply}>
+            {bindingReply ? "Press a key…" : "Bind key"}
+          </button>
+          {whisperReplyBind?.key && (
+            <>
+              <button onClick={() => onSetWhisperReplyBind({ mode: whisperReplyBind?.mode ?? "hold" })}>Clear</button>
+              <select
+                value={whisperReplyBind?.mode ?? "hold"}
+                onChange={e => onSetWhisperReplyBind({ ...whisperReplyBind, mode: e.target.value as "hold" | "toggle" })}
+              >
+                <option value="hold">Hold</option>
+                <option value="toggle">Toggle</option>
+              </select>
+            </>
           )}
         </div>
       )}

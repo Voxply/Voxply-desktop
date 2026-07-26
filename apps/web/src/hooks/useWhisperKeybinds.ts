@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { WhisperList, WhisperTarget } from "@wavvon/ui";
+import type { WhisperList, WhisperReplyBind, WhisperTarget } from "@wavvon/ui";
 
 interface Params {
   voiceChannelId: string | null;
@@ -7,6 +7,10 @@ interface Params {
   isWhispering: boolean;
   startWhisper: (targets: WhisperTarget[]) => void;
   stopWhisper: () => void;
+  /** Dedicated reply key (distinct from any list bind): whispers back at
+   *  `replyTarget` — the most recent inbound whisperer. No-op while null. */
+  replyBind?: WhisperReplyBind;
+  replyTarget?: WhisperTarget | null;
 }
 
 function isTyping(target: EventTarget | null): boolean {
@@ -18,27 +22,38 @@ function isTyping(target: EventTarget | null): boolean {
 // like push-to-talk this only fires while the app is focused — no global
 // hotkey support outside the desktop app. Active only while in a voice
 // channel and only for lists that actually have a keybind set.
-export function useWhisperKeybinds({ voiceChannelId, whisperLists, isWhispering, startWhisper, stopWhisper }: Params) {
+export function useWhisperKeybinds({ voiceChannelId, whisperLists, isWhispering, startWhisper, stopWhisper, replyBind, replyTarget }: Params) {
   useEffect(() => {
     if (!voiceChannelId) return;
     const bound = whisperLists.filter((l) => l.keybind);
-    if (bound.length === 0) return;
+    const replyKey = replyBind?.key;
+    if (bound.length === 0 && !replyKey) return;
+
+    // Resolve what a key activates: a list's targets, or the reply target.
+    const activation = (code: string): { targets: WhisperTarget[]; mode: "hold" | "toggle" } | null => {
+      const list = bound.find((l) => l.keybind === code);
+      if (list) return { targets: list.targets, mode: list.keybindMode ?? "hold" };
+      if (code === replyKey && replyTarget) {
+        return { targets: [replyTarget], mode: replyBind?.mode ?? "hold" };
+      }
+      return null;
+    };
 
     const down = (e: KeyboardEvent) => {
       if (e.repeat || isTyping(e.target)) return;
-      const list = bound.find((l) => l.keybind === e.code);
-      if (!list) return;
+      const act = activation(e.code);
+      if (!act) return;
       e.preventDefault();
-      if ((list.keybindMode ?? "hold") === "toggle") {
+      if (act.mode === "toggle") {
         if (isWhispering) stopWhisper();
-        else startWhisper(list.targets);
+        else startWhisper(act.targets);
       } else {
-        startWhisper(list.targets);
+        startWhisper(act.targets);
       }
     };
     const up = (e: KeyboardEvent) => {
-      const list = bound.find((l) => l.keybind === e.code);
-      if (!list || (list.keybindMode ?? "hold") !== "hold") return;
+      const act = activation(e.code);
+      if (!act || act.mode !== "hold") return;
       stopWhisper();
     };
     window.addEventListener("keydown", down);
@@ -47,5 +62,5 @@ export function useWhisperKeybinds({ voiceChannelId, whisperLists, isWhispering,
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
     };
-  }, [voiceChannelId, whisperLists, isWhispering, startWhisper, stopWhisper]);
+  }, [voiceChannelId, whisperLists, isWhispering, startWhisper, stopWhisper, replyBind, replyTarget]);
 }

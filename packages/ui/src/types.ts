@@ -319,6 +319,13 @@ export interface WhisperTarget {
   label: string;
 }
 
+/** The dedicated whisper-reply key: press to whisper straight back at the
+ *  most recent inbound whisperer. Distinct from any per-list keybind. */
+export interface WhisperReplyBind {
+  key?: string;
+  mode: "hold" | "toggle";
+}
+
 export interface WhisperList {
   id: string;
   name: string;

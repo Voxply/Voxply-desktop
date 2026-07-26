@@ -27,6 +27,7 @@ import type {
   SoundboardChip,
   WhisperTarget,
   WhisperList,
+  WhisperReplyBind,
 } from "../../types";
 import { PhoneOffIcon, ChannelIcon, PingIcon, MicOnIcon, MicOffIcon, DeafenIcon, ScreenShareIcon, CameraOnIcon, CameraOffIcon } from "../Icons";
 import { HubClock } from "../HubClock";
@@ -179,6 +180,8 @@ interface Props {
   onSaveWhisperList?: (list: WhisperList) => void;
   onDeleteWhisperList?: (id: string) => void;
   onListWhisperRoles?: () => Promise<Array<{ id: string; name: string }>>;
+  whisperReplyBind?: WhisperReplyBind;
+  onSetWhisperReplyBind?: (bind: WhisperReplyBind) => void;
   whisperOptout?: boolean;
   onSetWhisperOptout?: (enabled: boolean) => void;
   canUseSoundboard?: boolean;
@@ -210,7 +213,8 @@ export function ChannelSidebar({
   onOpenSearch,
   isWhispering, whisperTargets, whisperLists, showWhisperPanel,
   onToggleWhisperPanel, onCloseWhisperPanel, onStartWhisper, onStopWhisper,
-  onSaveWhisperList, onDeleteWhisperList, onListWhisperRoles, whisperOptout, onSetWhisperOptout,
+  onSaveWhisperList, onDeleteWhisperList, onListWhisperRoles,
+  whisperReplyBind, onSetWhisperReplyBind, whisperOptout, onSetWhisperOptout,
   canUseSoundboard, onListSoundboardClips, onTriggerSoundboardClip, soundboardPlayingClipId, soundboardChips,
 }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -917,6 +921,8 @@ export function ChannelSidebar({
                       whisperOptout={whisperOptout}
                       onSetWhisperOptout={onSetWhisperOptout}
                       onListWhisperRoles={onListWhisperRoles}
+                      whisperReplyBind={whisperReplyBind}
+                      onSetWhisperReplyBind={onSetWhisperReplyBind}
                     />
                   </div>,
                   document.body

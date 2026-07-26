@@ -42,6 +42,20 @@ export function applyWhisperLogEvent(
   });
 }
 
+/** Who a whisper-reply keypress should target: the currently-live inbound
+ *  whisperer if there is one, otherwise the most recent entry still in the
+ *  inbox (reply works after the whisper ended — that's the inbox's point).
+ *  Null when nobody has whispered us (the reply key is then a no-op). */
+export function pickReplyPubkey(log: InboundWhisperEntry[]): string | null {
+  const live = [...log].reverse().find((e) => e.live);
+  if (live) return live.pubkey;
+  const latest = log.reduce<InboundWhisperEntry | null>(
+    (best, e) => (!best || e.startedAt > best.startedAt ? e : best),
+    null,
+  );
+  return latest?.pubkey ?? null;
+}
+
 // Web mirror of the desktop useWhisper hook (apps/desktop/src/hooks/useWhisper.ts):
 // same state shape and named-list persistence, but whisper start/stop rides the
 // existing WS session (platform/ws.ts) instead of a Tauri invoke/event pair.

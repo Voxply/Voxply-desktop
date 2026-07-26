@@ -9,8 +9,9 @@ import { useHubAdmin } from "./hooks/useHubAdmin";
 import { useAlliances } from "./hooks/useAlliances";
 import { useSettingsProfile } from "./hooks/useSettingsProfile";
 import { useFarmAdmin } from "./hooks/useFarmAdmin";
-import { useWhisper } from "./hooks/useWhisper";
+import { useWhisper, pickReplyPubkey } from "./hooks/useWhisper";
 import { useWhisperKeybinds } from "./hooks/useWhisperKeybinds";
+import { loadWhisperReplyBind, saveWhisperReplyBind } from "./utils/whisperReply";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { flattenTree, descendantIds, computeDepth, mentionsName, playMentionPing, playVoiceTone, channelPath, formatPubkey } from "@wavvon/core";
@@ -54,7 +55,7 @@ import {
   listHubIcons, getTalkPower, setTalkPower,
   forumListTags, forumCreateTag, forumEditTag, forumDeleteTag,
 } from "@platform";
-import type { UserProfileCardActions, UserContextMenuActions } from "@wavvon/ui";
+import type { UserProfileCardActions, UserContextMenuActions, WhisperTarget, WhisperReplyBind } from "@wavvon/ui";
 import { getCurrentSurvey, isLobbyScopeConfined, connectHubWebSocket } from "@platform";
 import { SurveyModal } from "@components/polls/SurveyModal";
 import { HubStreamsPanel } from "@wavvon/ui";
@@ -617,12 +618,26 @@ export default function App({ initialView }: AppProps = {}) {
   const whisper = useWhisper({ activeHubId, voiceChannelId });
   const whisperOptoutRef = useRef(whisper.whisperOptout);
   whisperOptoutRef.current = whisper.whisperOptout;
+  const [whisperReplyBind, setWhisperReplyBindState] = useState<WhisperReplyBind>(loadWhisperReplyBind);
+  const setWhisperReplyBind = (bind: WhisperReplyBind) => {
+    setWhisperReplyBindState(bind);
+    saveWhisperReplyBind(bind);
+  };
+  // Reply key target: the most recent inbound whisperer (see pickReplyPubkey).
+  const whisperReplyTarget = useMemo<WhisperTarget | null>(() => {
+    const pk = pickReplyPubkey(whisper.inboundWhisperLog);
+    if (!pk) return null;
+    const name = users.find((u) => u.public_key === pk)?.display_name;
+    return { type: "user", id: pk, label: name || pk.slice(0, 8) };
+  }, [whisper.inboundWhisperLog, users]);
   useWhisperKeybinds({
     voiceChannelId,
     whisperLists: whisper.whisperLists,
     isWhispering: whisper.isWhispering,
     startWhisper: whisper.startWhisper,
     stopWhisper: whisper.stopWhisper,
+    replyBind: whisperReplyBind,
+    replyTarget: whisperReplyTarget,
   });
   const [showWhisperPanel, setShowWhisperPanel] = useState(false);
   const [pttConfig, setPttConfig] = useState(loadPttConfig);
@@ -3001,6 +3016,8 @@ export default function App({ initialView }: AppProps = {}) {
         onSaveWhisperList={whisper.saveWhisperList}
         onDeleteWhisperList={whisper.deleteWhisperList}
         onListWhisperRoles={() => listRoles().then((rs) => rs.map((r) => ({ id: r.id, name: r.name })))}
+        whisperReplyBind={whisperReplyBind}
+        onSetWhisperReplyBind={setWhisperReplyBind}
         whisperOptout={whisper.whisperOptout}
         onSetWhisperOptout={whisper.setWhisperOptout}
       />

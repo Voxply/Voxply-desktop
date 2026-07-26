@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyWhisperLogEvent } from "../useWhisper";
+import { applyWhisperLogEvent, pickReplyPubkey } from "../useWhisper";
 
 describe("applyWhisperLogEvent", () => {
   it("appends a new live entry on whisper start", () => {
@@ -36,5 +36,32 @@ describe("applyWhisperLogEvent", () => {
       { pubkey: "pk1", startedAt: 1000, live: true },
       { pubkey: "pk2", startedAt: 1500, live: true },
     ]);
+  });
+});
+
+describe("pickReplyPubkey", () => {
+  it("returns null on an empty log", () => {
+    expect(pickReplyPubkey([])).toBeNull();
+  });
+
+  it("prefers the most recent LIVE whisperer over a newer ended one", () => {
+    expect(pickReplyPubkey([
+      { pubkey: "live-old", startedAt: 1000, live: true },
+      { pubkey: "ended-new", startedAt: 5000, live: false },
+    ])).toBe("live-old");
+  });
+
+  it("picks the most recently added live entry when several are live", () => {
+    expect(pickReplyPubkey([
+      { pubkey: "pk1", startedAt: 1000, live: true },
+      { pubkey: "pk2", startedAt: 2000, live: true },
+    ])).toBe("pk2");
+  });
+
+  it("falls back to the latest ended entry when none are live", () => {
+    expect(pickReplyPubkey([
+      { pubkey: "pk1", startedAt: 3000, live: false },
+      { pubkey: "pk2", startedAt: 1000, live: false },
+    ])).toBe("pk1");
   });
 });
