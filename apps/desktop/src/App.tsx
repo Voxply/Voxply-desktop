@@ -1311,6 +1311,11 @@ function App() {
       setHubUrl("");
       setInviteCode("");
       setBotChallenge(null);
+      // Publish to every connected hub (the command loops all sessions) —
+      // the startup-only publish misses hubs joined mid-session, leaving
+      // DMs on them plaintext-inbound / undecryptable-outbound until the
+      // next app restart (same bug class as web's welcome-join, 2026-07-26).
+      invoke("publish_dh_key").catch(() => {});
 
       try {
         const status = await invoke<LobbyStatus>("lobby_status", { hubUrl: resolvedUrl });
@@ -3153,6 +3158,7 @@ function App() {
               });
               setActiveHubId(hub.hub_id);
               setShowCreateHub(false);
+              invoke("publish_dh_key").catch(() => {});
             }}
             onClose={() => setShowCreateHub(false)}
           />

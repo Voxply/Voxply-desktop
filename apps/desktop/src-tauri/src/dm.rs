@@ -171,10 +171,18 @@ pub(crate) async fn get_dm_messages(
 
     let identity_path = crate::identity::Identity::default_path().map_err(|e| e.to_string())?;
     let identity = crate::identity::Identity::load(&identity_path).ok();
+    let own_plaintexts = load_own_plaintexts();
 
     let mut result = Vec::with_capacity(raw.len());
     for msg in raw {
-        let content = if msg.is_encrypted {
+        let content = if (msg.is_encrypted || msg.is_group_encrypted)
+            && own_plaintexts.contains_key(&msg.id)
+        {
+            // Our own encrypted send — the ratchet can't decrypt its own
+            // outbound envelopes (and the group path only had a "[sent]"
+            // placeholder); render the plaintext stashed at send time.
+            own_plaintexts[&msg.id].clone()
+        } else if msg.is_encrypted {
             if let Some(ref env) = msg.encrypted_envelope {
                 let is_v2 = env["v"].as_u64().unwrap_or(1) == 2;
                 if is_v2 {
@@ -272,6 +280,10 @@ pub(crate) async fn send_dm(
     attachments: Option<Vec<AttachmentInfo>>,
     encrypted_envelope: Option<serde_json::Value>,
     group_encrypted_envelope: Option<serde_json::Value>,
+    // Plaintext of an encrypted send, stashed locally per message id so
+    // history reloads can render our own messages (see load_own_plaintexts).
+    // Never sent to the hub.
+    plaintext: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let (hub_url, token) = active_session(&state)?;
@@ -303,6 +315,13 @@ pub(crate) async fn send_dm(
         .map_err(|e| format!("Failed: {e}"))?;
     if !resp.status().is_success() {
         return Err(resp.text().await.unwrap_or_default());
+    }
+    if let Some(pt) = plaintext {
+        if let Ok(created) = resp.json::<serde_json::Value>().await {
+            if let Some(id) = created["id"].as_str() {
+                save_own_plaintext(id, &pt);
+            }
+        }
     }
     Ok(())
 }
@@ -1117,6 +1136,36 @@ pub struct DrDmEnvelope {
 
 fn dr_sessions_path() -> Result<std::path::PathBuf, String> {
     crate::accounts::active_dr_sessions_path()
+}
+
+// A ratchet can't decrypt its own outbound envelopes (the message keys are
+// consumed at encrypt time, the receiving chain belongs to the peer), so the
+// sender's plaintext is stashed per message id at send time and read back
+// when rendering history. Mirrors web's scoped-localStorage stash.
+// ponytail: one flat JSON map, never pruned — split per conversation if a
+// heavy DM user ever notices.
+fn load_own_plaintexts() -> std::collections::HashMap<String, String> {
+    let Ok(path) = crate::accounts::active_own_dm_plaintexts_path() else {
+        return std::collections::HashMap::new();
+    };
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default()
+}
+
+fn save_own_plaintext(message_id: &str, plaintext: &str) {
+    let Ok(path) = crate::accounts::active_own_dm_plaintexts_path() else {
+        return;
+    };
+    let mut map = load_own_plaintexts();
+    map.insert(message_id.to_string(), plaintext.to_string());
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(text) = serde_json::to_string(&map) {
+        let _ = std::fs::write(&path, text);
+    }
 }
 
 fn load_dr_sessions() -> Result<std::collections::HashMap<String, DrSession>, String> {

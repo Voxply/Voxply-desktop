@@ -171,6 +171,10 @@ export function useDms({
           attachments: attachments.length > 0 ? attachments : undefined,
           encryptedEnvelope,
           groupEncryptedEnvelope,
+          // Stashed Rust-side per message id so history reloads can render
+          // our own encrypted sends (a ratchet can't decrypt its own
+          // envelopes). Never sent to the hub.
+          plaintext: (encryptedEnvelope || groupEncryptedEnvelope) ? content : undefined,
         });
         setDmMessages((prev) => {
           const list = prev[conv.id] || [];
