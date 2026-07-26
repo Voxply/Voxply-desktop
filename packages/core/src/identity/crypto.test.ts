@@ -198,3 +198,51 @@ describe("paired-device DR round trip via the wrapped canonical DH scalar", () =
     expect(plaintext).toBe("hello bob");
   });
 });
+
+describe("DR two-way conversation", () => {
+  // Regression (2026-07-26): decryptDmDr gated its responder-init on
+  // ckr == null, but an INITIATOR's session also has ckr == null until the
+  // first reply arrives — the reply was hijacked into a bogus re-init and
+  // never decrypted. The init must run only for a truly empty session.
+  it("the initiator decrypts the responder's first reply, then both continue", () => {
+    const aliceSeed = bytesToHex(new Uint8Array(32).fill(7));
+    const bobSeed = bytesToHex(new Uint8Array(32).fill(8));
+    const { dhPub: aliceDhPub } = dhKeypairFromSeed(aliceSeed);
+    const { dhPub: bobDhPub } = dhKeypairFromSeed(bobSeed);
+    const emptySession = () => ({
+      rk: "", cks: null, ckr: null,
+      ns: 0, nr: 0, pn: 0,
+      dhsPriv: "", dhsPub: "", dhr: null,
+      mkskipped: {},
+    });
+
+    // Alice initiates and sends the first message.
+    let alice = initDrSession("conv2", aliceSeed, bytesToHex(bobDhPub));
+    const m1 = encryptDmDr("conv2", "hello bob", alice, aliceSeed);
+    alice = m1.updatedSession;
+
+    // Bob (empty session) decrypts it — responder init.
+    let bob = emptySession();
+    const d1 = decryptDmDr(m1.envelope, bob, bobSeed, bytesToHex(aliceDhPub));
+    bob = d1.updatedSession;
+    expect(d1.plaintext).toBe("hello bob");
+
+    // Bob replies; ALICE decrypts — the case that was broken.
+    const m2 = encryptDmDr("conv2", "hi alice", bob, bobSeed);
+    bob = m2.updatedSession;
+    const d2 = decryptDmDr(m2.envelope, alice, aliceSeed, bytesToHex(bobDhPub));
+    alice = d2.updatedSession;
+    expect(d2.plaintext).toBe("hi alice");
+
+    // And the ratchet keeps turning in both directions.
+    const m3 = encryptDmDr("conv2", "how are you?", alice, aliceSeed);
+    alice = m3.updatedSession;
+    const d3 = decryptDmDr(m3.envelope, bob, bobSeed, bytesToHex(aliceDhPub));
+    bob = d3.updatedSession;
+    expect(d3.plaintext).toBe("how are you?");
+
+    const m4 = encryptDmDr("conv2", "great!", bob, bobSeed);
+    const d4 = decryptDmDr(m4.envelope, alice, aliceSeed, bytesToHex(bobDhPub));
+    expect(d4.plaintext).toBe("great!");
+  });
+});

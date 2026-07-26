@@ -352,7 +352,13 @@ export function decryptDmDr(
     return { plaintext: (json as { content?: string }).content ?? "", updatedSession: state };
   }
 
-  if (!state.ckr) {
+  // Responder init: only for a truly EMPTY session (first inbound message of
+  // a conversation this side never sent in). An initiator's session also has
+  // ckr == null until the first reply arrives — gating on ckr would hijack
+  // that reply into a bogus re-init instead of the DH-ratchet step below
+  // (which derives the peer's actual sending chain from rk + dhsPriv). This
+  // mirrors the desktop Rust impl, which never re-inits an existing session.
+  if (!state.rk) {
     const myStaticPriv = myStaticDhPrivOverride ?? dhKeypairFromSeed(myStaticSeedHex).dhPriv;
     const theirStaticPub = hexToBytes(theirStaticDhPubHex);
     const staticShared = x25519.scalarMult(myStaticPriv, theirStaticPub);

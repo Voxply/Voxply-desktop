@@ -11,6 +11,7 @@ import { useSettingsProfile } from "./hooks/useSettingsProfile";
 import { useFarmAdmin } from "./hooks/useFarmAdmin";
 import { useWhisper, pickReplyPubkey } from "./hooks/useWhisper";
 import { useScreenShare } from "./hooks/useScreenShare";
+import { useDms } from "./hooks/useDms";
 import { useWhisperKeybinds } from "./hooks/useWhisperKeybinds";
 import { loadWhisperReplyBind, saveWhisperReplyBind } from "./utils/whisperReply";
 import type { DragEndEvent } from "@dnd-kit/core";
@@ -36,7 +37,6 @@ import type {
   Hub,
   MeInfo,
   Conversation,
-  DmMessage,
   AllianceInfo,
   AllianceSharedChannel,
   SoundboardClip,
@@ -186,10 +186,7 @@ import {
   subscribeChannel,
 } from "@platform";
 import {
-  getDmMessages,
-  sendDm,
   publishDhKey,
-  createConversation,
 } from "@platform";
 import { loadIdentity, publicKeyHex, setSwitchGuard } from "@identity/index";
 import { IdentitySetupScreen, type IdentitySetupCompletion } from "@components/identity/IdentitySetupScreen";
@@ -378,7 +375,6 @@ export default function App({ initialView }: AppProps = {}) {
   // === View ===
   const [view, setView] = useState<View>("channels");
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
-  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
 
   // === Messages ===
   const [messages, setMessages] = useState<Message[]>([]);
@@ -395,15 +391,25 @@ export default function App({ initialView }: AppProps = {}) {
   const [searchResults, setSearchResults] = useState<Message[] | null>(null);
   const [firstNotifyingMessageId, setFirstNotifyingMessageId] = useState<string | null>(null);
 
-  // === DMs ===
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [dmMessages, setDmMessages] = useState<Record<string, DmMessage[]>>({});
-
   // === Unread / notifications ===
   const {
     unreadByChannel, unreadDms, setUnreadDms,
     bumpUnread, clearUnread, clearHubUnread: clearHubUnreadFn, seedUnreadFromServer,
   } = useUnreadCounts();
+
+  // === DMs ===
+  const {
+    conversations, setConversations, dmMessages,
+    selectedConversation, setSelectedConversation, selectedConvRef,
+    handleSelectConversation, handleStartConversation, handleSendDm,
+    onDm, onDmMemberChanged,
+  } = useDms({
+    inputText,
+    setInputText,
+    setUnreadDms,
+    onConversationSelected: () => { setSelectedChannel(null); setView("dms"); },
+    showHubError,
+  });
   const {
     hubNotifyMode, channelNotifyMode, pinnedChannels, collapsedCategories, hideSilenced,
     hideBirthdays, toggleHideBirthdays,
@@ -802,9 +808,7 @@ export default function App({ initialView }: AppProps = {}) {
     selectedChannelIdRef.current = selectedChannel?.id;
   }, [selectedChannel]);
 
-  const selectedConvRef = useRef<Conversation | null>(null);
   useEffect(() => {
-    selectedConvRef.current = selectedConversation;
     selectedConvIdRef.current = selectedConversation?.id;
   }, [selectedConversation]);
 
@@ -916,29 +920,7 @@ export default function App({ initialView }: AppProps = {}) {
         }
       }
     },
-    onDm: (raw) => {
-      const m = raw as Record<string, unknown>;
-      const convId = m.conversation_id as string | undefined;
-      if (!convId) return;
-      setUnreadDms((prev) => ({ ...prev, [convId]: true }));
-      // WS gives plaintext (or "[encrypted]" placeholder for encrypted).
-      // Reload conversation messages so the browser client can auto-decrypt.
-      if (convId === selectedConvRef.current?.id) {
-        getDmMessages(convId).then((msgs) => {
-          const asDm: DmMessage[] = msgs.map((mm) => ({
-            id: mm.id,
-            sender: mm.sender,
-            sender_name: mm.sender_name,
-            content: mm.content,
-            timestamp: mm.created_at,
-            attachments: mm.attachments,
-            is_encrypted: mm.is_encrypted,
-            delivery_failed: mm.delivery_failed,
-          }));
-          setDmMessages((prev) => ({ ...prev, [convId]: asDm }));
-        }).catch(() => {});
-      }
-    },
+    onDm,
     onVideo: (raw) => {
       const m = raw as { _hub_id?: string };
       if (m._hub_id !== activeHubIdRef.current) return;
@@ -1046,14 +1028,7 @@ export default function App({ initialView }: AppProps = {}) {
       const message = (m.message as string | undefined) ?? "An error occurred on the hub.";
       showHubError(message);
     },
-    onDmMemberChanged: (raw) => {
-      const m = raw as { conversation_id?: string; added?: string[]; removed?: string[] };
-      if (!m.conversation_id) return;
-      const convId = m.conversation_id;
-      hubFetch(`/conversations/${convId}`).then((r) => r.json() as Promise<import("@shared/types").Conversation>).then((updated) => {
-        setConversations((prev) => prev.map((c) => c.id === convId ? updated : c));
-      }).catch(() => {});
-    },
+    onDmMemberChanged,
     onPin: (raw) => {
       const m = raw as Record<string, unknown>;
       if (m._hub_id !== activeHubIdRef.current) return;
@@ -1919,58 +1894,6 @@ export default function App({ initialView }: AppProps = {}) {
   }
 
   // === DMs ===
-
-  async function handleSelectConversation(conv: Conversation) {
-    setSelectedConversation(conv);
-    setSelectedChannel(null);
-    setView("dms");
-    setUnreadDms((prev) => { const n = { ...prev }; delete n[conv.id]; return n; });
-    if (!dmMessages[conv.id]) {
-      try {
-        const msgs = await getDmMessages(conv.id);
-        const asDmMessages: DmMessage[] = msgs.map((m) => ({
-          id: m.id,
-          sender: m.sender,
-          sender_name: m.sender_name,
-          content: m.content,
-          timestamp: m.created_at,
-          attachments: m.attachments,
-          is_encrypted: m.is_encrypted,
-          delivery_failed: m.delivery_failed,
-        }));
-        setDmMessages((prev) => ({ ...prev, [conv.id]: asDmMessages }));
-      } catch {}
-    }
-  }
-
-  // The hub dedupes 1:1 DMs server-side (create_conversation returns the
-  // existing conversation instead of a duplicate), so this is safe to call
-  // even if a conversation with this member already exists locally.
-  async function handleStartConversation(pubkey: string) {
-    try {
-      const conv = await createConversation([pubkey]);
-      setConversations((prev) => prev.some((c) => c.id === conv.id)
-        ? prev.map((c) => c.id === conv.id ? conv : c)
-        : [conv, ...prev]);
-      await handleSelectConversation(conv);
-    } catch (e) {
-      showHubError(e instanceof HubApiError ? e.message : String(e));
-    }
-  }
-
-  async function handleSendDm() {
-    if (!selectedConversation || !inputText.trim()) return;
-    const text = inputText.trim();
-    setInputText("");
-    try {
-      await sendDm(selectedConversation.id, text);
-    } catch (e) {
-      // Losing the message silently is worse than any error: put the text
-      // back in the composer and surface what happened.
-      setInputText(text);
-      showHubError(e instanceof HubApiError ? e.message : String(e));
-    }
-  }
 
   // === Voice ===
 
@@ -2974,6 +2897,11 @@ export default function App({ initialView }: AppProps = {}) {
             onHubAdded={(hub, target) => {
               setHubs(listHubs());
               setActiveHubIdState(hub.hub_id);
+              // Same post-join publish as the Add-hub modal paths — without
+              // it a first-run user has no DH key on their first hub until
+              // the next reload, so DMs to them fall back to plaintext and
+              // their encrypted sends can't be decrypted by the peer.
+              publishDhKey().catch(() => {});
               void loadHubData().then(() => {
                 if (target) return applyDeepLinkTarget(hub.hub_id, target);
               });
