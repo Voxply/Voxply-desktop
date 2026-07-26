@@ -10,6 +10,7 @@ import { useAlliances } from "./hooks/useAlliances";
 import { useSettingsProfile } from "./hooks/useSettingsProfile";
 import { useFarmAdmin } from "./hooks/useFarmAdmin";
 import { useWhisper, pickReplyPubkey } from "./hooks/useWhisper";
+import { useScreenShare } from "./hooks/useScreenShare";
 import { useWhisperKeybinds } from "./hooks/useWhisperKeybinds";
 import { loadWhisperReplyBind, saveWhisperReplyBind } from "./utils/whisperReply";
 import type { DragEndEvent } from "@dnd-kit/core";
@@ -40,7 +41,7 @@ import type {
   AllianceSharedChannel,
   SoundboardClip,
 } from "@shared/types";
-import type { ActiveStream, BotAppLaunchEvent, BotAppOpenEvent, PresenceStatus } from "./types";
+import type { BotAppLaunchEvent, BotAppOpenEvent, PresenceStatus } from "./types";
 import { HubSidebar } from "@wavvon/ui";
 import { ChannelSidebar } from "@wavvon/ui";
 import { WhisperInbox } from "@wavvon/ui";
@@ -59,7 +60,6 @@ import type { UserProfileCardActions, UserContextMenuActions, WhisperTarget, Whi
 import { getCurrentSurvey, isLobbyScopeConfined, connectHubWebSocket } from "@platform";
 import { SurveyModal } from "@components/polls/SurveyModal";
 import { HubStreamsPanel } from "@wavvon/ui";
-import type { HubStreamInfo } from "./types";
 import { AddHubModal } from "@wavvon/ui";
 import { isPasskeySupported } from "@platform";
 import { QuickInviteModal } from "@wavvon/ui";
@@ -123,7 +123,6 @@ import { MobileShell } from "@wavvon/ui";
 import { buildChannelTree } from "@wavvon/core";
 import type { TreeNode } from "@wavvon/core";
 import { saveDraft, loadDraft, clearDraft, hasDraft } from "./utils/drafts";
-import type { ScreenShareViewerRef } from "@wavvon/ui";
 import { ScreenShareSelfPreview } from "@components/voice/ScreenShareSelfPreview";
 import { listBotCommands, updateDmBlocks, getDmBlocks, fetchVoiceRoster, activeSession, authenticateWithPasskey, sendBotAppJoin, getSession } from "@platform";
 import { markSoundboardPlayed, fetchSoundboardAudioBytes, getMyChannelPermissions, sendSetStatus, sendSetStatusTo, uploadFile } from "@platform";
@@ -162,7 +161,6 @@ import {
 import type { WsHandlers } from "@platform";
 import { getActiveHubId } from "@platform";
 import { VoiceWsSession, type AudioProfileConfig } from "./platform/voice";
-import { WebScreenShareSession } from "./platform/screenShare";
 import { WebVideoSession } from "./platform/video";
 import { BackgroundProcessor, loadBgMode, loadBgSource } from "./utils/backgroundProcessor";
 
@@ -603,12 +601,6 @@ export default function App({ initialView }: AppProps = {}) {
   const messagesEndChannelRef = useRef<HTMLLIElement | null>(null);
   const messagesContainerRef = useRef<HTMLOListElement | null>(null);
   const messageInputRef = useRef<HTMLInputElement | null>(null);
-  const screenShareViewerRef = useRef<ScreenShareViewerRef | null>(null);
-  const [activeScreenShares, setActiveScreenShares] = useState<ActiveStream[]>([]);
-  const screenShareSessionRef = useRef<WebScreenShareSession | null>(null);
-  const [sharing, setSharing] = useState(false);
-  const [shareKbps, setShareKbps] = useState(0);
-  const [shareLocalStream, setShareLocalStream] = useState<MediaStream | null>(null);
   const [showFriends, setShowFriends] = useState(false);
   // Camera video (full-mesh WebRTC over the main WS).
   const videoSessionRef = useRef<WebVideoSession | null>(null);
@@ -646,10 +638,6 @@ export default function App({ initialView }: AppProps = {}) {
   const [pttConfig, setPttConfig] = useState(loadPttConfig);
   const [surveyToShow, setSurveyToShow] = useState<import("@platform").SurveyAdmin | null>(null);
   const surveyDismissedRef = useRef<Set<string>>(new Set());
-  // Hub-streams: cross-channel screen-share discovery + subscriptions.
-  const [hubStreams, setHubStreams] = useState<import("./types").HubStreamInfo[]>([]);
-  const [showHubStreams, setShowHubStreams] = useState(false);
-  const subscribedStreamIds = useRef<Set<string>>(new Set());
   // Registered so switchAccount can refuse a mid-voice switch at the source
   // (defense in depth alongside the disabled Switch button in Settings →
   // Account) — switching accounts while joined to a voice channel is blocked
@@ -668,7 +656,6 @@ export default function App({ initialView }: AppProps = {}) {
     return () => {
       voiceSessionRef.current?.stop();
       videoSessionRef.current?.dispose();
-      screenShareSessionRef.current?.stop();
       backgroundProcessorRef.current?.stop();
     };
   }, []);
@@ -768,6 +755,14 @@ export default function App({ initialView }: AppProps = {}) {
 
   const activeHubIdRef = useRef<string | null>(null);
   useEffect(() => { activeHubIdRef.current = activeHubId; }, [activeHubId]);
+
+  // Outbound screen share + cross-channel hub-streams discovery.
+  const {
+    screenShareViewerRef, activeScreenShares, sharing, shareKbps, shareLocalStream,
+    hubStreams, showHubStreams, setShowHubStreams, subscribedStreamIds,
+    handleStartShare, handleStopShare, handleOpenHubStreams, handleWatchStream,
+    handleStopWatchStream, onScreenShare, onScreenShareChunk,
+  } = useScreenShare({ activeHubIdRef, showHubError });
 
   const hubsRef = useRef<Hub[]>([]);
   const channelsRef = useRef<Channel[]>([]);
@@ -1023,48 +1018,8 @@ export default function App({ initialView }: AppProps = {}) {
     onTyping: (raw) => {
       receiveTyping(raw as Record<string, unknown>);
     },
-    onScreenShare: (raw) => {
-      const m = raw as Record<string, unknown>;
-      if (m._hub_id !== activeHubIdRef.current) return;
-      if (m.type === "screen_share_started") {
-        const ev = m as unknown as ActiveStream & { channel_id: string; _hub_id: string };
-        setActiveScreenShares((prev) => {
-          if (prev.some((s) => s.stream_id === ev.stream_id)) return prev;
-          return [...prev, { stream_id: ev.stream_id, sharer_pubkey: ev.sharer_pubkey, kind: ev.kind, mime: ev.mime, has_audio: ev.has_audio }];
-        });
-        // Keep the cross-channel discovery list live.
-        setHubStreams((prev) => prev.some((s) => s.stream_id === ev.stream_id) ? prev : [...prev, {
-          channel_id: ev.channel_id, stream_id: ev.stream_id, sharer_pubkey: ev.sharer_pubkey, kind: ev.kind, mime: ev.mime, has_audio: ev.has_audio,
-        }]);
-      } else if (m.type === "screen_share_stopped") {
-        const streamId = m.stream_id as string;
-        setActiveScreenShares((prev) => prev.filter((s) => s.stream_id !== streamId));
-        setHubStreams((prev) => prev.filter((s) => s.stream_id !== streamId));
-        screenShareViewerRef.current?.stopStream(streamId);
-      } else if (m.type === "hub_streams") {
-        setHubStreams((m.streams as HubStreamInfo[]) ?? []);
-      } else if (m.type === "stream_subscribed") {
-        // A cross-channel stream we asked to watch — register it so the
-        // viewer builds a MediaSource for its incoming chunks.
-        const streamId = m.stream_id as string;
-        subscribedStreamIds.current.add(streamId);
-        setActiveScreenShares((prev) => prev.some((s) => s.stream_id === streamId) ? prev : [...prev, {
-          stream_id: streamId,
-          sharer_pubkey: m.sharer_pubkey as string,
-          kind: (m.kind as "screen" | "webcam") ?? "screen",
-          mime: m.mime as string,
-          has_audio: !!m.has_audio,
-        }]);
-      } else if (m.type === "stream_subscription_ended") {
-        const streamId = m.stream_id as string;
-        subscribedStreamIds.current.delete(streamId);
-        setActiveScreenShares((prev) => prev.filter((s) => s.stream_id !== streamId));
-        screenShareViewerRef.current?.stopStream(streamId);
-      }
-    },
-    onScreenShareChunk: (streamId, isInit, data) => {
-      screenShareViewerRef.current?.appendChunk(streamId, isInit, data);
-    },
+    onScreenShare,
+    onScreenShareChunk,
     onStatusChange: (connected, hubId) => {
       const hubName = hubsRef.current.find((h) => h.hub_id === hubId)?.hub_name ?? "hub";
       handleStatusChange(hubId, hubName, connected, setAssertiveAnnouncement);
@@ -2096,54 +2051,6 @@ export default function App({ initialView }: AppProps = {}) {
     }
   }
 
-  async function handleStartShare() {
-    if (!selectedChannel || sharing) return;
-    const ws = activeSession().ws;
-    if (!ws) { showHubError("Not connected"); return; }
-    const session = new WebScreenShareSession(ws, selectedChannel.id, {
-      onBitrate: (kbps) => setShareKbps(kbps),
-      onEnded: () => {
-        screenShareSessionRef.current = null;
-        setSharing(false);
-        setShareKbps(0);
-        setShareLocalStream(null);
-      },
-      onError: (msg) => showHubError("Screen share: " + msg),
-    });
-    try {
-      await session.start();
-      screenShareSessionRef.current = session;
-      setSharing(true);
-      setShareLocalStream(session.getStream());
-    } catch (e) {
-      // getDisplayMedia rejects when the user cancels the picker — not an error.
-      const msg = e instanceof Error ? e.message : String(e);
-      if (!/denied|cancel|aborted|not allowed/i.test(msg)) showHubError("Screen share: " + msg);
-    }
-  }
-
-  function handleStopShare() {
-    screenShareSessionRef.current?.stop();
-    screenShareSessionRef.current = null;
-    setSharing(false);
-    setShareKbps(0);
-    setShareLocalStream(null);
-  }
-
-  function handleOpenHubStreams() {
-    try { activeSession().ws?.requestStreamList(); } catch {}
-    setShowHubStreams(true);
-  }
-  function handleWatchStream(channelId: string, streamId: string) {
-    try { activeSession().ws?.subscribeStream(channelId, streamId); } catch {}
-  }
-  function handleStopWatchStream(channelId: string, streamId: string) {
-    try { activeSession().ws?.unsubscribeStream(channelId, streamId); } catch {}
-    subscribedStreamIds.current.delete(streamId);
-    setActiveScreenShares((prev) => prev.filter((s) => s.stream_id !== streamId));
-    screenShareViewerRef.current?.stopStream(streamId);
-  }
-
   async function handleToggleVideo(deviceId?: string) {
     if (videoEnabled) { handleStopVideo(); return; }
     // Video is scoped to the voice channel you're in; the session was created
@@ -3024,7 +2931,10 @@ export default function App({ initialView }: AppProps = {}) {
         soundboardPlayingClipId={soundboardPlayingClipId}
         soundboardChips={voiceChannelId ? soundboardChipsByChannel[voiceChannelId] ?? [] : []}
         sharing={sharing}
-        onScreenShare={() => (sharing ? handleStopShare() : void handleStartShare())}
+        onScreenShare={() => {
+          if (sharing) handleStopShare();
+          else if (selectedChannel) void handleStartShare(selectedChannel.id);
+        }}
         videoEnabled={videoEnabled}
         onToggleVideo={handleToggleVideo}
         isWhispering={whisper.isWhispering}
