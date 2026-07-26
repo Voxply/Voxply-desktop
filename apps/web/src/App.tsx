@@ -10,6 +10,7 @@ import { useAlliances } from "./hooks/useAlliances";
 import { useSettingsProfile } from "./hooks/useSettingsProfile";
 import { useFarmAdmin } from "./hooks/useFarmAdmin";
 import { useWhisper } from "./hooks/useWhisper";
+import { useWhisperKeybinds } from "./hooks/useWhisperKeybinds";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { flattenTree, descendantIds, computeDepth, mentionsName, playMentionPing, playVoiceTone, channelPath, formatPubkey } from "@wavvon/core";
@@ -42,6 +43,7 @@ import type {
 import type { ActiveStream, BotAppLaunchEvent, BotAppOpenEvent, PresenceStatus } from "./types";
 import { HubSidebar } from "@wavvon/ui";
 import { ChannelSidebar } from "@wavvon/ui";
+import { WhisperInbox } from "@wavvon/ui";
 import { ContentArea } from "@components/layout/ContentArea";
 import { loadPttConfig } from "@components/settings/PushToTalkSection";
 import { loadDefaultProfile, saveDefaultProfile, loadFollowsDefault, type DefaultProfile } from "./utils/profiles";
@@ -122,7 +124,7 @@ import type { TreeNode } from "@wavvon/core";
 import { saveDraft, loadDraft, clearDraft, hasDraft } from "./utils/drafts";
 import type { ScreenShareViewerRef } from "@wavvon/ui";
 import { ScreenShareSelfPreview } from "@components/voice/ScreenShareSelfPreview";
-import { listBotCommands, updateDmBlocks, getDmBlocks, fetchVoiceRoster, activeSession, authenticateWithPasskey, sendBotAppJoin } from "@platform";
+import { listBotCommands, updateDmBlocks, getDmBlocks, fetchVoiceRoster, activeSession, authenticateWithPasskey, sendBotAppJoin, getSession } from "@platform";
 import { markSoundboardPlayed, fetchSoundboardAudioBytes, getMyChannelPermissions, sendSetStatus, sendSetStatusTo, uploadFile } from "@platform";
 import type { MyChannelPermissions } from "@platform";
 import {
@@ -614,6 +616,15 @@ export default function App({ initialView }: AppProps = {}) {
   const [localVideoStream, setLocalVideoStream] = useState<MediaStream | null>(null);
   const [remoteVideoStreams, setRemoteVideoStreams] = useState<Map<string, MediaStream>>(new Map());
   const whisper = useWhisper({ activeHubId, voiceChannelId });
+  const whisperOptoutRef = useRef(whisper.whisperOptout);
+  whisperOptoutRef.current = whisper.whisperOptout;
+  useWhisperKeybinds({
+    voiceChannelId,
+    whisperLists: whisper.whisperLists,
+    isWhispering: whisper.isWhispering,
+    startWhisper: whisper.startWhisper,
+    stopWhisper: whisper.stopWhisper,
+  });
   const [showWhisperPanel, setShowWhisperPanel] = useState(false);
   const [pttConfig, setPttConfig] = useState(loadPttConfig);
   const [surveyToShow, setSurveyToShow] = useState<import("@platform").SurveyAdmin | null>(null);
@@ -1060,6 +1071,9 @@ export default function App({ initialView }: AppProps = {}) {
         if (p.status !== "online") {
           try { sendSetStatusTo(hubId, p.status, null); } catch { /* ws not ready */ }
         }
+        // Hub-side whisper opt-out is ephemeral — re-push it on every
+        // (re)connect, same reasoning as the presence push above.
+        try { getSession(hubId)?.ws?.setWhisperOptout(whisperOptoutRef.current); } catch { /* ws not ready */ }
       }
       if (connected && hubId === activeHubIdRef.current) {
         hubFetch("/users").then((r) => r.json() as Promise<User[]>).then(setUsers).catch(() => {});
@@ -2595,6 +2609,15 @@ export default function App({ initialView }: AppProps = {}) {
       >
         {voicePoliteAnnouncement}
       </div>
+      <WhisperInbox
+        entries={whisper.inboundWhisperLog.map((e) => ({
+          ...e,
+          name: users.find((u) => u.public_key === e.pubkey)?.display_name || e.pubkey.slice(0, 8),
+        }))}
+        onDismiss={whisper.dismissInbound}
+        onClearAll={whisper.clearInbound}
+      />
+
       {hubErrorToast && (
         <div
           style={{
@@ -2976,6 +2999,8 @@ export default function App({ initialView }: AppProps = {}) {
         onStopWhisper={whisper.stopWhisper}
         onSaveWhisperList={whisper.saveWhisperList}
         onDeleteWhisperList={whisper.deleteWhisperList}
+        whisperOptout={whisper.whisperOptout}
+        onSetWhisperOptout={whisper.setWhisperOptout}
       />
 
       {activeOpenApp && (

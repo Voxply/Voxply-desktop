@@ -258,6 +258,12 @@ export class HubWebSocket {
   stopWhisper(): void {
     this.send({ type: "voice_whisper_stop" });
   }
+  // Hub-side opt-out state is ephemeral (not persisted across the hub's own
+  // reconnects), so callers must re-send this on every WS (re)connect —
+  // see App.tsx's onStatusChange, which does exactly that.
+  setWhisperOptout(enabled: boolean): void {
+    this.send({ type: "voice_whisper_optout", enabled });
+  }
 
   // --- Voice move (main WS, events.md §7.1) — eventId is present for every
   // staging-panel move (§7.5) and omitted for the Phase-1 right-click primitive.

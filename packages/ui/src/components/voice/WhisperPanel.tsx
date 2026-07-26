@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { WhisperTarget, WhisperList } from "../../types";
 
 interface Props {
@@ -12,6 +12,18 @@ interface Props {
   onSaveList: (list: WhisperList) => void;
   onDeleteList: (id: string) => void;
   onClose: () => void;
+  /** "Don't receive whispers" checkbox, hidden entirely when the handler
+   *  is absent (desktop hasn't wired the hub opt-out command yet). */
+  whisperOptout?: boolean;
+  onSetWhisperOptout?: (enabled: boolean) => void;
+}
+
+// Human label for a KeyboardEvent.code — mirrors apps/web's PushToTalkSection.
+function keyLabel(code: string): string {
+  if (code === "Space") return "Space";
+  if (code.startsWith("Key")) return code.slice(3);
+  if (code.startsWith("Digit")) return code.slice(5);
+  return code;
 }
 
 /** Compact whisper control shown from the voice footer's "more controls"
@@ -20,12 +32,14 @@ interface Props {
 export function WhisperPanel({
   voiceParticipants, voiceChannels,
   isWhispering, whisperTargets, whisperLists,
-  onStartWhisper, onStopWhisper, onSaveList, onDeleteList, onClose
+  onStartWhisper, onStopWhisper, onSaveList, onDeleteList, onClose,
+  whisperOptout, onSetWhisperOptout,
 }: Props) {
   const [selected, setSelected] = useState<WhisperTarget[]>(whisperTargets);
   const [tab, setTab] = useState<"users" | "channels" | "lists">("users");
   const [listName, setListName] = useState("");
   const [showSaveForm, setShowSaveForm] = useState(false);
+  const [bindingListId, setBindingListId] = useState<string | null>(null);
 
   function toggleTarget(t: WhisperTarget) {
     setSelected(prev =>
@@ -38,6 +52,18 @@ export function WhisperPanel({
   function isSelected(t: WhisperTarget) {
     return selected.some(s => s.type === t.type && s.id === t.id);
   }
+
+  useEffect(() => {
+    if (!bindingListId) return;
+    function onKey(e: KeyboardEvent) {
+      e.preventDefault();
+      const list = whisperLists.find(l => l.id === bindingListId);
+      if (list) onSaveList({ ...list, keybind: e.code });
+      setBindingListId(null);
+    }
+    window.addEventListener("keydown", onKey, { once: true });
+    return () => window.removeEventListener("keydown", onKey);
+  }, [bindingListId, whisperLists, onSaveList]);
 
   return (
     <div className="whisper-panel">
@@ -81,12 +107,32 @@ export function WhisperPanel({
           );
         })}
         {tab === "lists" && whisperLists.map(list => (
-          <div key={list.id} className="whisper-list-item">
-            <span>{list.name}</span>
-            <span className="whisper-list-targets">{list.targets.map(t => t.label).join(", ")}</span>
-            <div className="whisper-list-actions">
-              <button onClick={() => { onStartWhisper(list.targets); onClose(); }}>Whisper</button>
-              <button onClick={() => onDeleteList(list.id)} aria-label="Delete list" title="Delete list">✕</button>
+          <div key={list.id} className="whisper-list-item-wrap">
+            <div className="whisper-list-item">
+              <span>{list.name}</span>
+              <span className="whisper-list-targets">{list.targets.map(t => t.label).join(", ")}</span>
+              <div className="whisper-list-actions">
+                <button onClick={() => { onStartWhisper(list.targets); onClose(); }}>Whisper</button>
+                <button onClick={() => onDeleteList(list.id)} aria-label="Delete list" title="Delete list">✕</button>
+              </div>
+            </div>
+            <div className="whisper-list-keybind-row">
+              <span className="muted">Key: {list.keybind ? keyLabel(list.keybind) : "none"}</span>
+              <button onClick={() => setBindingListId(list.id)} disabled={bindingListId === list.id}>
+                {bindingListId === list.id ? "Press a key…" : "Bind key"}
+              </button>
+              {list.keybind && (
+                <>
+                  <button onClick={() => onSaveList({ ...list, keybind: undefined })}>Clear</button>
+                  <select
+                    value={list.keybindMode ?? "hold"}
+                    onChange={e => onSaveList({ ...list, keybindMode: e.target.value as "hold" | "toggle" })}
+                  >
+                    <option value="hold">Hold</option>
+                    <option value="toggle">Toggle</option>
+                  </select>
+                </>
+              )}
             </div>
           </div>
         ))}
@@ -118,6 +164,17 @@ export function WhisperPanel({
             </div>
           )}
         </div>
+      )}
+
+      {onSetWhisperOptout && (
+        <label className="whisper-optout-row">
+          <input
+            type="checkbox"
+            checked={!!whisperOptout}
+            onChange={e => onSetWhisperOptout(e.target.checked)}
+          />
+          Don't receive whispers
+        </label>
       )}
     </div>
   );

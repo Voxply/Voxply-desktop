@@ -263,6 +263,8 @@ export {
 } from "./components/layout/channelSidebarLayout";
 export type { IndentInfo, DrillInScope, AllianceFlatNode, DragIntent, DragRect } from "./components/layout/channelSidebarLayout";
 export { WhisperPanel } from "./components/voice/WhisperPanel";
+export { WhisperInbox } from "./components/voice/WhisperInbox";
+export type { WhisperInboxEntry } from "./components/voice/WhisperInbox";
 export { SoundboardPopover } from "./components/voice/SoundboardPopover";
 export {
   isSpawnerChannel,

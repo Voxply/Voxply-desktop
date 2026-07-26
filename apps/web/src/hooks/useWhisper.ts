@@ -1,11 +1,45 @@
 import { useEffect, useState } from "react";
-import { activeSession } from "@platform";
+import { activeSession, allSessions } from "@platform";
 import type { WhisperTarget, WhisperList } from "@wavvon/ui";
 import { loadWhisperLists, saveWhisperLists } from "../utils/whisperLists";
+import { loadWhisperOptout, saveWhisperOptout } from "../utils/whisperOptout";
 
 interface UseWhisperParams {
   activeHubId: string | null;
   voiceChannelId: string | null;
+}
+
+// The hook only knows senders by pubkey — WhisperInbox's `name` is resolved
+// by the caller (App.tsx has the member/participant list) at render time.
+export interface InboundWhisperEntry {
+  pubkey: string;
+  startedAt: number;
+  live: boolean;
+}
+
+/** Pure reducer for the whisper inbox log (WhisperInbox.tsx): a "started"
+ *  event either reopens the existing live entry for that sender (no
+ *  duplicate rows while someone whispers continuously) or appends a new
+ *  one; a "stopped" event just flips the matching live entry to ended —
+ *  entries otherwise persist until the caller dismisses them. */
+export function applyWhisperLogEvent(
+  log: InboundWhisperEntry[],
+  pubkey: string,
+  isWhisper: boolean,
+  now: number = Date.now(),
+): InboundWhisperEntry[] {
+  if (isWhisper) {
+    if (log.some((e) => e.pubkey === pubkey && e.live)) return log;
+    return [...log, { pubkey, startedAt: now, live: true }];
+  }
+  let done = false;
+  return log.map((e) => {
+    if (!done && e.pubkey === pubkey && e.live) {
+      done = true;
+      return { ...e, live: false };
+    }
+    return e;
+  });
 }
 
 // Web mirror of the desktop useWhisper hook (apps/desktop/src/hooks/useWhisper.ts):
@@ -16,6 +50,8 @@ export function useWhisper({ activeHubId, voiceChannelId }: UseWhisperParams) {
   const [whisperTargets, setWhisperTargets] = useState<WhisperTarget[]>([]);
   const [whisperLists, setWhisperLists] = useState<WhisperList[]>([]);
   const [inboundWhispers, setInboundWhispers] = useState<Set<string>>(new Set());
+  const [inboundWhisperLog, setInboundWhisperLog] = useState<InboundWhisperEntry[]>([]);
+  const [whisperOptout, setWhisperOptoutState] = useState<boolean>(loadWhisperOptout);
 
   useEffect(() => {
     setWhisperLists(activeHubId ? loadWhisperLists(activeHubId) : []);
@@ -24,6 +60,7 @@ export function useWhisper({ activeHubId, voiceChannelId }: UseWhisperParams) {
   useEffect(() => {
     if (!voiceChannelId) {
       setInboundWhispers(new Set());
+      setInboundWhisperLog([]);
       setIsWhispering(false);
       setWhisperTargets([]);
     }
@@ -36,6 +73,29 @@ export function useWhisper({ activeHubId, voiceChannelId }: UseWhisperParams) {
       else next.delete(senderPubkey);
       return next;
     });
+    setInboundWhisperLog((prev) => applyWhisperLogEvent(prev, senderPubkey, isWhisper));
+  }
+
+  function dismissInbound(pubkey: string, startedAt: number) {
+    setInboundWhisperLog((prev) => prev.filter((e) => !(e.pubkey === pubkey && e.startedAt === startedAt)));
+  }
+
+  function clearInbound() {
+    setInboundWhisperLog([]);
+  }
+
+  function setWhisperOptout(enabled: boolean) {
+    setWhisperOptoutState(enabled);
+    saveWhisperOptout(enabled);
+    for (const s of allSessions()) {
+      try { s.ws?.setWhisperOptout(enabled); } catch { /* not connected */ }
+    }
+    if (enabled) {
+      // The hub drops us from live target sets but doesn't push a
+      // voice_whisper_stopped on re-resolution, so end live state locally.
+      setInboundWhispers(new Set());
+      setInboundWhisperLog((prev) => prev.map((e) => (e.live ? { ...e, live: false } : e)));
+    }
   }
 
   function startWhisper(targets: WhisperTarget[]) {
@@ -73,8 +133,8 @@ export function useWhisper({ activeHubId, voiceChannelId }: UseWhisperParams) {
   }
 
   return {
-    isWhispering, whisperTargets, whisperLists, inboundWhispers,
+    isWhispering, whisperTargets, whisperLists, inboundWhispers, inboundWhisperLog, whisperOptout,
     startWhisper, stopWhisper, toggleWhisper, saveWhisperList, deleteWhisperList,
-    receiveWhisperEvent,
+    receiveWhisperEvent, dismissInbound, clearInbound, setWhisperOptout,
   };
 }

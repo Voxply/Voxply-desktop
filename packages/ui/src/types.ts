@@ -324,6 +324,9 @@ export interface WhisperList {
   name: string;
   targets: WhisperTarget[];
   keybind?: string;
+  /** Hold-to-whisper vs. toggle-on-keydown while `keybind` is set. Defaults
+   *  to "hold" when absent (lists saved before this shipped). */
+  keybindMode?: "hold" | "toggle";
 }
 
 /** Ephemeral "X played Y" attribution chip shown near the soundboard trigger. */

@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
 export interface WhisperTarget { type: "user" | "channel" | "role"; id: string; label: string; }
-export interface WhisperList { id: string; name: string; targets: WhisperTarget[]; keybind?: string; }
+export interface WhisperList { id: string; name: string; targets: WhisperTarget[]; keybind?: string; keybindMode?: "hold" | "toggle"; }
 
 interface UseWhisperParams {
   activeHubId: string | null;
