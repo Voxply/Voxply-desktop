@@ -3000,6 +3000,7 @@ export default function App({ initialView }: AppProps = {}) {
         onStopWhisper={whisper.stopWhisper}
         onSaveWhisperList={whisper.saveWhisperList}
         onDeleteWhisperList={whisper.deleteWhisperList}
+        onListWhisperRoles={() => listRoles().then((rs) => rs.map((r) => ({ id: r.id, name: r.name })))}
         whisperOptout={whisper.whisperOptout}
         onSetWhisperOptout={whisper.setWhisperOptout}
       />

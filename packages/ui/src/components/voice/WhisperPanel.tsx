@@ -16,6 +16,10 @@ interface Props {
    *  is absent (desktop hasn't wired the hub opt-out command yet). */
   whisperOptout?: boolean;
   onSetWhisperOptout?: (enabled: boolean) => void;
+  /** Role targets ("whisper to everyone with @officer currently in voice").
+   *  Loaded lazily when the Roles tab is first opened; the tab is hidden
+   *  entirely when this prop is absent. */
+  onListWhisperRoles?: () => Promise<Array<{ id: string; name: string }>>;
 }
 
 // Human label for a KeyboardEvent.code — mirrors apps/web's PushToTalkSection.
@@ -33,13 +37,19 @@ export function WhisperPanel({
   voiceParticipants, voiceChannels,
   isWhispering, whisperTargets, whisperLists,
   onStartWhisper, onStopWhisper, onSaveList, onDeleteList, onClose,
-  whisperOptout, onSetWhisperOptout,
+  whisperOptout, onSetWhisperOptout, onListWhisperRoles,
 }: Props) {
   const [selected, setSelected] = useState<WhisperTarget[]>(whisperTargets);
-  const [tab, setTab] = useState<"users" | "channels" | "lists">("users");
+  const [tab, setTab] = useState<"users" | "channels" | "roles" | "lists">("users");
   const [listName, setListName] = useState("");
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [bindingListId, setBindingListId] = useState<string | null>(null);
+  const [roles, setRoles] = useState<Array<{ id: string; name: string }> | null>(null);
+
+  useEffect(() => {
+    if (tab !== "roles" || roles !== null || !onListWhisperRoles) return;
+    onListWhisperRoles().then(setRoles).catch(() => setRoles([]));
+  }, [tab, roles, onListWhisperRoles]);
 
   function toggleTarget(t: WhisperTarget) {
     setSelected(prev =>
@@ -80,11 +90,13 @@ export function WhisperPanel({
       )}
 
       <div className="whisper-tabs">
-        {(["users", "channels", "lists"] as const).map(t => (
-          <button key={t} className={`whisper-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
-            {t === "users" ? "Users" : t === "channels" ? "Channels" : "Saved Lists"}
-          </button>
-        ))}
+        {(["users", "channels", "roles", "lists"] as const)
+          .filter(t => t !== "roles" || onListWhisperRoles)
+          .map(t => (
+            <button key={t} className={`whisper-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
+              {t === "users" ? "Users" : t === "channels" ? "Channels" : t === "roles" ? "Roles" : "Saved Lists"}
+            </button>
+          ))}
       </div>
 
       <div className="whisper-target-list">
@@ -106,6 +118,21 @@ export function WhisperPanel({
             </label>
           );
         })}
+        {tab === "roles" && roles === null && (
+          <p className="muted" style={{ padding: "8px 10px", fontSize: 12 }}>Loading roles…</p>
+        )}
+        {tab === "roles" && roles?.map(r => {
+          const target: WhisperTarget = { type: "role", id: r.id, label: `@${r.name}` };
+          return (
+            <label key={r.id} className="whisper-target-item">
+              <input type="checkbox" checked={isSelected(target)} onChange={() => toggleTarget(target)} />
+              {target.label}
+            </label>
+          );
+        })}
+        {tab === "roles" && roles !== null && roles.length === 0 && (
+          <p className="muted" style={{ padding: "8px 10px", fontSize: 12 }}>No roles on this hub.</p>
+        )}
         {tab === "lists" && whisperLists.map(list => (
           <div key={list.id} className="whisper-list-item-wrap">
             <div className="whisper-list-item">

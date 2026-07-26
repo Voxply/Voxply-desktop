@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { channelButton, createChannel, expectInHub, newMemberPage, uniqueName } from "./helpers/live";
+import { channelButton, createChannel, expectInHub, hubApi, newMemberPage, uniqueName } from "./helpers/live";
 
 // P21 — whisper (targeted voice). Two clients join voice; the owner whispers
 // to the member. Verifies the control plane end-to-end: the target receives
@@ -142,6 +142,51 @@ test("receive opt-out blocks a whisper; opting back in mid-session restores it",
     await member.getByTitle("Whisper").click();
     await memberPanel.locator(".whisper-optout-row input").uncheck();
     await memberPanel.locator(".whisper-panel-close").click();
+    await expect(member.locator(".participant-whisper-badge").first()).toBeVisible({ timeout: 15000 });
+
+    await stopWhisper(page);
+    await expect(member.locator(".participant-whisper-badge")).toBeHidden({ timeout: 15000 });
+  } finally {
+    await context.close();
+  }
+});
+
+test("role-target whisper via the Roles tab reaches a role member in voice", async ({ page, browser }) => {
+  test.setTimeout(120000);
+  await page.goto("/");
+  await expectInHub(page);
+
+  const channel = uniqueName("wrole");
+  await createChannel(page, channel);
+  await joinVoice(page, channel);
+
+  const memberName = uniqueName("RoleMate");
+  const { context, page: member } = await newMemberPage(browser, memberName);
+  try {
+    await joinVoice(member, channel);
+    await expect(channelButton(page, channel)).toHaveAccessibleName(/2 (people|persons) in voice/, { timeout: 15000 });
+
+    // Setup via API (assertions stay in the UI): a role assigned to the
+    // member. Their pubkey comes from their own client (the active account
+    // id), not a /users scan — the shared e2e hub accumulates users.
+    const memberPk = await member.evaluate(() => localStorage.getItem("wavvon:active_account_id"));
+    expect(memberPk, "member pubkey from active account id").toBeTruthy();
+    const roleName = uniqueName("Raider");
+    const role = await hubApi<{ id: string }>(page, "/roles", {
+      method: "POST",
+      body: { name: roleName, permissions: ["send_messages"], priority: 3 },
+    });
+    await hubApi(page, `/users/${memberPk}/roles/${role.id}`, { method: "PUT" });
+
+    // Owner whispers to the role from the panel's Roles tab.
+    await page.getByTitle("Whisper").click();
+    const panel = page.locator(".whisper-panel");
+    await expect(panel).toBeVisible({ timeout: 15000 });
+    await panel.getByRole("button", { name: "Roles" }).click();
+    await panel.locator(".whisper-target-item", { hasText: `@${roleName}` }).locator("input").check();
+    await panel.getByRole("button", { name: /Whisper to \d+ target/ }).click();
+    await expect(panel).toBeHidden();
+
     await expect(member.locator(".participant-whisper-badge").first()).toBeVisible({ timeout: 15000 });
 
     await stopWhisper(page);

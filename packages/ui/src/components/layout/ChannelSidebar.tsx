@@ -178,6 +178,7 @@ interface Props {
   onStopWhisper?: () => void;
   onSaveWhisperList?: (list: WhisperList) => void;
   onDeleteWhisperList?: (id: string) => void;
+  onListWhisperRoles?: () => Promise<Array<{ id: string; name: string }>>;
   whisperOptout?: boolean;
   onSetWhisperOptout?: (enabled: boolean) => void;
   canUseSoundboard?: boolean;
@@ -209,7 +210,7 @@ export function ChannelSidebar({
   onOpenSearch,
   isWhispering, whisperTargets, whisperLists, showWhisperPanel,
   onToggleWhisperPanel, onCloseWhisperPanel, onStartWhisper, onStopWhisper,
-  onSaveWhisperList, onDeleteWhisperList, whisperOptout, onSetWhisperOptout,
+  onSaveWhisperList, onDeleteWhisperList, onListWhisperRoles, whisperOptout, onSetWhisperOptout,
   canUseSoundboard, onListSoundboardClips, onTriggerSoundboardClip, soundboardPlayingClipId, soundboardChips,
 }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -915,6 +916,7 @@ export function ChannelSidebar({
                       onClose={onCloseWhisperPanel}
                       whisperOptout={whisperOptout}
                       onSetWhisperOptout={onSetWhisperOptout}
+                      onListWhisperRoles={onListWhisperRoles}
                     />
                   </div>,
                   document.body
