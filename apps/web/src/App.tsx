@@ -15,7 +15,6 @@ import type { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { flattenTree, descendantIds, computeDepth, mentionsName, playMentionPing, playVoiceTone, channelPath, formatPubkey } from "@wavvon/core";
 import { getScoped, setScoped } from "./utils/accountScope";
-import { visibleParticipants } from "./utils/voicePresence";
 
 // Voice join/leave sound cues, gated by a preference (default on). Per
 // account — it's a notification-style preference, like the mention ping.
@@ -704,18 +703,6 @@ export default function App({ initialView }: AppProps = {}) {
     prevVoiceOthersRef.current = others;
   }, [voicePartByChannel, voiceChannelId, publicKey]);
 
-  // What every rendered participant list (sidebar channel rows, the whisper
-  // bar, the event staging panel) should actually show — an invisible
-  // participant is filtered out of everyone's view but their own, same as
-  // they already are in the plain member roster (see onSetStatus above).
-  const visibleVoicePartByChannel = useMemo(() => {
-    const out: Record<string, VoiceParticipant[]> = {};
-    for (const [channelId, participants] of Object.entries(voicePartByChannel)) {
-      out[channelId] = visibleParticipants(participants, users, publicKey);
-    }
-    return out;
-  }, [voicePartByChannel, users, publicKey]);
-
   const [activeBotApps, setActiveBotApps] = useState<Map<string, BotAppLaunchEvent>>(new Map());
   const [activeOpenApp, setActiveOpenApp] = useState<{ event: BotAppOpenEvent; hubUrl: string } | null>(null);
 
@@ -1132,8 +1119,13 @@ export default function App({ initialView }: AppProps = {}) {
         // A member we've never seen (joined after our initial /users load)
         // isn't in the list yet — refetch so they appear live (and resolve
         // to their name in the member list, message authors, video tiles).
+        // Stamp them online in the merged result: the snapshot can race
+        // their presence registration and say offline, and no further
+        // member_online would arrive to correct it.
         if (!known) {
-          hubFetch("/users").then((r) => r.json() as Promise<User[]>).then(setUsers).catch(() => {});
+          hubFetch("/users").then((r) => r.json() as Promise<User[]>).then((list) =>
+            setUsers(list.map((u) => u.public_key === publicKey ? { ...u, online: true } : u)),
+          ).catch(() => {});
           return prev;
         }
         return prev.map((u) => u.public_key === publicKey ? { ...u, online: true } : u);
@@ -2888,7 +2880,7 @@ export default function App({ initialView }: AppProps = {}) {
         selectedChannel={selectedChannel}
         unreadByChannel={unreadByChannel}
         collapsedCategories={collapsedCategories}
-        voicePartByChannel={visibleVoicePartByChannel}
+        voicePartByChannel={voicePartByChannel}
         voiceChannelId={voiceChannelId}
         voiceChannelNameHint={voiceChannelNameHint}
         selfMuted={selfMuted}
@@ -3163,7 +3155,7 @@ export default function App({ initialView }: AppProps = {}) {
         onOpenHubStreams={handleOpenHubStreams}
         onStartConversation={handleStartConversation}
         profileCardActions={profileCardActions}
-        voicePartByChannel={visibleVoicePartByChannel}
+        voicePartByChannel={voicePartByChannel}
         selfInvisible={myPresence.status === "invisible"}
         hideBirthdays={hideBirthdays}
         canMoveMembers={canMoveMembers}
