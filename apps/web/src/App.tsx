@@ -13,25 +13,22 @@ import { useWhisper, pickReplyPubkey } from "./hooks/useWhisper";
 import { useScreenShare } from "./hooks/useScreenShare";
 import { useDms } from "./hooks/useDms";
 import { useWhisperKeybinds } from "./hooks/useWhisperKeybinds";
+import { useVoice } from "./hooks/useVoice";
+import type { VoiceExtDeps } from "./hooks/useVoice";
+import { useVideo } from "./hooks/useVideo";
+import { useWsHandlers } from "./hooks/useWsHandlers";
+import { useAddHubFlow } from "./hooks/useAddHubFlow";
+import { useChannelCrud } from "./hooks/useChannelCrud";
 import { loadWhisperReplyBind, saveWhisperReplyBind } from "./utils/whisperReply";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
-import { flattenTree, descendantIds, computeDepth, mentionsName, playMentionPing, playVoiceTone, channelPath, formatPubkey } from "@wavvon/core";
+import { flattenTree, descendantIds, computeDepth, channelPath, formatPubkey } from "@wavvon/core";
 import { getScoped, setScoped } from "./utils/accountScope";
-
-// Voice join/leave sound cues, gated by a preference (default on). Per
-// account — it's a notification-style preference, like the mention ping.
-function voiceSoundsOn(): boolean {
-  try { return getScoped("wavvon.voiceSounds") !== "0"; } catch { return true; }
-}
 import { DISCOVERY_NEW_HUB_URL, HUB_SETUP_COMMAND } from "./constants";
-import { parseHubInput } from "@wavvon/core";
-import type { HubInputResult } from "@wavvon/core";
 import type {
   Channel,
   Attachment,
   Message,
-  NotifyMode,
   User,
   VoiceParticipant,
   Hub,
@@ -39,14 +36,12 @@ import type {
   Conversation,
   AllianceInfo,
   AllianceSharedChannel,
-  SoundboardClip,
 } from "@shared/types";
 import type { BotAppLaunchEvent, BotAppOpenEvent, PresenceStatus } from "./types";
 import { HubSidebar } from "@wavvon/ui";
 import { ChannelSidebar } from "@wavvon/ui";
 import { WhisperInbox } from "@wavvon/ui";
 import { ContentArea } from "@components/layout/ContentArea";
-import { loadPttConfig } from "@components/settings/PushToTalkSection";
 import { loadDefaultProfile, saveDefaultProfile, loadFollowsDefault, type DefaultProfile } from "./utils/profiles";
 import { getUserProfile, listRoleCategories, patchMyProfileOnHub, listRoles, listUserRoles, assignRoleToUser, removeRoleFromUser, createInvite } from "@platform";
 import { getHubSettings, saveHubSettings } from "@platform";
@@ -67,10 +62,10 @@ import { ChannelSettingsModal, type ChannelSettingsSaveFields } from "@wavvon/ui
 import { EditDescriptionModal } from "@wavvon/ui";
 import type { ChannelPermissionsTabActions, ChannelBansTabActions, ChannelTalkPowerTabActions } from "@wavvon/ui";
 import { CreateHubFork } from "@components/hubs/CreateHubFork";
-import { BotAppLaunchCard, EventComposer, PollComposer, FocusTrap, GameModal, KeyboardShortcuts, HoverSubmenu, VoiceMoveMenu, VoiceMoveToast, VoiceMovePromptModal, SearchBar, DiscoverPage, Lobby, FarmSettingsPage, HubSetupWizard } from "@wavvon/ui";
-import type { HubSetupWizardCreateChannelFields } from "@wavvon/ui";
+import { BotAppLaunchCard, EventComposer, PollComposer, FocusTrap, GameModal, KeyboardShortcuts, ChannelContextMenu, VoiceMoveMenu, VoiceMoveToast, VoiceMovePromptModal, SearchBar, DiscoverPage, Lobby, FarmSettingsPage, HubSetupWizard } from "@wavvon/ui";
 import { createEvent, createPoll } from "@platform";
-import { moveChannelOptions, decideVoiceMove, computeDragIntent } from "@wavvon/ui";
+import { moveChannelOptions, computeDragIntent } from "@wavvon/ui";
+import { useVoiceMoveUx, usePresenceStatus, useHubSetupWizardGate } from "@wavvon/ui";
 import {
   HubAdminPage,
   type RolesSectionActions,
@@ -124,20 +119,15 @@ import { buildChannelTree } from "@wavvon/core";
 import type { TreeNode } from "@wavvon/core";
 import { saveDraft, loadDraft, clearDraft, hasDraft } from "./utils/drafts";
 import { ScreenShareSelfPreview } from "@components/voice/ScreenShareSelfPreview";
-import { listBotCommands, updateDmBlocks, getDmBlocks, fetchVoiceRoster, activeSession, authenticateWithPasskey, sendBotAppJoin, getSession } from "@platform";
-import { markSoundboardPlayed, fetchSoundboardAudioBytes, getMyChannelPermissions, sendSetStatus, sendSetStatusTo, uploadFile } from "@platform";
-import type { MyChannelPermissions } from "@platform";
+import { listBotCommands, updateDmBlocks, getDmBlocks, fetchVoiceRoster, activeSession, sendBotAppJoin } from "@platform";
+import { sendSetStatus, fetchSoundboardAudioBytes } from "@platform";
 import {
   restorePersistedHubs,
-  addHub,
   removeHub,
   setActiveHub,
   listHubs,
   refreshHubInfo,
-  previewHubInfo,
-  verifyLanFingerprint,
   reorderHubs,
-  reauthorizeHub,
   hubFetch,
   HubApiError,
   loadSavedHubs,
@@ -158,21 +148,7 @@ import {
   farmTotpConfirm,
   farmTotpDisable,
 } from "@platform";
-import type { WsHandlers } from "@platform";
 import { getActiveHubId } from "@platform";
-import { VoiceWsSession, type AudioProfileConfig } from "./platform/voice";
-import { WebVideoSession } from "./platform/video";
-import { BackgroundProcessor, loadBgMode, loadBgSource } from "./utils/backgroundProcessor";
-
-// The voice audio profile is persisted by SettingsPage under this key; read
-// it here so the saved profile is actually applied to the live session.
-function loadVoiceAudioProfile(): AudioProfileConfig | undefined {
-  try {
-    const raw = localStorage.getItem("wavvon.audio_profile");
-    if (raw) return JSON.parse(raw) as AudioProfileConfig;
-  } catch { /* fall back to session defaults */ }
-  return undefined;
-}
 import {
   getMessages,
   sendMessage,
@@ -190,14 +166,10 @@ import {
 } from "@platform";
 import { loadIdentity, publicKeyHex, setSwitchGuard } from "@identity/index";
 import { IdentitySetupScreen, type IdentitySetupCompletion } from "@components/identity/IdentitySetupScreen";
+import type { HubInputResult } from "@wavvon/core";
 
 // ---- Types ----
 type View = "channels" | "dms";
-type HubPreview =
-  | { state: "idle" }
-  | { state: "loading" }
-  | { state: "ok"; url: string; name: string; description?: string | null; icon?: string | null; invite_only?: boolean; min_security_level?: number; welcome_label?: string | null; welcome_invite_url?: string | null }
-  | { state: "error"; message: string };
 
 // The member profile card's own-profile save also propagates to every other
 // hub following the account's default profile (see utils/profiles.ts) — pure
@@ -271,93 +243,19 @@ export default function App({ initialView }: AppProps = {}) {
   const pendingVoiceAnnouncementsRef = useRef<string[]>([]);
   const [pingByHub, setPingByHub] = useState<Record<string, number | null>>({});
   const [hubDropdownOpen, setHubDropdownOpen] = useState(false);
-  const [hubUrl, setHubUrl] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
-  const [hubPreview, setHubPreview] = useState<HubPreview>({ state: "idle" });
-  const [addingHub, setAddingHub] = useState(false);
-  const [addHubError, setAddHubError] = useState<string | null>(null);
-  // LAN fingerprint pinning (lan-mode.md §5): set when the parsed invite
-  // carried a `?fp=`/`#fp=` fingerprint, so handleAddHub* can TOFU-verify it
-  // against /info before joining.
-  const [expectedFingerprint, setExpectedFingerprint] = useState<string | undefined>(undefined);
-  const [fingerprintMatch, setFingerprintMatch] = useState(false);
-  const [showAddHub, setShowAddHub] = useState(false);
   const [showQuickInvite, setShowQuickInvite] = useState(false);
   const [homeHubUrl, setHomeHubUrl] = useState<string | undefined>(undefined);
-  const [createChannelCtx, setCreateChannelCtx] = useState<{ parentId: string | null; isCategory: boolean } | null>(null);
-  const [createChannelLoading, setCreateChannelLoading] = useState(false);
-  const [createChannelError, setCreateChannelError] = useState<string | null>(null);
-  // First-run hub setup wizard (decisions.md 2026-07-25): shown once per hub
-  // when an admin lands on an empty channel list. "Done" covers both
-  // "picked a template" and "started blank" — never re-nag either way.
-  const [showHubSetupWizard, setShowHubSetupWizard] = useState(false);
-  const [hubSetupWizardDone, setHubSetupWizardDone] = useState<Record<string, boolean>>(() => {
-    try { return JSON.parse(getScoped("wavvon.hubSetupWizardDone") || "{}") as Record<string, boolean>; }
-    catch { return {}; }
-  });
-  function markHubSetupWizardDone(hubId: string) {
-    setHubSetupWizardDone((prev) => {
-      const next = { ...prev, [hubId]: true };
-      try { setScoped("wavvon.hubSetupWizardDone", JSON.stringify(next)); } catch { /* storage unavailable */ }
-      return next;
-    });
-  }
   const [channelCtxMenu, setChannelCtxMenu] = useState<{ channel: Channel; x: number; y: number } | null>(null);
-  const [channelSettingsCtx, setChannelSettingsCtx] = useState<Channel | null>(null);
   // "Create event"/"create poll" from the channel context menu (create-anything
   // task): both composers are self-contained modals that only need a target
   // channel id, so they can be opened without switching to that channel first.
   const [eventComposerChannelId, setEventComposerChannelId] = useState<string | null>(null);
   const [pollComposerChannelId, setPollComposerChannelId] = useState<string | null>(null);
-  // Temp-room owner rename (temp-voice-channels.md §3): a non-admin owner
-  // gets a minimal rename modal, not the full channel-settings surface.
-  const [editDescChannel, setEditDescChannel] = useState<Channel | null>(null);
-  const [editDescValue, setEditDescValue] = useState("");
-  const [renameRoomCtx, setRenameRoomCtx] = useState<Channel | null>(null);
-  const [renameRoomName, setRenameRoomName] = useState("");
-  const [renameRoomSaving, setRenameRoomSaving] = useState(false);
-  const [renameRoomError, setRenameRoomError] = useState<string | null>(null);
-  const [channelSettingsSaving, setChannelSettingsSaving] = useState(false);
-  const [channelSettingsDeleting, setChannelSettingsDeleting] = useState(false);
-  const [channelSettingsError, setChannelSettingsError] = useState<string | null>(null);
 
   // === Hub data ===
   const [channels, setChannels] = useState<Channel[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  // Own presence — shared across every hub this account is on, not per-hub;
-  // the client is the source of truth and broadcasts it to every session,
-  // re-applying on (re)connect. Distinct from hub mute (notify modes). It's
-  // an account-level preference (per-account storage), not a device-global one.
-  const [myPresence, setMyPresenceState] = useState<{ status: PresenceStatus }>(() => {
-    try {
-      const raw = getScoped("wavvon.presence");
-      if (raw) {
-        const p = JSON.parse(raw) as { status?: string };
-        const s = p.status;
-        if (s === "away" || s === "dnd" || s === "invisible") return { status: s };
-      }
-    } catch { /* storage unavailable or corrupt */ }
-    return { status: "online" };
-  });
-  const setMyPresence = useCallback((p: { status: PresenceStatus }) => {
-    setMyPresenceState(p);
-    try { setScoped("wavvon.presence", JSON.stringify(p)); } catch { /* storage unavailable */ }
-  }, []);
-  // Timer backing the presence "clear after" (TTL): while connected, reverts
-  // to Online when it fires. Presence is online-only anyway, so disconnecting
-  // also naturally resets it; this just handles the still-online case.
-  const presenceTtlRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [meInfo, setMeInfo] = useState<MeInfo | null>(null);
-  const [voicePartByChannel, setVoicePartByChannel] = useState<Record<string, VoiceParticipant[]>>({});
-  const [voiceActiveUsers, setVoiceActiveUsers] = useState<Set<string>>(new Set());
-  const [voiceChannelId, setVoiceChannelId] = useState<string | null>(null);
-  const [selfMuted, setSelfMuted] = useState(false);
-  const [selfDeafened, setSelfDeafened] = useState(false);
-  const voiceSessionRef = useRef<VoiceWsSession | null>(null);
-  const [voiceGains, setVoiceGains] = useState<Record<string, number>>(() => {
-    try { return JSON.parse(getScoped("wavvon.voice_gains") || "{}") as Record<string, number>; }
-    catch { return {}; }
-  });
   const [slashCommands, setSlashCommands] = useState<Array<{ command: string; description: string; bot_name: string }>>([]);
   const {
     userAlliances, setUserAlliances, allianceChannels, setAllianceChannels,
@@ -560,63 +458,63 @@ export default function App({ initialView }: AppProps = {}) {
     position: { x: number; y: number };
   } | null>(null);
 
-  // === Voice move (events.md §7.1/§7.2) ===
-  const [voiceMoveMenu, setVoiceMoveMenu] = useState<{
-    pubkey: string;
-    displayName: string;
-    position: { x: number; y: number };
-    currentChannelId: string;
-  } | null>(null);
-  // Overrides the sidebar's local-channel-list name lookup for the voice HUD
-  // label — set from a voice_move push's target_channel_name, since that
-  // destination may not be in the local channel list (events.md §7.1/§7.4).
-  const [voiceChannelNameHint, setVoiceChannelNameHint] = useState<string | null>(null);
-  const [voiceMovePrompt, setVoiceMovePrompt] = useState<{
-    targetChannelId: string;
-    targetChannelName: string;
-  } | null>(null);
-  const [voiceMoveToast, setVoiceMoveToast] = useState<{
-    channelName: string;
-    sourceChannelId: string | null;
-  } | null>(null);
-  const voiceMoveToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // === Typing ===
-  const selectedChannelIdRef = useRef<string | undefined>(undefined);
-  const selectedConvIdRef = useRef<string | undefined>(undefined);
+  // === Refs mirrored for WS handlers / voice (created early so the voice
+  // cluster below, and useWsHandlers further down, can read them) ===
   const publicKeyRef = useRef<string | null>(publicKey);
   publicKeyRef.current = publicKey;
+  const meInfoRef = useRef<MeInfo | null>(null);
+  useEffect(() => { meInfoRef.current = meInfo; }, [meInfo]);
   const mentionPingEnabledRef = useRef(mentionPingEnabled);
   mentionPingEnabledRef.current = mentionPingEnabled;
-  // Mirrored for the WS handlers: "dnd" presence and "silent" notify
-  // modes both gate notifications.
-  const myPresenceRef = useRef(myPresence);
-  myPresenceRef.current = myPresence;
   const effectiveNotifyModeRef = useRef(effectiveNotifyMode);
   effectiveNotifyModeRef.current = effectiveNotifyMode;
-  const { typingByKey, dmTypingByKey, receiveTyping, pingTyping, pingDmTyping } = useTypingIndicators(
-    () => selectedChannelIdRef.current,
-    () => selectedConvIdRef.current,
-    () => publicKeyRef.current,
-  );
-  const { chipsByChannel: soundboardChipsByChannel, receiveSoundboardPlayed } = useSoundboardChips();
-  const [soundboardPlayingClipId, setSoundboardPlayingClipId] = useState<string | null>(null);
 
-  // === Refs ===
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const messagesEndChannelRef = useRef<HTMLLIElement | null>(null);
-  const messagesContainerRef = useRef<HTMLOListElement | null>(null);
-  const messageInputRef = useRef<HTMLInputElement | null>(null);
-  const [showFriends, setShowFriends] = useState(false);
-  // Camera video (full-mesh WebRTC over the main WS).
-  const videoSessionRef = useRef<WebVideoSession | null>(null);
-  const backgroundProcessorRef = useRef<BackgroundProcessor | null>(null);
-  const [videoEnabled, setVideoEnabled] = useState(false);
-  const videoEnabledRef = useRef(videoEnabled);
-  videoEnabledRef.current = videoEnabled;
-  const [localVideoStream, setLocalVideoStream] = useState<MediaStream | null>(null);
-  const [remoteVideoStreams, setRemoteVideoStreams] = useState<Map<string, MediaStream>>(new Map());
-  const whisper = useWhisper({ activeHubId, voiceChannelId });
+  // === Presence (own status, shared across every hub this account is on) ===
+  const { myPresence, myPresenceRef, handleSetStatus } = usePresenceStatus({
+    loadRaw: () => getScoped("wavvon.presence"),
+    persist: (p) => { try { setScoped("wavvon.presence", JSON.stringify(p)); } catch { /* storage unavailable */ } },
+    broadcast: (s) => { try { sendSetStatus(s, null); } catch { /* ws not ready */ } },
+    // Optimistic: the hubs' member_status broadcasts will confirm. Invisible
+    // shows the user offline (to everyone, incl. their own roster view); the
+    // footer picker still reflects "invisible".
+    applyToRoster: (s) => {
+      setUsers((prev) => prev.map((u) =>
+        u.public_key === publicKey
+          ? { ...u, online: s !== "invisible", status: s === "online" || s === "invisible" ? null : s, status_custom: null }
+          : u,
+      ));
+    },
+  });
+
+  // === Voice / video / whisper / voice-move UX ===
+  // The hubFetch("/channels") -> setChannels resync used when a spawner join
+  // lands in a sibling room not yet in the local channel list.
+  function refetchChannels() {
+    hubFetch("/channels").then((r) => r.json() as Promise<Channel[]>).then(setChannels).catch(() => {});
+  }
+  // Filled in below once useVideo/useWhisper/useVoiceMoveUx exist. useVoice
+  // only ever reads extRef.current at call time (async), so it's safe for
+  // this to start out as no-ops and be overwritten later in the same render.
+  const voiceExtRef = useRef<VoiceExtDeps>({
+    createVideoSession: () => {},
+    disposeVideo: () => {},
+    stopVideoSessionOnly: () => {},
+    stopWhisperIfActive: () => {},
+    clearVoiceChannelNameHint: () => {},
+  });
+  const voice = useVoice({
+    publicKey, publicKeyRef, meInfoRef, showHubError, refetchChannels, extRef: voiceExtRef,
+  });
+  const video = useVideo({ voiceChannelId: voice.voiceChannelId, showHubError, publicKeyRef });
+  const voiceMoveUx = useVoiceMoveUx({ joinVoice: voice.handleVoiceJoin });
+  const whisper = useWhisper({ activeHubId, voiceChannelId: voice.voiceChannelId });
+  voiceExtRef.current = {
+    createVideoSession: video.createVideoSession,
+    disposeVideo: video.disposeVideo,
+    stopVideoSessionOnly: video.stopVideoSessionOnly,
+    stopWhisperIfActive: () => { if (whisper.isWhispering) whisper.stopWhisper(); },
+    clearVoiceChannelNameHint: () => voiceMoveUx.setVoiceChannelNameHint(null),
+  };
   const whisperOptoutRef = useRef(whisper.whisperOptout);
   whisperOptoutRef.current = whisper.whisperOptout;
   const [whisperReplyBind, setWhisperReplyBindState] = useState<WhisperReplyBind>(loadWhisperReplyBind);
@@ -632,7 +530,7 @@ export default function App({ initialView }: AppProps = {}) {
     return { type: "user", id: pk, label: name || pk.slice(0, 8) };
   }, [whisper.inboundWhisperLog, users]);
   useWhisperKeybinds({
-    voiceChannelId,
+    voiceChannelId: voice.voiceChannelId,
     whisperLists: whisper.whisperLists,
     isWhispering: whisper.isWhispering,
     startWhisper: whisper.startWhisper,
@@ -641,7 +539,6 @@ export default function App({ initialView }: AppProps = {}) {
     replyTarget: whisperReplyTarget,
   });
   const [showWhisperPanel, setShowWhisperPanel] = useState(false);
-  const [pttConfig, setPttConfig] = useState(loadPttConfig);
   const [surveyToShow, setSurveyToShow] = useState<import("@platform").SurveyAdmin | null>(null);
   const surveyDismissedRef = useRef<Set<string>>(new Set());
   // Registered so switchAccount can refuse a mid-voice switch at the source
@@ -649,76 +546,14 @@ export default function App({ initialView }: AppProps = {}) {
   // Account) — switching accounts while joined to a voice channel is blocked
   // outright, not auto-left on the caller's behalf.
   useEffect(() => {
-    setSwitchGuard(() => (voiceChannelId ? t("settings.account.accounts.switch_blocked_voice") : null));
+    setSwitchGuard(() => (voice.voiceChannelId ? t("settings.account.accounts.switch_blocked_voice") : null));
     return () => setSwitchGuard(null);
-  }, [voiceChannelId, t]);
-
-  // Per-instance resources this App holds that any unmount (a key-remounted
-  // account switch, or otherwise) must tear down explicitly. Module-level
-  // singletons like the hub WebSocket sessions are reset separately, by
-  // AccountRoot's switch handler (platform/session.ts resetHubSessions) —
-  // that reset runs regardless of whether this cleanup does.
-  useEffect(() => {
-    return () => {
-      voiceSessionRef.current?.stop();
-      videoSessionRef.current?.dispose();
-      backgroundProcessorRef.current?.stop();
-    };
-  }, []);
-  // Reload PTT config when the settings screen changes it.
-  useEffect(() => {
-    const reload = () => setPttConfig(loadPttConfig());
-    window.addEventListener("wavvon:ptt", reload);
-    return () => window.removeEventListener("wavvon:ptt", reload);
-  }, []);
-  // Push-to-talk: only active when enabled AND in voice. Start muted; the
-  // bound key unmutes while held. When disabled, this effect does nothing,
-  // so non-PTT users are entirely unaffected.
-  useEffect(() => {
-    if (!pttConfig.enabled || !voiceChannelId) return;
-    setSelfMuted(true);
-    voiceSessionRef.current?.setMuted(true);
-    const isTyping = (t: EventTarget | null) => {
-      const el = t as HTMLElement | null;
-      return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
-    };
-    const down = (e: KeyboardEvent) => {
-      if (e.code !== pttConfig.key || e.repeat || isTyping(e.target)) return;
-      e.preventDefault();
-      setSelfMuted(false);
-      voiceSessionRef.current?.setMuted(false);
-    };
-    const up = (e: KeyboardEvent) => {
-      if (e.code !== pttConfig.key) return;
-      setSelfMuted(true);
-      voiceSessionRef.current?.setMuted(true);
-    };
-    window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
-    return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
-    };
-  }, [pttConfig.enabled, pttConfig.key, voiceChannelId]);
-
-  // Sound cue when someone else joins/leaves the voice channel you're in.
-  // Counts OTHERS only, so it never double-fires with the self join/leave tone.
-  const prevVoiceOthersRef = useRef(0);
-  useEffect(() => {
-    if (!voiceChannelId) { prevVoiceOthersRef.current = 0; return; }
-    const others = (voicePartByChannel[voiceChannelId] ?? []).filter((p) => p.public_key !== publicKey).length;
-    const prev = prevVoiceOthersRef.current;
-    if (voiceSoundsOn() && others !== prev) {
-      try { playVoiceTone(others > prev ? "up" : "down"); } catch { /* audio not ready */ }
-    }
-    prevVoiceOthersRef.current = others;
-  }, [voicePartByChannel, voiceChannelId, publicKey]);
+  }, [voice.voiceChannelId, t]);
 
   const [activeBotApps, setActiveBotApps] = useState<Map<string, BotAppLaunchEvent>>(new Map());
   const [activeOpenApp, setActiveOpenApp] = useState<{ event: BotAppOpenEvent; hubUrl: string } | null>(null);
 
   const loadingHub = useRef(false);
-
 
   // === Identity init ===
 
@@ -757,6 +592,23 @@ export default function App({ initialView }: AppProps = {}) {
     document.title = total > 0 ? `(${total > 99 ? "99+" : total}) Wavvon` : "Wavvon";
   }, [unreadByHub]);
 
+  // === Typing ===
+  const selectedChannelIdRef = useRef<string | undefined>(undefined);
+  const selectedConvIdRef = useRef<string | undefined>(undefined);
+  const { typingByKey, dmTypingByKey, receiveTyping, pingTyping, pingDmTyping } = useTypingIndicators(
+    () => selectedChannelIdRef.current,
+    () => selectedConvIdRef.current,
+    () => publicKeyRef.current,
+  );
+  const { chipsByChannel: soundboardChipsByChannel, receiveSoundboardPlayed } = useSoundboardChips();
+
+  // === Refs ===
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messagesEndChannelRef = useRef<HTMLLIElement | null>(null);
+  const messagesContainerRef = useRef<HTMLOListElement | null>(null);
+  const messageInputRef = useRef<HTMLInputElement | null>(null);
+  const [showFriends, setShowFriends] = useState(false);
+
   // === WS handlers (stable via ref) ===
 
   const activeHubIdRef = useRef<string | null>(null);
@@ -773,18 +625,8 @@ export default function App({ initialView }: AppProps = {}) {
   const hubsRef = useRef<Hub[]>([]);
   const channelsRef = useRef<Channel[]>([]);
   useEffect(() => { channelsRef.current = channels; }, [channels]);
-  const pendingDeepLinkTargetRef = useRef<NonNullable<HubInputResult["target"]> | null>(null);
   const [pendingScrollMessageId, setPendingScrollMessageId] = useState<string | null>(null);
   useEffect(() => { hubsRef.current = hubs; }, [hubs]);
-
-  const meInfoRef = useRef<MeInfo | null>(null);
-  useEffect(() => { meInfoRef.current = meInfo; }, [meInfo]);
-
-  // handleVoiceJoin's "already there" guard is called both from JSX (fresh
-  // voiceChannelId) and from the frozen onVoiceMove WS handler below — the
-  // ref keeps that guard correct from either call site.
-  const voiceChannelIdRef = useRef<string | null>(null);
-  useEffect(() => { voiceChannelIdRef.current = voiceChannelId; }, [voiceChannelId]);
 
   useEffect(() => {
     if (hubs.length === 1 && meInfo !== null && !meInfo.display_name) {
@@ -850,329 +692,29 @@ export default function App({ initialView }: AppProps = {}) {
     return () => clearTimeout(timer);
   }, [pendingScrollMessageId]);
 
-  const stableHandlersRef = useRef<WsHandlers>({});
+  const loadHubDataRef = useRef<() => Promise<void>>(async () => {});
+  loadHubDataRef.current = loadHubData;
 
-  const stableHandlers: WsHandlers = useMemo(() => ({
-    onMessage: (raw) => {
-      const m = raw as Record<string, unknown>;
-      const type = m.type as string;
-      const msgHubId = m._hub_id as string | undefined;
-      const activeHub = activeHubIdRef.current;
-      if (type === "message") {
-        const msg = m.message as Message | undefined;
-        if (!msg) return;
-        const selCh = selectedChannelRef.current;
-        const isActiveHub = msgHubId === activeHub;
-        const isActiveChannel = isActiveHub && m.channel_id === selCh?.id;
-        if (isActiveChannel) {
-          setMessages((prev) => prev.some((x) => x.id === msg.id) ? prev : [...prev, msg]);
-          setStickToBottom((stick) => { if (stick) setNewWhileScrolledUp(0); else setNewWhileScrolledUp((n) => n + 1); return stick; });
-        } else if (msgHubId && m.channel_id) {
-          bumpUnread(msgHubId, m.channel_id as string);
-        }
-        const myName = meInfoRef.current?.display_name ?? null;
-        const myPk = publicKeyRef.current;
-        const isMention = (myName && mentionsName(msg.content, myName)) ||
-          (myPk && msg.content.includes(myPk));
-        // Read-time notification gate, two independent quiets: "dnd"
-        // presence (global) and a "silent" notify mode on this hub or
-        // channel (hub mute). Either way unreads still accumulate.
-        const silenced = myPresenceRef.current.status === "dnd" ||
-          (!!msgHubId && typeof m.channel_id === "string" &&
-            effectiveNotifyModeRef.current(msgHubId, m.channel_id) === "silent");
-        if (isMention && msg.sender !== myPk && !silenced) {
-          if (mentionPingEnabledRef.current) {
-            try { playMentionPing(); } catch { /* audio context may not be ready */ }
-          }
-          if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-            new Notification(`${msg.sender_name ?? "Someone"} mentioned you`, {
-              body: msg.content.slice(0, 100),
-              tag: msg.id,
-            });
-          }
-        }
-      } else if (type === "message_edited") {
-        if (msgHubId !== activeHub) return;
-        if (m.channel_id !== selectedChannelRef.current?.id) return;
-        const msg = m.message as Message | undefined;
-        if (msg) setMessages((prev) => prev.map((x) => x.id === msg.id ? msg : x));
-      } else if (type === "message_deleted") {
-        if (msgHubId !== activeHub) return;
-        if (m.channel_id !== selectedChannelRef.current?.id) return;
-        const id = m.message_id as string;
-        if (id) setMessages((prev) => prev.filter((x) => x.id !== id));
-      } else if (type === "reactions_updated") {
-        if (msgHubId !== activeHub) return;
-        if (m.channel_id !== selectedChannelRef.current?.id) return;
-        const msgId = m.message_id as string | undefined;
-        const reactions = m.reactions as Message["reactions"] | undefined;
-        if (msgId && reactions) {
-          setMessages((prev) => prev.map((x) => {
-            if (x.id !== msgId) return x;
-            const myEmojis = new Set(
-              (x.reactions ?? []).filter((r) => r.me).map((r) => r.emoji)
-            );
-            return {
-              ...x,
-              reactions: reactions.map((r) => ({ ...r, me: myEmojis.has(r.emoji) })),
-            };
-          }));
-        }
-      }
-    },
-    onDm,
-    onVideo: (raw) => {
-      const m = raw as { _hub_id?: string };
-      if (m._hub_id !== activeHubIdRef.current) return;
-      void videoSessionRef.current?.handle(m as Record<string, unknown>);
-    },
-    onWhisper: (raw) => {
-      const m = raw as { type?: string; sender_pubkey?: string; _hub_id?: string };
-      if (m._hub_id !== activeHubIdRef.current || !m.sender_pubkey) return;
-      whisper.receiveWhisperEvent(m.sender_pubkey, m.type === "voice_whisper_started");
-    },
-    onVoiceMove: (raw) => {
-      const m = raw as { _hub_id?: string } & Parameters<typeof decideVoiceMove>[0];
-      if (m._hub_id !== activeHubIdRef.current) return;
-      const decision = decideVoiceMove(m);
-      if (decision.kind === "ignore") return;
-      if (decision.kind === "auto") {
-        setVoiceChannelNameHint(decision.targetChannelName);
-        void handleVoiceJoin(decision.targetChannelId);
-        showVoiceMoveToast(decision.targetChannelName, decision.sourceChannelId);
-      } else {
-        setVoiceMovePrompt({ targetChannelId: decision.targetChannelId, targetChannelName: decision.targetChannelName });
-      }
-    },
-    onVoiceState: (raw) => {
-      const m = raw as { type?: string; channel_id?: string; participants?: VoiceParticipant[]; participant?: VoiceParticipant; public_key?: string; speaking?: boolean; _hub_id?: string; sender_id?: number };
-      if (m._hub_id !== activeHubIdRef.current) return;
-      if (!m.channel_id) return;
-      const channelId = m.channel_id;
-
-      if (m.type === "voice_roster_update" && m.participants) {
-        const rosterParticipants = m.participants as unknown as Array<{ sender_id: number; public_key: string }>;
-        voiceSessionRef.current?.handleRosterUpdate(rosterParticipants);
-      }
-
-      if (m.type === "voice_participant_left") {
-        if (!m.public_key) return;
-        const leftKey = m.public_key;
-        setVoicePartByChannel((prev) => {
-          const existing = prev[channelId];
-          if (!existing) return prev;
-          const next = existing.filter((p) => p.public_key !== leftKey);
-          if (next.length === 0) {
-            const { [channelId]: _, ...rest } = prev;
-            return rest;
-          }
-          return { ...prev, [channelId]: next };
-        });
-        setVoiceActiveUsers((prev) => {
-          if (!prev.has(leftKey)) return prev;
-          const next = new Set(prev);
-          next.delete(leftKey);
-          return next;
-        });
-      } else if (m.type === "voice_participant_joined") {
-        if (!m.participant) return;
-        const joined = m.participant;
-        setVoicePartByChannel((prev) => {
-          const existing = prev[channelId] ?? [];
-          if (existing.some((p) => p.public_key === joined.public_key)) return prev;
-          return { ...prev, [channelId]: [...existing, joined] };
-        });
-      } else if (m.type === "voice_participant_speaking") {
-        if (!m.public_key) return;
-        const speakerKey = m.public_key;
-        const isSpeaking = m.speaking ?? true;
-        setVoiceActiveUsers((prev) => {
-          const hasSpeaker = prev.has(speakerKey);
-          if (isSpeaking === hasSpeaker) return prev;
-          const next = new Set(prev);
-          if (isSpeaking) next.add(speakerKey); else next.delete(speakerKey);
-          return next;
-        });
-      } else if (m.participants) {
-        setVoicePartByChannel((prev) => ({ ...prev, [channelId]: m.participants! }));
-      }
-    },
-    onTyping: (raw) => {
-      receiveTyping(raw as Record<string, unknown>);
-    },
-    onScreenShare,
-    onScreenShareChunk,
-    onStatusChange: (connected, hubId) => {
-      const hubName = hubsRef.current.find((h) => h.hub_id === hubId)?.hub_name ?? "hub";
-      handleStatusChange(hubId, hubName, connected, setAssertiveAnnouncement);
-      if (connected) {
-        // Presence is global: push this device's status to the hub that
-        // just (re)connected, but only if the user ever picked one here —
-        // a fresh device must not stomp a status set elsewhere.
-        const p = myPresenceRef.current;
-        if (p.status !== "online") {
-          try { sendSetStatusTo(hubId, p.status, null); } catch { /* ws not ready */ }
-        }
-        // Hub-side whisper opt-out is ephemeral — re-push it on every
-        // (re)connect, same reasoning as the presence push above.
-        try { getSession(hubId)?.ws?.setWhisperOptout(whisperOptoutRef.current); } catch { /* ws not ready */ }
-      }
-      if (connected && hubId === activeHubIdRef.current) {
-        hubFetch("/users").then((r) => r.json() as Promise<User[]>).then(setUsers).catch(() => {});
-        try { activeSession().ws?.requestStreamList(); } catch {}
-      }
-    },
-    onError: (raw) => {
-      const m = raw as Record<string, unknown>;
-      if (m._hub_id !== activeHubIdRef.current) return;
-      const message = (m.message as string | undefined) ?? "An error occurred on the hub.";
-      showHubError(message);
-    },
-    onDmMemberChanged,
-    onPin: (raw) => {
-      const m = raw as Record<string, unknown>;
-      if (m._hub_id !== activeHubIdRef.current) return;
-    },
-    onPoll: (raw) => {
-      const m = raw as Record<string, unknown>;
-      if (m._hub_id !== activeHubIdRef.current) return;
-    },
-    onSoundboardPlayed: (raw) => {
-      const m = raw as Record<string, unknown>;
-      if (m._hub_id !== activeHubIdRef.current) return;
-      receiveSoundboardPlayed(raw);
-    },
-    onReauthNeeded: (hubId) => {
-      reauthorizeHub(hubId, stableHandlersRef.current).then(() => {
-        if (hubId === activeHubIdRef.current) void loadHubData();
-      }).catch(() => {});
-    },
-    onChannelsUpdated: (hubId) => {
-      if (hubId !== activeHubIdRef.current) return;
-      hubFetch("/channels").then((r) => r.json() as Promise<Channel[]>).then((list) => {
-        setChannels(list);
-      }).catch(() => {});
-    },
-    onLagged: (hubId) => {
-      if (hubId !== activeHubIdRef.current) return;
-      // An unknown number of events of any kind was dropped — resync the
-      // event-maintained state that has no other healing path: channels,
-      // the member roster (presence), and who's in which voice channel.
-      hubFetch("/channels").then((r) => r.json() as Promise<Channel[]>).then(setChannels).catch(() => {});
-      hubFetch("/users").then((r) => r.json() as Promise<User[]>).then(setUsers).catch(() => {});
-      fetchVoiceRoster().then(setVoicePartByChannel).catch(() => {});
-    },
-    onHubUpdated: (hubId) => {
-      refreshHubInfo(hubId).then((info) => {
-        if (!info) return;
-        setHubs(listHubs());
-        if (hubId === activeHubIdRef.current) setActiveHubTimezone(info.timezone);
-      }).catch(() => {});
-    },
-    onMemberOnline: (publicKey, hubId) => {
-      if (hubId !== activeHubIdRef.current) return;
-      setUsers((prev) => {
-        const known = prev.some((u) => u.public_key === publicKey);
-        // A member we've never seen (joined after our initial /users load)
-        // isn't in the list yet — refetch so they appear live (and resolve
-        // to their name in the member list, message authors, video tiles).
-        // Stamp them online in the merged result: the snapshot can race
-        // their presence registration and say offline, and no further
-        // member_online would arrive to correct it.
-        if (!known) {
-          hubFetch("/users").then((r) => r.json() as Promise<User[]>).then((list) =>
-            setUsers(list.map((u) => u.public_key === publicKey ? { ...u, online: true } : u)),
-          ).catch(() => {});
-          return prev;
-        }
-        return prev.map((u) => u.public_key === publicKey ? { ...u, online: true } : u);
-      });
-    },
-    onMemberOffline: (publicKey, hubId) => {
-      if (hubId !== activeHubIdRef.current) return;
-      setUsers((prev) => prev.map((u) => u.public_key === publicKey ? { ...u, online: false } : u));
-    },
-    onMemberUpdated: (publicKey, displayName, avatar, hubId) => {
-      if (hubId !== activeHubIdRef.current) return;
-      // Update the member's name/avatar in place so the member list and every
-      // message author (names resolve from this map) refresh live. If we've
-      // never seen them, refetch so they appear.
-      setUsers((prev) => {
-        if (!prev.some((u) => u.public_key === publicKey)) {
-          hubFetch("/users").then((r) => r.json() as Promise<User[]>).then(setUsers).catch(() => {});
-          return prev;
-        }
-        return prev.map((u) =>
-          u.public_key === publicKey ? { ...u, display_name: displayName, avatar } : u,
-        );
-      });
-    },
-    onMemberStatus: (publicKey, status, custom, hubId) => {
-      if (hubId !== activeHubIdRef.current) return;
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.public_key === publicKey ? { ...u, status, status_custom: custom } : u,
-        ),
-      );
-    },
-    onVoiceZoneState: (raw) => {
-      const m = raw as { channel_id?: string; zones?: import("./platform/voice").VoiceZone[]; _hub_id?: string };
-      if (m._hub_id !== activeHubIdRef.current) return;
-      if (!m.channel_id || !m.zones) return;
-      voiceSessionRef.current?.handleZoneState(m.channel_id, m.zones);
-    },
-    onVoiceZoneCreated: (raw) => {
-      const m = raw as { zone_id?: string; name?: string; coordinate_system?: string; attenuation?: import("./platform/voice").VoiceZoneAttenuation; _hub_id?: string };
-      if (m._hub_id !== activeHubIdRef.current) return;
-      if (!m.zone_id || !m.name || !m.coordinate_system || !m.attenuation) return;
-      voiceSessionRef.current?.handleZoneCreated({
-        zone_id: m.zone_id,
-        name: m.name,
-        coordinate_system: m.coordinate_system,
-        attenuation: m.attenuation,
-      });
-    },
-    onVoiceZoneDestroyed: (raw) => {
-      const m = raw as { zone_id?: string; _hub_id?: string };
-      if (m._hub_id !== activeHubIdRef.current) return;
-      if (!m.zone_id) return;
-      voiceSessionRef.current?.handleZoneDestroyed(m.zone_id);
-    },
-    onVoicePositionUpdated: (raw) => {
-      const m = raw as { zone_id?: string; public_key?: string; position?: number[]; _hub_id?: string };
-      if (m._hub_id !== activeHubIdRef.current) return;
-      if (!m.zone_id || !m.public_key || !m.position) return;
-      voiceSessionRef.current?.handlePositionUpdated(m.zone_id, m.public_key, m.position);
-    },
-    onBotApp: (raw) => {
-      const m = raw as Record<string, unknown>;
-      if (m._hub_id !== activeHubIdRef.current) return;
-      const type = m.type as string;
-      if (type === "bot_app_launch") {
-        const ev = m as unknown as BotAppLaunchEvent;
-        setActiveBotApps((prev) => {
-          const next = new Map(prev);
-          next.set(ev.bot_id, ev);
-          return next;
-        });
-      } else if (type === "bot_app_open") {
-        const ev = m as unknown as BotAppOpenEvent;
-        const hubUrl = hubsRef.current.find((h) => h.hub_id === activeHubIdRef.current)?.hub_url ?? "";
-        setActiveOpenApp({ event: ev, hubUrl });
-      } else if (type === "bot_app_close") {
-        const botId = m.bot_id as string;
-        setActiveBotApps((prev) => {
-          const next = new Map(prev);
-          next.delete(botId);
-          return next;
-        });
-        setActiveOpenApp((prev) => prev?.event.bot_id === botId ? null : prev);
-      }
-    },
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), []);
-
-  stableHandlersRef.current = stableHandlers;
+  const { stableHandlers, stableHandlersRef } = useWsHandlers({
+    activeHubIdRef, hubsRef, selectedChannelRef, meInfoRef, publicKeyRef,
+    myPresenceRef, effectiveNotifyModeRef, mentionPingEnabledRef, whisperOptoutRef,
+    setMessages, setStickToBottom, setNewWhileScrolledUp, bumpUnread,
+    setUsers, setChannels, setHubs, setActiveHubTimezone,
+    setVoicePartByChannel: voice.setVoicePartByChannel,
+    onDm, onDmMemberChanged, receiveTyping,
+    onScreenShare, onScreenShareChunk, receiveSoundboardPlayed,
+    handleStatusChange, setAssertiveAnnouncement, showHubError,
+    loadHubDataRef,
+    voiceOnVoiceState: voice.onVoiceState,
+    voiceOnVoiceZoneState: voice.onVoiceZoneState,
+    voiceOnVoiceZoneCreated: voice.onVoiceZoneCreated,
+    voiceOnVoiceZoneDestroyed: voice.onVoiceZoneDestroyed,
+    voiceOnVoicePositionUpdated: voice.onVoicePositionUpdated,
+    handleVideoMessage: video.handleVideoMessage,
+    receiveWhisperEvent: whisper.receiveWhisperEvent,
+    onVoiceMovePush: voiceMoveUx.onVoiceMovePush,
+    setActiveBotApps, setActiveOpenApp,
+  });
 
   // === Hub restore on startup ===
 
@@ -1299,7 +841,7 @@ export default function App({ initialView }: AppProps = {}) {
       }
       if (convs.status === "fulfilled") setConversations(convs.value);
       if (cmds.status === "fulfilled") setSlashCommands(cmds.value);
-      if (voiceRoster.status === "fulfilled") setVoicePartByChannel(voiceRoster.value);
+      if (voiceRoster.status === "fulfilled") voice.setVoicePartByChannel(voiceRoster.value);
       // The hub is the source of truth for DM blocks; without this seed the
       // list silently reset to empty on every reload.
       if (dmBlocks.status === "fulfilled" && dmBlocks.value) setBlockedUsers(new Set(dmBlocks.value));
@@ -1360,16 +902,6 @@ export default function App({ initialView }: AppProps = {}) {
     await loadHubData();
   }
 
-  // Matches a wavvon:// deep-link host against an already-joined hub
-  // (nested-channels-ux.md §1.5).
-  function findHubByUrl(url: string): Hub | undefined {
-    let host: string;
-    try { host = new URL(url).host.toLowerCase(); } catch { return undefined; }
-    return hubsRef.current.find((h) => {
-      try { return new URL(h.hub_url).host.toLowerCase() === host; } catch { return false; }
-    });
-  }
-
   // Applies a parsed channel/message permalink target once its hub is the
   // active one: selects the channel and, for a message target, queues the
   // scroll-to-message once that channel's history has loaded.
@@ -1420,112 +952,22 @@ export default function App({ initialView }: AppProps = {}) {
     });
   }
 
-  // Shared by AddHubModal's "join" field and the create-hub self-host
-  // panel's "paste your owner invite" field — both resolve through the
-  // same parseHubInput + handleAddHub path, so a redeemed owner invite
-  // (grant_role_id carrying ownership) lands the user in-hub already
-  // owning it, same as any other invite redemption.
-  function handleHubUrlInput(v: string) {
-    const p = parseHubInput(v);
-    setHubUrl(p?.hubUrl ?? v);
-    if (p?.inviteCode) setInviteCode(p.inviteCode);
-    setExpectedFingerprint(p?.fingerprint);
-    setFingerprintMatch(false);
-    setHubPreview({ state: "idle" });
-    setAddHubError(null);
-    if (p?.target) {
-      const existing = findHubByUrl(p.hubUrl);
-      if (existing) {
-        pendingDeepLinkTargetRef.current = null;
-        setShowAddHub(false);
-        void applyDeepLinkTarget(existing.hub_id, p.target);
-        return;
-      }
-      pendingDeepLinkTargetRef.current = p.target;
-    } else {
-      pendingDeepLinkTargetRef.current = null;
-    }
-  }
-
-  async function handlePreviewHub() {
-    setHubPreview({ state: "loading" });
-    setAddHubError(null);
-    try {
-      const info = await previewHubInfo(hubUrl);
-      setHubPreview({ state: "ok", url: hubUrl, name: info.name, icon: info.icon, welcome_label: info.welcome_label, welcome_invite_url: info.welcome_invite_url });
-    } catch (e) {
-      setHubPreview({ state: "error", message: String(e) });
-    }
-  }
-
-  // Also the join path a redeemed owner invite takes from the "Create a
-  // hub" self-host handoff (docs/docs/hub-creation-wizard.md §4) — no
-  // separate join mechanism for that flow.
-  async function handleAddHub() {
-    setAddingHub(true);
-    setAddHubError(null);
-    try {
-      if (!(await verifyLanFingerprint(hubUrl, expectedFingerprint))) {
-        setAddHubError(t("hub.add_modal.fingerprint_mismatch"));
-        return;
-      }
-      if (expectedFingerprint) setFingerprintMatch(true);
-      const hub = await addHub(hubUrl, stableHandlers, { invite_code: inviteCode || undefined });
-      setHubs(listHubs());
-      setActiveHubIdState(hub.hub_id);
-      setShowAddHub(false);
-      setShowCreateHub(false);
-      setHubUrl("");
-      setInviteCode("");
-      setHubPreview({ state: "idle" });
-      await loadHubData();
-      publishDhKey().catch(() => {});
-      const target = pendingDeepLinkTargetRef.current;
-      if (target) {
-        pendingDeepLinkTargetRef.current = null;
-        await applyDeepLinkTarget(hub.hub_id, target);
-      }
-    } catch (e) {
-      setAddHubError(e instanceof HubApiError ? e.message : String(e));
-    } finally {
-      setAddingHub(false);
-    }
-  }
-
-  async function handleAddHubWithPasskey() {
-    if (!publicKey) return;
-    setAddingHub(true);
-    setAddHubError(null);
-    try {
-      if (!(await verifyLanFingerprint(hubUrl, expectedFingerprint))) {
-        setAddHubError(t("hub.add_modal.fingerprint_mismatch"));
-        return;
-      }
-      if (expectedFingerprint) setFingerprintMatch(true);
-      const token = await authenticateWithPasskey(hubUrl, publicKey);
-      const hub = await addHub(hubUrl, stableHandlers, {
-        invite_code: inviteCode || undefined,
-        sessionToken: token,
-      });
-      setHubs(listHubs());
-      setActiveHubIdState(hub.hub_id);
-      setShowAddHub(false);
-      setHubUrl("");
-      setInviteCode("");
-      setHubPreview({ state: "idle" });
-      await loadHubData();
-      publishDhKey().catch(() => {});
-      const target = pendingDeepLinkTargetRef.current;
-      if (target) {
-        pendingDeepLinkTargetRef.current = null;
-        await applyDeepLinkTarget(hub.hub_id, target);
-      }
-    } catch (e) {
-      setAddHubError(e instanceof HubApiError ? e.message : String(e));
-    } finally {
-      setAddingHub(false);
-    }
-  }
+  const {
+    hubUrl, setHubUrl,
+    inviteCode, setInviteCode,
+    hubPreview, setHubPreview,
+    addingHub,
+    addHubError, setAddHubError,
+    fingerprintMatch, setFingerprintMatch,
+    showAddHub, setShowAddHub,
+    handleHubUrlInput,
+    handlePreviewHub,
+    handleAddHub,
+    handleAddHubWithPasskey,
+  } = useAddHubFlow({
+    publicKey, stableHandlers, hubsRef, setHubs, setActiveHubIdState, loadHubData,
+    setShowCreateHub, applyDeepLinkTarget, t,
+  });
 
   async function handleSaveFirstRunName() {
     const name = firstRunName.trim();
@@ -1538,184 +980,6 @@ export default function App({ initialView }: AppProps = {}) {
   }
 
   // === Channel / messages ===
-
-  // ChannelSettingsModal's create mode (unify-create-with-editing): the hub's
-  // create-channel route doesn't take icon/color, so those ride a follow-up
-  // PATCH against the just-created id — same "create then patch" pattern the
-  // banner upload below already used.
-  async function handleCreateChannel(fields: ChannelSettingsSaveFields) {
-    if (!createChannelCtx) return;
-    const { channelType, isCategory, banner } = fields;
-    setCreateChannelLoading(true);
-    setCreateChannelError(null);
-    try {
-      const res = await hubFetch("/channels", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: fields.name,
-          parent_id: createChannelCtx.parentId ?? undefined,
-          is_category: isCategory ?? false,
-          channel_type: isCategory ? undefined : channelType,
-          description: fields.description || undefined,
-          spawner_name_template: !isCategory && channelType === "spawner" ? fields.spawnerNameTemplate : undefined,
-          banner_url: channelType === "banner" ? banner?.url : undefined,
-          nsfw: fields.nsfw,
-        }),
-      });
-      const created = (await res.json()) as Channel;
-      // Hub-uploaded banner (banner-channels.md §upload flow): the channel
-      // must exist first, then the image is uploaded to it, then the channel
-      // is patched with the returned file id.
-      if (channelType === "banner" && banner?.file) {
-        const uploaded = await uploadFile(created.id, banner.file);
-        await hubFetch(`/channels/${created.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ banner_file_id: uploaded.id }),
-        });
-      }
-      if (fields.icon !== null || fields.color !== null || fields.customIconSvg !== null) {
-        await hubFetch(`/channels/${created.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ icon: fields.icon, color: fields.color, custom_icon_svg: fields.customIconSvg }),
-        });
-      }
-      setCreateChannelCtx(null);
-      hubFetch("/channels").then((r) => r.json() as Promise<Channel[]>).then(setChannels).catch(() => {});
-    } catch (e) {
-      setCreateChannelError(e instanceof HubApiError ? e.message : String(e));
-    } finally {
-      setCreateChannelLoading(false);
-    }
-  }
-
-  // HubSetupWizard's onCreateChannel — a plain create call (templates don't
-  // touch icon/color/banner), reusing the same POST /channels route as
-  // handleCreateChannel above.
-  async function createChannelForWizard(fields: HubSetupWizardCreateChannelFields): Promise<{ id: string }> {
-    const res = await hubFetch("/channels", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: fields.name,
-        parent_id: fields.parentId ?? undefined,
-        is_category: fields.isCategory,
-        channel_type: fields.isCategory ? undefined : fields.channelType,
-      }),
-    });
-    const created = (await res.json()) as Channel;
-    return { id: created.id };
-  }
-
-  function closeHubSetupWizard(hubId: string) {
-    markHubSetupWizardDone(hubId);
-    setShowHubSetupWizard(false);
-  }
-
-  function handleHubSetupWizardComplete(firstChannelId: string | null) {
-    if (!activeHubId) return;
-    closeHubSetupWizard(activeHubId);
-    hubFetch("/channels").then((r) => r.json() as Promise<Channel[]>).then((list) => {
-      setChannels(list);
-      const first = firstChannelId ? list.find((c) => c.id === firstChannelId) : undefined;
-      if (first) handleSelectChannel(first);
-    }).catch(() => {});
-  }
-
-  async function handleSaveChannelSettings(fields: ChannelSettingsSaveFields) {
-    if (!channelSettingsCtx) return;
-    setChannelSettingsSaving(true);
-    setChannelSettingsError(null);
-    try {
-      // A replacement banner image is uploaded first so its file id can ride
-      // the same PATCH as the rest (the hub clears the other source column).
-      let bannerFileId: string | undefined;
-      if (fields.banner?.file) {
-        bannerFileId = (await uploadFile(channelSettingsCtx.id, fields.banner.file)).id;
-      }
-      await hubFetch(`/channels/${channelSettingsCtx.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        // color/icon are appearance fields (require manage_channel_icons);
-        // only sent when provided so a plain rename doesn't touch them.
-        body: JSON.stringify({
-          name: fields.name,
-          description: fields.description || null,
-          color: fields.color,
-          icon: fields.icon,
-          custom_icon_svg: fields.customIconSvg,
-          banner_url: fields.banner?.url,
-          banner_file_id: bannerFileId,
-          forum_require_tag: fields.forumRequireTag,
-          nsfw: fields.nsfw,
-        }),
-      });
-      setChannelSettingsCtx(null);
-      hubFetch("/channels").then((r) => r.json() as Promise<Channel[]>).then(setChannels).catch(() => {});
-    } catch (e) {
-      setChannelSettingsError(e instanceof HubApiError ? e.message : String(e));
-    } finally {
-      setChannelSettingsSaving(false);
-    }
-  }
-
-  async function handleSaveDescription() {
-    if (!editDescChannel) return;
-    const desc = editDescValue.trim() || null;
-    try {
-      await hubFetch(`/channels/${editDescChannel.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description: desc }),
-      });
-      setChannels((prev) => prev.map((c) => (c.id === editDescChannel.id ? { ...c, description: desc } : c)));
-      if (selectedChannel?.id === editDescChannel.id) {
-        setSelectedChannel({ ...selectedChannel, description: desc });
-      }
-      setEditDescChannel(null);
-    } catch (e) {
-      showHubError(e instanceof HubApiError ? e.message : String(e));
-    }
-  }
-
-  async function handleRenameRoom() {
-    if (!renameRoomCtx || !renameRoomName.trim()) return;
-    setRenameRoomSaving(true);
-    setRenameRoomError(null);
-    try {
-      await hubFetch(`/channels/${renameRoomCtx.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        // Name ONLY: the server's temp-room owner grant covers exactly a
-        // bare rename; any other field would require manage_channels.
-        body: JSON.stringify({ name: renameRoomName.trim() }),
-      });
-      setRenameRoomCtx(null);
-      hubFetch("/channels").then((r) => r.json() as Promise<Channel[]>).then(setChannels).catch(() => {});
-    } catch (e) {
-      setRenameRoomError(e instanceof HubApiError ? e.message : String(e));
-    } finally {
-      setRenameRoomSaving(false);
-    }
-  }
-
-  async function handleDeleteChannel() {
-    if (!channelSettingsCtx) return;
-    setChannelSettingsDeleting(true);
-    setChannelSettingsError(null);
-    try {
-      await hubFetch(`/channels/${channelSettingsCtx.id}`, { method: "DELETE" });
-      if (selectedChannel?.id === channelSettingsCtx.id) setSelectedChannel(null);
-      setChannelSettingsCtx(null);
-      hubFetch("/channels").then((r) => r.json() as Promise<Channel[]>).then(setChannels).catch(() => {});
-    } catch (e) {
-      setChannelSettingsError(e instanceof HubApiError ? e.message : String(e));
-    } finally {
-      setChannelSettingsDeleting(false);
-    }
-  }
 
   async function handleSelectChannel(ch: Channel) {
     setSelectedChannel(ch);
@@ -1893,268 +1157,12 @@ export default function App({ initialView }: AppProps = {}) {
     if (e.key === "Escape") { setReplyTarget(null); setEditingMessageId(null); }
   }
 
-  // === DMs ===
-
-  // === Voice ===
-
-  async function handleVoiceJoin(targetChannelId: string) {
-    // Already in this exact voice channel — nothing to do. Read via the ref
-    // (not the voiceChannelId state) so this guard is correct even when
-    // called from the frozen onVoiceMove WS handler (stableHandlers memo).
-    if (voiceChannelIdRef.current === targetChannelId) return;
-    // Switching channels: tear down the current session FIRST. Without this,
-    // repeated joins stack independent VoiceWsSessions (joining several rooms
-    // at once) and only the last is tracked, so leaving leaves the earlier
-    // ones connected as stale roster entries that block temp-channel cleanup.
-    // stop() sets closed=true before closing the socket, so the old session's
-    // onClose does not fire and cannot clobber the new session's state.
-    if (voiceSessionRef.current) {
-      videoSessionRef.current?.dispose();
-      videoSessionRef.current = null;
-      backgroundProcessorRef.current?.stop();
-      backgroundProcessorRef.current = null;
-      voiceSessionRef.current.stop();
-      voiceSessionRef.current = null;
-      try { activeSession().ws?.unwatchVoice(); } catch {}
-    }
-    try {
-      const sess = activeSession();
-      const session = new VoiceWsSession(sess.hub_url, sess.token, targetChannelId, {
-        // `channelId` is where the join actually landed — for a spawner
-        // channel the hub creates a personal sibling room and the join
-        // lands there instead, never in the spawner itself.
-        onReady: (_senderId, _participants, channelId) => {
-          setVoiceChannelId(channelId);
-          if (voiceSoundsOn()) { try { playVoiceTone("up"); } catch { /* audio not ready */ } }
-          setSelfMuted(false);
-          setSelfDeafened(false);
-          const me = meInfoRef.current;
-          if (me) {
-            setVoicePartByChannel((prev) => {
-              const existing = prev[channelId] ?? [];
-              if (existing.some((p) => p.public_key === me.public_key)) return prev;
-              return { ...prev, [channelId]: [...existing, { public_key: me.public_key, display_name: me.display_name }] };
-            });
-          }
-          try { activeSession().ws?.watchVoice(channelId); } catch {}
-          // Spin up the video session now (camera off) so it catches the
-          // hub's video_participants roster pushed at voice-join.
-          const vws = activeSession().ws;
-          const myPk = publicKeyRef.current;
-          if (vws && myPk) {
-            videoSessionRef.current = new WebVideoSession(vws, channelId, myPk, {
-              onRemoteStream: (pk, s) => setRemoteVideoStreams((prev) => new Map(prev).set(pk, s)),
-              onPeerGone: (pk) => setRemoteVideoStreams((prev) => { const n = new Map(prev); n.delete(pk); return n; }),
-            });
-          }
-          if (channelId !== targetChannelId) {
-            hubFetch("/channels").then((r) => r.json() as Promise<Channel[]>).then(setChannels).catch(() => {});
-          }
-        },
-        onClose: () => {
-          voiceSessionRef.current = null;
-          videoSessionRef.current?.dispose();
-          videoSessionRef.current = null;
-          backgroundProcessorRef.current?.stop();
-          backgroundProcessorRef.current = null;
-          setVoiceChannelId(null);
-          setVoiceChannelNameHint(null);
-          setLocalVideoStream(null);
-          setRemoteVideoStreams(new Map());
-          setVideoEnabled(false);
-          setSelfMuted(false);
-          setSelfDeafened(false);
-          try { activeSession().ws?.unwatchVoice(); } catch {}
-        },
-      }, loadVoiceAudioProfile());
-      await session.start();
-      voiceSessionRef.current = session;
-    } catch (e) {
-      showHubError("Voice: " + String(e));
-    }
-  }
-
-  async function handleToggleVideo(deviceId?: string) {
-    if (videoEnabled) { handleStopVideo(); return; }
-    // Video is scoped to the voice channel you're in; the session was created
-    // on voice-join so it already knows the participant roster.
-    if (!voiceChannelId || !videoSessionRef.current) {
-      showHubError("Join voice first to turn on your camera.");
-      return;
-    }
-    try {
-      // A device passed by the caller (e.g. the sidebar's quick-toggle,
-      // which auto-picks a camera) wins over the one saved in Settings.
-      let camId: string | null = deviceId ?? null;
-      if (!camId) { try { camId = localStorage.getItem("wavvon.videoInputDevice"); } catch { /* ignore */ } }
-      const raw = await navigator.mediaDevices.getUserMedia({
-        video: camId ? { deviceId: { exact: camId } } : true,
-        audio: false,
-      });
-      // Apply the chosen background effect (blur/image/video), if any, by
-      // routing the raw camera through the segmentation compositor and sending
-      // its processed stream instead.
-      let stream = raw;
-      const mode = loadBgMode();
-      if (mode !== "none") {
-        try {
-          const proc = new BackgroundProcessor(raw);
-          stream = await proc.start(mode, loadBgSource());
-          backgroundProcessorRef.current = proc;
-        } catch {
-          stream = raw; // effect failed to init — fall back to the plain camera
-        }
-      }
-      videoSessionRef.current.enable(stream);
-      setLocalVideoStream(stream);
-      setVideoEnabled(true);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (!/denied|not allowed|dismiss/i.test(msg)) showHubError("Camera: " + msg);
-    }
-  }
-
-  function handleStopVideo() {
-    // Keep the session alive (it tracks the roster) — just turn the camera off.
-    videoSessionRef.current?.disable();
-    backgroundProcessorRef.current?.stop();
-    backgroundProcessorRef.current = null;
-    setLocalVideoStream(null);
-    setRemoteVideoStreams(new Map());
-    setVideoEnabled(false);
-  }
-
-  // Live background-effect changes from Settings while the camera is on:
-  // re-run the capture pipeline so the new effect (or none) takes hold.
-  useEffect(() => {
-    const onChange = () => {
-      if (videoEnabledRef.current) {
-        handleStopVideo();
-        void handleToggleVideo();
-      }
-    };
-    window.addEventListener("wavvon:bgchange", onChange);
-    return () => window.removeEventListener("wavvon:bgchange", onChange);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  function handleVoiceLeave() {
-    if (voiceChannelId && voiceSoundsOn()) { try { playVoiceTone("down"); } catch { /* audio not ready */ } }
-    const channelId = voiceChannelId;
-    // Camera + whisper are scoped to the voice session — tear them down too.
-    videoSessionRef.current?.dispose();
-    videoSessionRef.current = null;
-    backgroundProcessorRef.current?.stop();
-    backgroundProcessorRef.current = null;
-    setLocalVideoStream(null);
-    setRemoteVideoStreams(new Map());
-    setVideoEnabled(false);
-    if (whisper.isWhispering) whisper.stopWhisper();
-    voiceSessionRef.current?.stop();
-    voiceSessionRef.current = null;
-    setVoiceChannelId(null);
-    setVoiceChannelNameHint(null);
-    setSelfMuted(false);
-    setSelfDeafened(false);
-    try { activeSession().ws?.unwatchVoice(); } catch {}
-    const me = meInfoRef.current;
-    if (me && channelId) {
-      setVoicePartByChannel((prev) => {
-        const existing = prev[channelId];
-        if (!existing) return prev;
-        const next = existing.filter((p) => p.public_key !== me.public_key);
-        if (next.length === 0) {
-          const { [channelId]: _, ...rest } = prev;
-          return rest;
-        }
-        return { ...prev, [channelId]: next };
-      });
-    }
-  }
-
   // Mover's side: right-click "Move to channel…" (events.md §7.1) and the
   // event staging panel (§7.5, eventId set) both funnel through here.
   function handleMoveMember(targetPubkey: string, targetChannelId: string, eventId?: string) {
     const ws = activeSession().ws;
     if (!ws) { showHubError("Not connected"); return; }
     ws.sendVoiceMove(targetPubkey, targetChannelId, eventId);
-  }
-
-  function showVoiceMoveToast(channelName: string, sourceChannelId: string | null) {
-    if (voiceMoveToastTimerRef.current) clearTimeout(voiceMoveToastTimerRef.current);
-    setVoiceMoveToast({ channelName, sourceChannelId });
-    voiceMoveToastTimerRef.current = setTimeout(() => setVoiceMoveToast(null), 8000);
-  }
-
-  function handleRejoinPreviousVoiceChannel() {
-    const sourceChannelId = voiceMoveToast?.sourceChannelId;
-    setVoiceMoveToast(null);
-    if (voiceMoveToastTimerRef.current) { clearTimeout(voiceMoveToastTimerRef.current); voiceMoveToastTimerRef.current = null; }
-    if (!sourceChannelId) return;
-    // The source is a channel we were just in — no name hint needed, the
-    // local channel list already knows it.
-    void handleVoiceJoin(sourceChannelId);
-  }
-
-  function handleAcceptVoiceMove() {
-    if (!voiceMovePrompt) return;
-    const { targetChannelId, targetChannelName } = voiceMovePrompt;
-    setVoiceMovePrompt(null);
-    setVoiceChannelNameHint(targetChannelName);
-    void handleVoiceJoin(targetChannelId);
-  }
-
-  // Decline is a server no-op (events.md §7.2) — closing the prompt is the
-  // entire client side of it, nothing to send.
-  function handleDeclineVoiceMove() {
-    setVoiceMovePrompt(null);
-  }
-
-  function handleToggleMute() {
-    const next = !selfMuted;
-    setSelfMuted(next);
-    voiceSessionRef.current?.setMuted(next);
-  }
-
-  function handleToggleDeafen() {
-    const next = !selfDeafened;
-    setSelfDeafened(next);
-    if (next) setSelfMuted(true);
-    voiceSessionRef.current?.setDeafened(next);
-  }
-
-  const handleSetVoiceGain = useCallback((pk: string, gainPct: number) => {
-    setVoiceGains((prev) => {
-      const next = { ...prev, [pk]: gainPct };
-      try { setScoped("wavvon.voice_gains", JSON.stringify(next)); } catch {}
-      return next;
-    });
-    voiceSessionRef.current?.setSenderGain(pk, gainPct);
-  }, []);
-
-  // Triggers a soundboard clip (soundboard.md §1): decode it via the same
-  // browser Opus decoder used for playback, mix it into the outgoing voice
-  // stream ahead of Opus encoding, then POST the attribution event. The
-  // session itself is the "one clip at a time" enforcement (playClip
-  // refuses while one is already queued); soundboardPlayingClipId only
-  // drives the popover's disabled state.
-  async function handleTriggerSoundboardClip(clip: SoundboardClip) {
-    const session = voiceSessionRef.current;
-    if (!session || !voiceChannelId) return;
-    if (session.getPlayingClipId()) return;
-    try {
-      const bytes = await fetchSoundboardAudioBytes(clip.id);
-      const pcm = await session.decodeClipPcm(bytes);
-      if (!session.playClip(clip.id, pcm)) return;
-      setSoundboardPlayingClipId(clip.id);
-      const durationMs = (pcm.length / 48000) * 1000;
-      setTimeout(() => {
-        setSoundboardPlayingClipId((cur) => (cur === clip.id ? null : cur));
-      }, durationMs + 200);
-      await markSoundboardPlayed(clip.id, voiceChannelId);
-    } catch (e) {
-      showHubError(e instanceof HubApiError ? e.message : String(e));
-    }
   }
 
   const channelTypingByKey = useMemo(() => {
@@ -2182,16 +1190,42 @@ export default function App({ initialView }: AppProps = {}) {
     [meInfo],
   );
 
-  // First-run hub setup wizard trigger: same isAdmin gate the sidebar uses
-  // for its own "create channel" entry, fired once channels/meInfo have
-  // actually loaded for this hub (both land in the same loadHubData batch,
-  // so there's no window where isAdmin is stale relative to channels).
-  useEffect(() => {
-    if (!activeHubId || !isAdmin) return;
-    if (channels.length > 0) return;
-    if (hubSetupWizardDone[activeHubId]) return;
-    setShowHubSetupWizard(true);
-  }, [activeHubId, isAdmin, channels, hubSetupWizardDone]);
+  // First-run hub setup wizard (decisions.md 2026-07-25): shown once per hub
+  // when an admin lands on an empty channel list. "Done" covers both
+  // "picked a template" and "started blank" — never re-nag either way.
+  const { showHubSetupWizard, setShowHubSetupWizard, closeHubSetupWizard } = useHubSetupWizardGate({
+    storageGet: () => getScoped("wavvon.hubSetupWizardDone"),
+    storageSet: (raw) => { try { setScoped("wavvon.hubSetupWizardDone", raw); } catch { /* storage unavailable */ } },
+    activeHubId,
+    isAdmin,
+    channelCount: channels.length,
+  });
+
+  const {
+    createChannelCtx, setCreateChannelCtx,
+    createChannelLoading,
+    createChannelError, setCreateChannelError,
+    channelSettingsCtx, setChannelSettingsCtx,
+    channelSettingsSaving,
+    channelSettingsDeleting,
+    channelSettingsError, setChannelSettingsError,
+    editDescChannel, setEditDescChannel,
+    editDescValue, setEditDescValue,
+    renameRoomCtx, setRenameRoomCtx,
+    renameRoomName, setRenameRoomName,
+    renameRoomSaving,
+    renameRoomError, setRenameRoomError,
+    handleCreateChannel,
+    createChannelForWizard,
+    handleSaveChannelSettings,
+    handleDeleteChannel,
+    handleSaveDescription,
+    handleRenameRoom,
+    handleHubSetupWizardComplete,
+  } = useChannelCrud({
+    setChannels, selectedChannel, setSelectedChannel, showHubError, handleSelectChannel,
+    activeHubId, closeHubSetupWizard,
+  });
 
   const canManageRoles = useMemo(
     () => meInfo?.roles?.some((r) => r.permissions?.includes("admin") || r.permissions?.includes("manage_roles")) ?? false,
@@ -2207,8 +1241,8 @@ export default function App({ initialView }: AppProps = {}) {
   );
 
   const voiceMoveChannelOptions = useMemo(
-    () => moveChannelOptions(channels).filter((c) => c.id !== voiceMoveMenu?.currentChannelId),
-    [channels, voiceMoveMenu],
+    () => moveChannelOptions(channels).filter((c) => c.id !== voiceMoveUx.voiceMoveMenu?.currentChannelId),
+    [channels, voiceMoveUx.voiceMoveMenu],
   );
 
   // Same permission the invite endpoints require (routes/invites.rs) — gates
@@ -2226,26 +1260,12 @@ export default function App({ initialView }: AppProps = {}) {
     [meInfo],
   );
 
-  // Channel-scoped effective permissions for the joined voice channel, from
-  // GET /channels/:id/my-permissions (self-service, no manage_roles needed).
-  // Null while unjoined, loading, or on fetch failure — callers fall back to
-  // the hub-wide role baseline then; the server check stays authoritative.
-  const [myVoicePerms, setMyVoicePerms] = useState<MyChannelPermissions | null>(null);
-  useEffect(() => {
-    if (!voiceChannelId) { setMyVoicePerms(null); return; }
-    let cancelled = false;
-    getMyChannelPermissions(voiceChannelId)
-      .then((p) => { if (!cancelled) setMyVoicePerms(p); })
-      .catch(() => { if (!cancelled) setMyVoicePerms(null); });
-    return () => { cancelled = true; };
-  }, [voiceChannelId]);
-
   const canUseSoundboard = useMemo(() => {
-    if (myVoicePerms && myVoicePerms.channel_id === voiceChannelId) {
-      return myVoicePerms.is_admin || myVoicePerms.permissions.includes("use_soundboard");
+    if (voice.myVoicePerms && voice.myVoicePerms.channel_id === voice.voiceChannelId) {
+      return voice.myVoicePerms.is_admin || voice.myVoicePerms.permissions.includes("use_soundboard");
     }
     return meInfo?.roles?.some((r) => r.permissions?.includes("admin") || r.permissions?.includes("use_soundboard")) ?? false;
-  }, [myVoicePerms, voiceChannelId, meInfo]);
+  }, [voice.myVoicePerms, voice.voiceChannelId, meInfo]);
 
   const canManageSoundboard = useMemo(
     () => meInfo?.roles?.some((r) => r.permissions?.includes("admin") || r.permissions?.includes("manage_soundboard")) ?? false,
@@ -2453,11 +1473,6 @@ export default function App({ initialView }: AppProps = {}) {
   // hub header.
   const hasNoHubs = hubs.length === 0;
   const sidebarView = hasNoHubs ? "dms" : view;
-  const notifyModeLabels: Record<NotifyMode, string> = {
-    all: t("hub.notifications.all"),
-    mentions: t("hub.notifications.mentions"),
-    silent: t("hub.notifications.silent"),
-  };
 
   return (
     <div className="main-layout">
@@ -2499,33 +1514,30 @@ export default function App({ initialView }: AppProps = {}) {
         </div>
       )}
 
-      {voiceMoveToast && (
+      {voiceMoveUx.voiceMoveToast && (
         <VoiceMoveToast
-          channelName={voiceMoveToast.channelName}
-          canRejoin={voiceMoveToast.sourceChannelId !== null}
-          onRejoin={handleRejoinPreviousVoiceChannel}
-          onDismiss={() => {
-            setVoiceMoveToast(null);
-            if (voiceMoveToastTimerRef.current) { clearTimeout(voiceMoveToastTimerRef.current); voiceMoveToastTimerRef.current = null; }
-          }}
+          channelName={voiceMoveUx.voiceMoveToast.channelName}
+          canRejoin={voiceMoveUx.voiceMoveToast.sourceChannelId !== null}
+          onRejoin={voiceMoveUx.handleRejoinPreviousVoiceChannel}
+          onDismiss={voiceMoveUx.dismissVoiceMoveToast}
         />
       )}
 
-      {voiceMovePrompt && (
+      {voiceMoveUx.voiceMovePrompt && (
         <VoiceMovePromptModal
-          channelName={voiceMovePrompt.targetChannelName}
-          onAccept={handleAcceptVoiceMove}
-          onDecline={handleDeclineVoiceMove}
+          channelName={voiceMoveUx.voiceMovePrompt.targetChannelName}
+          onAccept={voiceMoveUx.handleAcceptVoiceMove}
+          onDecline={voiceMoveUx.handleDeclineVoiceMove}
         />
       )}
 
-      {voiceMoveMenu && (
+      {voiceMoveUx.voiceMoveMenu && (
         <VoiceMoveMenu
-          displayName={voiceMoveMenu.displayName}
-          position={voiceMoveMenu.position}
+          displayName={voiceMoveUx.voiceMoveMenu.displayName}
+          position={voiceMoveUx.voiceMoveMenu.position}
           channels={voiceMoveChannelOptions}
-          onMove={(channelId) => { handleMoveMember(voiceMoveMenu.pubkey, channelId); setVoiceMoveMenu(null); }}
-          onClose={() => setVoiceMoveMenu(null)}
+          onMove={(channelId) => { handleMoveMember(voiceMoveUx.voiceMoveMenu!.pubkey, channelId); voiceMoveUx.setVoiceMoveMenu(null); }}
+          onClose={() => voiceMoveUx.setVoiceMoveMenu(null)}
         />
       )}
 
@@ -2632,7 +1644,7 @@ export default function App({ initialView }: AppProps = {}) {
             knownNames={pubkeyToName}
             hideBirthdays={hideBirthdays}
             onToggleHideBirthdays={toggleHideBirthdays}
-            inVoice={voiceChannelId !== null}
+            inVoice={voice.voiceChannelId !== null}
           />
         </div>
       )}
@@ -2656,11 +1668,11 @@ export default function App({ initialView }: AppProps = {}) {
         />
       )}
 
-      {voiceChannelId && (videoEnabled || remoteVideoStreams.size > 0) && (
+      {voice.voiceChannelId && (video.videoEnabled || video.remoteVideoStreams.size > 0) && (
         <VideoPipWindow
-          title={`#${channels.find((c) => c.id === voiceChannelId)?.name ?? "voice"}`}
-          localStream={localVideoStream}
-          remoteStreams={remoteVideoStreams}
+          title={`#${channels.find((c) => c.id === voice.voiceChannelId)?.name ?? "voice"}`}
+          localStream={video.localVideoStream}
+          remoteStreams={video.remoteVideoStreams}
           nameFor={(pk) => users.find((u) => u.public_key === pk)?.display_name || pk.slice(0, 8)}
         />
       )}
@@ -2756,11 +1768,11 @@ export default function App({ initialView }: AppProps = {}) {
         selectedChannel={selectedChannel}
         unreadByChannel={unreadByChannel}
         collapsedCategories={collapsedCategories}
-        voicePartByChannel={voicePartByChannel}
-        voiceChannelId={voiceChannelId}
-        voiceChannelNameHint={voiceChannelNameHint}
-        selfMuted={selfMuted}
-        selfDeafened={selfDeafened}
+        voicePartByChannel={voice.voicePartByChannel}
+        voiceChannelId={voice.voiceChannelId}
+        voiceChannelNameHint={voiceMoveUx.voiceChannelNameHint}
+        selfMuted={voice.selfMuted}
+        selfDeafened={voice.selfDeafened}
         users={users}
         publicKey={publicKey}
         pingByHub={pingByHub}
@@ -2801,35 +1813,14 @@ export default function App({ initialView }: AppProps = {}) {
         onChannelContextMenu={(e, channel) => { e.preventDefault(); setChannelCtxMenu({ channel, x: e.clientX, y: e.clientY }); }}
         canOpenChannelSettings={isAdmin || canManageRoles}
         myStatus={myPresence.status === "online" ? null : myPresence.status}
-        onSetStatus={(status, ttlMinutes) => {
-          if (presenceTtlRef.current) { clearTimeout(presenceTtlRef.current); presenceTtlRef.current = null; }
-          const apply = (s: PresenceStatus) => {
-            setMyPresence({ status: s });
-            try { sendSetStatus(s, null); } catch { /* ws not ready */ }
-            // Optimistic: the hubs' member_status broadcasts will confirm.
-            // Invisible shows the user offline (to everyone, incl. their own
-            // roster view); the footer picker still reflects "invisible".
-            setUsers((prev) => prev.map((u) =>
-              u.public_key === publicKey
-                ? { ...u, online: s !== "invisible", status: s === "online" || s === "invisible" ? null : s, status_custom: null }
-                : u,
-            ));
-          };
-          apply(status);
-          if (status !== "online" && ttlMinutes) {
-            presenceTtlRef.current = setTimeout(() => {
-              presenceTtlRef.current = null;
-              apply("online");
-            }, ttlMinutes * 60_000);
-          }
-        }}
+        onSetStatus={handleSetStatus}
         onOpenChannelSettings={(channel) => { setCreateChannelCtx(null); setChannelSettingsCtx(channel); setChannelSettingsError(null); }}
-        onVoiceJoin={(ch) => ch && void handleVoiceJoin(ch.id)}
-        onVoiceLeave={handleVoiceLeave}
+        onVoiceJoin={(ch) => ch && void voice.handleVoiceJoin(ch.id)}
+        onVoiceLeave={voice.handleVoiceLeave}
         onParticipantContextMenu={canMoveMembers ? (e, p, channelId) => {
           e.preventDefault();
           if (p.public_key === publicKey) return; // hide self — move your own voice by joining directly
-          setVoiceMoveMenu({
+          voiceMoveUx.setVoiceMoveMenu({
             pubkey: p.public_key,
             displayName: p.display_name || formatPubkey(p.public_key),
             position: { x: e.clientX, y: e.clientY },
@@ -2839,27 +1830,27 @@ export default function App({ initialView }: AppProps = {}) {
         onSelectAllianceChannel={(a, c) => handleSelectAllianceChannel(a, c as AllianceSharedChannel)}
         onOpenFriends={() => setShowFriends(true)}
         onSelectConversation={handleSelectConversation}
-        onToggleSelfMute={handleToggleMute}
-        onToggleSelfDeafen={handleToggleDeafen}
+        onToggleSelfMute={voice.handleToggleMute}
+        onToggleSelfDeafen={voice.handleToggleDeafen}
         onOpenSettings={() => setShowSettings(true)}
         onDragEnd={handleChannelDragEnd}
-        voiceGains={voiceGains}
-        onSetVoiceGain={handleSetVoiceGain}
+        voiceGains={voice.voiceGains}
+        onSetVoiceGain={voice.handleSetVoiceGain}
         inboundWhispers={whisper.inboundWhispers}
         hasDraft={hasDraft}
         onOpenSearch={() => setShowSearchBar(true)}
         canUseSoundboard={canUseSoundboard}
         onListSoundboardClips={listSoundboardClips}
-        onTriggerSoundboardClip={handleTriggerSoundboardClip}
-        soundboardPlayingClipId={soundboardPlayingClipId}
-        soundboardChips={voiceChannelId ? soundboardChipsByChannel[voiceChannelId] ?? [] : []}
+        onTriggerSoundboardClip={voice.handleTriggerSoundboardClip}
+        soundboardPlayingClipId={voice.soundboardPlayingClipId}
+        soundboardChips={voice.voiceChannelId ? soundboardChipsByChannel[voice.voiceChannelId] ?? [] : []}
         sharing={sharing}
         onScreenShare={() => {
           if (sharing) handleStopShare();
           else if (selectedChannel) void handleStartShare(selectedChannel.id);
         }}
-        videoEnabled={videoEnabled}
-        onToggleVideo={handleToggleVideo}
+        videoEnabled={video.videoEnabled}
+        onToggleVideo={video.handleToggleVideo}
         isWhispering={whisper.isWhispering}
         whisperTargets={whisper.whisperTargets}
         whisperLists={whisper.whisperLists}
@@ -2985,7 +1976,7 @@ export default function App({ initialView }: AppProps = {}) {
         hubConnected={hubConnected}
         reconnectingHubs={reconnectingHubs}
         memberSidebarHidden={memberSidebarHidden}
-        voiceActiveUsers={voiceActiveUsers}
+        voiceActiveUsers={voice.voiceActiveUsers}
         inputText={inputText}
         typingByKey={channelTypingByKey}
         dmTypingByKey={convTypingByKey}
@@ -3042,7 +2033,7 @@ export default function App({ initialView }: AppProps = {}) {
         onOpenHubStreams={handleOpenHubStreams}
         onStartConversation={handleStartConversation}
         profileCardActions={profileCardActions}
-        voicePartByChannel={voicePartByChannel}
+        voicePartByChannel={voice.voicePartByChannel}
         selfInvisible={myPresence.status === "invisible"}
         hideBirthdays={hideBirthdays}
         canMoveMembers={canMoveMembers}
@@ -3280,138 +2271,46 @@ export default function App({ initialView }: AppProps = {}) {
       )}
 
       {channelCtxMenu && (
-        <div
-          className="context-menu-overlay"
-          onClick={() => setChannelCtxMenu(null)}
-          onContextMenu={(e) => { e.preventDefault(); setChannelCtxMenu(null); }}
-        >
-          <div
-            className="context-menu"
-            style={{ top: channelCtxMenu.y, left: channelCtxMenu.x }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {!channelCtxMenu.channel.is_category && activeHubId && (
-              <HoverSubmenu
-                trigger={<button className="context-menu-item context-menu-submenu-trigger">{t("hub.notifications")} ▸</button>}
-              >
-                {(["all", "mentions", "silent"] as NotifyMode[]).map((mode) => {
-                  const cur = channelNotifyMode[activeHubId]?.[channelCtxMenu.channel.id] ?? hubNotifyMode[activeHubId] ?? "all";
-                  return (
-                    <button
-                      key={mode}
-                      className="context-menu-item context-menu-subitem"
-                      onClick={() => {
-                        const chId = channelCtxMenu.channel.id;
-                        setChannelCtxMenu(null);
-                        setChannelNotifyMode((prev) => {
-                          const hubMap = { ...(prev[activeHubId] ?? {}) };
-                          if (mode === "all") delete hubMap[chId]; else hubMap[chId] = mode;
-                          return { ...prev, [activeHubId]: hubMap };
-                        });
-                      }}
-                    >
-                      {cur === mode ? "✓ " : "   "}{notifyModeLabels[mode]}
-                    </button>
-                  );
-                })}
-              </HoverSubmenu>
-            )}
-            {!channelCtxMenu.channel.is_category && activeHubId && (
-              <button
-                className="context-menu-item"
-                onClick={async () => {
-                  const ch = channelCtxMenu.channel;
-                  setChannelCtxMenu(null);
-                  const hubUrl = hubs.find((h) => h.hub_id === activeHubId)?.hub_url;
-                  if (!hubUrl) return;
-                  const link = `wavvon://${hubUrl.replace(/^https?:\/\//, "")}/channel/${ch.id}`;
-                  try {
-                    await navigator.clipboard.writeText(link);
-                    showHubError(t("message.action.link_copied"));
-                  } catch (e) {
-                    showHubError(String(e));
-                  }
-                }}
-              >
-                {t("channel.ctx.copy_link")}
-              </button>
-            )}
-            {!channelCtxMenu.channel.is_category &&
-              channelCtxMenu.channel.channel_type !== "forum" &&
-              isAdmin && (
-              <button
-                className="context-menu-item"
-                onClick={() => {
-                  const ch = channelCtxMenu.channel;
-                  setChannelCtxMenu(null);
-                  setEventComposerChannelId(ch.id);
-                }}
-              >
-                {t("channel.ctx.create_event")}
-              </button>
-            )}
-            {!channelCtxMenu.channel.is_category &&
-              channelCtxMenu.channel.channel_type !== "forum" &&
-              canSendMessages && (
-              <button
-                className="context-menu-item"
-                onClick={() => {
-                  const ch = channelCtxMenu.channel;
-                  setChannelCtxMenu(null);
-                  setPollComposerChannelId(ch.id);
-                }}
-              >
-                {t("channel.ctx.create_poll")}
-              </button>
-            )}
-            {!channelCtxMenu.channel.is_category &&
-              channelCtxMenu.channel.is_temporary &&
-              channelCtxMenu.channel.owner_pubkey === publicKey &&
-              !isAdmin && (
-              <button
-                className="context-menu-item"
-                onClick={() => {
-                  const ch = channelCtxMenu!.channel;
-                  setChannelCtxMenu(null);
-                  setRenameRoomCtx(ch);
-                  setRenameRoomName(ch.name);
+        <ChannelContextMenu
+          menu={channelCtxMenu}
+          activeHubId={activeHubId}
+          effectiveNotifyMode={effectiveNotifyMode}
+          onSetNotifyMode={(hubId, channelId, mode) => {
+            setChannelNotifyMode((prev) => {
+              const hubMap = { ...(prev[hubId] ?? {}) };
+              if (mode === "all") delete hubMap[channelId]; else hubMap[channelId] = mode;
+              return { ...prev, [hubId]: hubMap };
+            });
+          }}
+          onClose={() => setChannelCtxMenu(null)}
+          onCopyLink={async (channel) => {
+            const hubUrl = hubs.find((h) => h.hub_id === activeHubId)?.hub_url;
+            if (!hubUrl) return;
+            const link = `wavvon://${hubUrl.replace(/^https?:\/\//, "")}/channel/${channel.id}`;
+            try {
+              await navigator.clipboard.writeText(link);
+              showHubError(t("message.action.link_copied"));
+            } catch (e) {
+              showHubError(String(e));
+            }
+          }}
+          onCreateEvent={isAdmin ? (channel) => setEventComposerChannelId(channel.id) : undefined}
+          onCreatePoll={canSendMessages ? (channel) => setPollComposerChannelId(channel.id) : undefined}
+          onRenameTempRoom={
+            channelCtxMenu.channel.is_temporary && channelCtxMenu.channel.owner_pubkey === publicKey && !isAdmin
+              ? (channel) => {
+                  setRenameRoomCtx(channel);
+                  setRenameRoomName(channel.name);
                   setRenameRoomError(null);
-                }}
-              >
-                {t("channel.temp.rename")}
-              </button>
-            )}
-            {!channelCtxMenu.channel.is_category && isAdmin && (
-              <hr style={{ margin: "4px 0", border: "none", borderTop: "1px solid var(--border)" }} />
-            )}
-            {isAdmin && channelCtxMenu.channel.is_category && (
-              <button className="context-menu-item" onClick={() => { const ch = channelCtxMenu; setChannelCtxMenu(null); setChannelSettingsCtx(null); setCreateChannelCtx({ parentId: ch.channel.id, isCategory: false }); setCreateChannelError(null); }}>
-                {t("channel.ctx.create_in", { name: channelCtxMenu.channel.name })}
-              </button>
-            )}
-            {isAdmin && (
-              <button className="context-menu-item" onClick={() => { setChannelCtxMenu(null); setChannelSettingsCtx(null); setCreateChannelCtx({ parentId: null, isCategory: false }); setCreateChannelError(null); }}>
-                {t("channel.create.button")}
-              </button>
-            )}
-            {isAdmin && (
-              <button className="context-menu-item" onClick={() => { setChannelCtxMenu(null); setChannelSettingsCtx(null); setCreateChannelCtx({ parentId: null, isCategory: true }); setCreateChannelError(null); }}>
-                {t("channel.ctx.create_category")}
-              </button>
-            )}
-            {isAdmin && <hr style={{ margin: "4px 0", border: "none", borderTop: "1px solid var(--border)" }} />}
-            {isAdmin && (
-              <button className="context-menu-item" onClick={() => { const ch = channelCtxMenu!.channel; setChannelCtxMenu(null); setCreateChannelCtx(null); setChannelSettingsCtx(ch); setChannelSettingsError(null); }}>
-                {t("channel.ctx.edit_name", { name: channelCtxMenu.channel.name })}
-              </button>
-            )}
-            {isAdmin && (
-              <button className="context-menu-item danger" onClick={() => { const ch = channelCtxMenu!.channel; setChannelCtxMenu(null); setCreateChannelCtx(null); setChannelSettingsCtx(ch); setChannelSettingsError(null); }}>
-                {t("channel.ctx.delete_name", { name: channelCtxMenu.channel.name })}
-              </button>
-            )}
-          </div>
-        </div>
+                }
+              : undefined
+          }
+          onCreateChannelIn={isAdmin ? (parentId) => { setChannelSettingsCtx(null); setCreateChannelCtx({ parentId, isCategory: false }); setCreateChannelError(null); } : undefined}
+          onCreateChannel={isAdmin ? () => { setChannelSettingsCtx(null); setCreateChannelCtx({ parentId: null, isCategory: false }); setCreateChannelError(null); } : undefined}
+          onCreateCategory={isAdmin ? () => { setChannelSettingsCtx(null); setCreateChannelCtx({ parentId: null, isCategory: true }); setCreateChannelError(null); } : undefined}
+          onEditChannel={isAdmin ? (channel) => { setCreateChannelCtx(null); setChannelSettingsCtx(channel); setChannelSettingsError(null); } : undefined}
+          onDeleteChannel={isAdmin ? (channel) => { setCreateChannelCtx(null); setChannelSettingsCtx(channel); setChannelSettingsError(null); } : undefined}
+        />
       )}
 
       {editDescChannel && (

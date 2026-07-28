@@ -353,3 +353,11 @@ export type {
 } from "./types";
 export { RecoveryContactsSection } from "./components/settings/RecoveryContactsSection";
 export type { RecoveryContactsSectionActions } from "./components/settings/RecoveryContactsSection";
+
+// Shared app-orchestration hooks (used by both web and desktop App.tsx).
+export { useVoiceMoveUx } from "./hooks/useVoiceMoveUx";
+export type { VoiceMoveMenuState } from "./hooks/useVoiceMoveUx";
+export { usePresenceStatus } from "./hooks/usePresenceStatus";
+export { useHubSetupWizardGate } from "./hooks/useHubSetupWizardGate";
+export { ChannelContextMenu } from "./components/channels/ChannelContextMenu";
+export type { ChannelContextMenuProps } from "./components/channels/ChannelContextMenu";
