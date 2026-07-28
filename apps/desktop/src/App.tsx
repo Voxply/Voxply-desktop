@@ -9,7 +9,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import type {
@@ -22,12 +21,10 @@ import type {
   VoiceParticipant,
   Hub,
   RoleInfo,
-  RoleCategory,
   MeInfo,
   MemberAdminInfo,
   BanInfo,
   InviteInfo,
-  PendingUser,
   Friend,
   Conversation,
   DmMessage,
@@ -36,19 +33,12 @@ import type {
   ActiveStream,
   LobbyStatus,
   SurveySubmitResult,
-  BotAdminInfo,
-  BotDetailInfo,
-  BotCreatedResult,
   BotAppLaunchEvent,
   BotAppOpenEvent,
   BotAppCloseEvent,
   FarmPublicInfo,
   FarmHubQuota,
   CreatedFarmHub,
-  FarmSettings,
-  FarmHubEntry,
-  FarmUserEntry,
-  FarmServerEntry,
   PublicHubProfile,
   ForumTagDef,
 } from "./types";
@@ -81,6 +71,7 @@ import { useNotificationPrefs } from "./hooks/useNotificationPrefs";
 import { useUnreadCounts } from "./hooks/useUnreadCounts";
 import { useTypingIndicators } from "./hooks/useTypingIndicators";
 import { useHubConnections } from "./hooks/useHubConnections";
+import { useHubLifecycle } from "./hooks/useHubLifecycle";
 import { useHubAdmin } from "./hooks/useHubAdmin";
 import { useFriends } from "./hooks/useFriends";
 import { useSettingsProfile } from "./hooks/useSettingsProfile";
@@ -88,50 +79,23 @@ import { useDms } from "./hooks/useDms";
 import { useChannelMessages } from "./hooks/useChannelMessages";
 import { useAlliances } from "./hooks/useAlliances";
 import { useWsHandlers } from "./hooks/useWsHandlers";
-import { Lightbox } from "./components/Lightbox";
+import { useUpdateBanner } from "./hooks/useUpdateBanner";
+import { useFirstNotify } from "./hooks/useFirstNotify";
+import { buildVideoTiles } from "./utils/buildVideoTiles";
+import { useSlashCommands } from "./hooks/useSlashCommands";
 import { ChannelPalette } from "./components/ChannelPalette";
 import {
   SettingsPage,
   type SettingsTab,
 } from "./components/SettingsPage";
-import {
-  HubAdminPage,
-  type HubAdminTab,
-  type RolesSectionActions,
-  type MemberRoleManagerActions,
-  type ServerTagsSectionActions,
-  type InviteManagerActions,
-  type NativeBotsSectionActions,
-  type AuditLogSectionActions,
-  type CertificationsSectionActions,
-  type OnboardingAdminSectionActions,
-} from "@wavvon/ui";
-import type {
-  Alliance,
-  AllianceInvite,
-  PendingAllianceInvite,
-  SharedChannel,
-  ExternalBotRow,
-  ExternalBotInviteResult,
-  WebhookInfo,
-  WebhookCreatedResult,
-  SurveyAdmin,
-  SurveyResponseView,
-  HubSelfTagSettings,
-  HubBadge,
-  PendingBadgeOffer,
-  CertIssuance,
-  CertAdmissionSettings,
-  AuditLogPage,
-} from "@wavvon/ui";
+import { HubAdminContainer } from "./components/HubAdminContainer";
+import { farmSettingsActions } from "./hooks/hubAdminActions";
 import { AddHubModal } from "@wavvon/ui";
 import { QuickInviteModal } from "@wavvon/ui";
 import { ChannelSettingsModal, type BannerSource } from "@wavvon/ui";
 import type { HubIcon } from "@wavvon/ui";
 import { FriendsModal } from "@wavvon/ui";
-import { EditDescriptionModal } from "@wavvon/ui";
-import { ChannelAppearanceModal } from "./components/ChannelAppearanceModal";
-import { BannerEditModal } from "./components/BannerEditModal";
+import { AppModals } from "./components/AppModals";
 import { UserContextMenu } from "@wavvon/ui";
 import { HubSidebar } from "@wavvon/ui";
 import { ChannelSidebar } from "@wavvon/ui";
@@ -146,21 +110,7 @@ import { setSwitchGuard } from "./accounts/store";
 
 function App() {
   const { t } = useTranslation();
-  // Multi-hub state
-  const [hubs, setHubs] = useState<Hub[]>([]);
-  // Active hub's ambient IANA timezone (HubClock in the sidebar header) —
-  // member-facing, fetched alongside the rest of loadHubData rather than
-  // gated behind opening the admin panel.
-  const [activeHubTimezone, setActiveHubTimezone] = useState<string | null>(null);
-  const hubsRef = useRef<Hub[]>([]);
-  useEffect(() => { hubsRef.current = hubs; }, [hubs]);
-  const [activeHubId, setActiveHubId] = useState<string | null>(null);
   const [showQuickInvite, setShowQuickInvite] = useState(false);
-  const [hubScope, setHubScope] = useState<Record<string, "lobby" | "member">>({});
-  const lobbyHubIds = useMemo(
-    () => new Set(Object.entries(hubScope).filter(([, scope]) => scope === "lobby").map(([id]) => id)),
-    [hubScope],
-  );
   const [pendingSurveyHubId, setPendingSurveyHubId] = useState<string | null>(null);
   const {
     unreadByChannel,
@@ -294,11 +244,29 @@ function App() {
   }, []);
 
 
-  const [pingByHub, setPingByHub] = useState<Record<string, number | null>>({});
-
   const [publicKey, setPublicKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+
+  const {
+    hubs, setHubs, hubsRef,
+    activeHubId, setActiveHubId, activeHubIdRef,
+    activeHubTimezone, setActiveHubTimezone,
+    hubScope, setHubScope, lobbyHubIds,
+    pingByHub,
+    handleHubReorder,
+    handleReconnect,
+    handleSwitchHub,
+    handleRemoveHub,
+  } = useHubLifecycle({
+    setError,
+    clearReconnectTimer,
+    resetAttempts,
+    setReconnecting,
+    scheduleReconnect,
+    clearHubUnread,
+    onHubRemovedReconnect,
+  });
 
   const {
     showHubAdmin,
@@ -365,11 +333,6 @@ function App() {
   const voiceAnnounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingVoiceAnnouncementsRef = useRef<string[]>([]);
 
-  const activeHubIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    activeHubIdRef.current = activeHubId;
-  }, [activeHubId]);
-
   const publicKeyRef = useRef<string | null>(null);
   useEffect(() => {
     publicKeyRef.current = publicKey;
@@ -382,36 +345,7 @@ function App() {
   // channel_ids absent from this list are silently dropped.
   const channelsRef = useRef<Channel[]>([]);
 
-  // Per-channel first-notifying message ID. Set when a message first causes a
-  // pin (unread dot) to appear; cleared when the user reaches the bottom of
-  // the channel. Drives the "Jump to first notification" affordance.
-  const [firstNotifyId, setFirstNotifyId] = useState<
-    Record<string, Record<string, string>>
-  >({});
-
-  function setFirstNotify(hubId: string, channelId: string, messageId: string) {
-    setFirstNotifyId((prev) => {
-      const hubMap = prev[hubId] ?? {};
-      if (hubMap[channelId]) return prev; // already tracking one; keep the earliest
-      return { ...prev, [hubId]: { ...hubMap, [channelId]: messageId } };
-    });
-  }
-
-  function clearFirstNotify(hubId: string, channelId: string) {
-    setFirstNotifyId((prev) => {
-      const hubMap = prev[hubId];
-      if (!hubMap?.[channelId]) return prev;
-      const { [channelId]: _, ...rest } = hubMap;
-      return { ...prev, [hubId]: rest };
-    });
-  }
-
-  function clearHubFirstNotify(hubId: string) {
-    setFirstNotifyId((prev) => {
-      if (!prev[hubId] || Object.keys(prev[hubId]).length === 0) return prev;
-      return { ...prev, [hubId]: {} };
-    });
-  }
+  const { firstNotifyId, setFirstNotify, clearFirstNotify, clearHubFirstNotify } = useFirstNotify();
 
   // Chat state
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -562,44 +496,6 @@ function App() {
     user: User;
   } | null>(null);
 
-  async function handleHubReorder(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = hubs.findIndex((h) => h.hub_id === active.id);
-    const newIndex = hubs.findIndex((h) => h.hub_id === over.id);
-    if (oldIndex < 0 || newIndex < 0) return;
-    const reordered = arrayMove(hubs, oldIndex, newIndex);
-    setHubs(reordered);
-    try {
-      await invoke("reorder_hubs", {
-        hubIds: reordered.map((h) => h.hub_id),
-      });
-    } catch (e) {
-      setError(String(e));
-    }
-  }
-
-  async function handleReconnect() {
-    if (!activeHubId) return;
-    // Manual click is a fresh start: cancel any pending auto-retry and
-    // reset backoff so a subsequent failure starts at 1s again.
-    clearReconnectTimer(activeHubId);
-    resetAttempts(activeHubId);
-    setReconnecting(activeHubId, true);
-    try {
-      await invoke("reconnect_hub", { hubId: activeHubId });
-      // The hub-ws-status:true event will flip hubConnected and clear
-      // the banner; if reconnect succeeded but the event hasn't arrived
-      // yet, the banner still shows briefly -- that's fine.
-    } catch (e) {
-      setError(String(e));
-      setReconnecting(activeHubId, false);
-      // Hand control back to the auto-reconnect loop after the manual
-      // attempt fails, so we keep trying in the background.
-      scheduleReconnect(activeHubId);
-    }
-  }
-
   async function handleUserDm(u: User) {
     setUserContextMenu(null);
     if (u.public_key === publicKey) return;
@@ -698,13 +594,7 @@ function App() {
   // Hub users
   const [users, setUsers] = useState<User[]>([]);
 
-  // Slash command autocomplete entries — populated after hub load.
-  interface SlashCommandEntry {
-    command: string;
-    description: string;
-    bot_name: string;
-  }
-  const [slashCommands, setSlashCommands] = useState<SlashCommandEntry[]>([]);
+  const { slashCommands, loadSlashCommands, clearSlashCommands } = useSlashCommands();
 
   const [activeBotApps, setActiveBotApps] = useState<Map<string, BotAppLaunchEvent>>(new Map());
 
@@ -803,39 +693,6 @@ function App() {
         ...(eventId ? { event_id: eventId } : {}),
       }),
     }).catch(() => setToast("Not connected"));
-  }
-
-  function buildTiles(
-    remoteStreams: Map<string, MediaStream>,
-    videoPubkeys: Set<string>,
-    tileUsers: User[],
-    tileSpeak: Set<string>,
-    pinnedPubkey: string | null,
-  ) {
-    const tiles: {
-      pubkey: string;
-      displayName: string;
-      stream: MediaStream;
-      speaking: boolean;
-      pinned: boolean;
-    }[] = [];
-    for (const [pk, stream] of remoteStreams) {
-      if (!videoPubkeys.has(pk)) continue;
-      const u = tileUsers.find((x) => x.public_key === pk);
-      tiles.push({
-        pubkey: pk,
-        displayName: u?.display_name ?? pk.slice(0, 8),
-        stream,
-        speaking: tileSpeak.has(pk),
-        pinned: pinnedPubkey === pk,
-      });
-    }
-    tiles.sort(
-      (a, b) =>
-        (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) ||
-        (b.speaking ? 1 : 0) - (a.speaking ? 1 : 0),
-    );
-    return tiles;
   }
 
   const {
@@ -1090,105 +947,7 @@ function App() {
     }
   }
 
-  async function loadSlashCommands(hubUrl: string) {
-    try {
-      const bots = await invoke<BotAdminInfo[]>("admin_list_bots", { hubUrl });
-      const entries: SlashCommandEntry[] = [];
-      for (const bot of bots) {
-        try {
-          const detail = await invoke<BotDetailInfo>("admin_get_bot_detail", { hubUrl, pubkey: bot.public_key });
-          for (const cmd of detail.commands) {
-            entries.push({ command: cmd.command, description: cmd.description, bot_name: bot.display_name });
-          }
-        } catch {
-          // skip bots whose detail fails to load
-        }
-      }
-      setSlashCommands(entries);
-    } catch {
-      setSlashCommands([]);
-    }
-  }
-
-  async function handleSetTalkPower(channelId: string) {
-    let current = 0;
-    try {
-      const tp = await invoke<{ min_talk_power: number }>("get_talk_power", {
-        channelId,
-      });
-      current = tp.min_talk_power;
-    } catch {
-      // Falling back to 0 is fine — user just sees the default.
-    }
-    const value = prompt(
-      "Minimum talk power (priority) to speak in this channel.\nUse 0 to allow anyone.",
-      String(current)
-    );
-    if (value === null) return;
-    const n = Number(value);
-    if (!Number.isFinite(n) || n < 0) {
-      setError("Invalid talk power");
-      return;
-    }
-    try {
-      await invoke("set_talk_power_cmd", {
-        channelId,
-        minTalkPower: Math.floor(n),
-      });
-      setToast(n === 0 ? "Talk power cleared" : `Talk power set to ${Math.floor(n)}`);
-    } catch (e) {
-      setError(String(e));
-    }
-  }
-
-  const [updateInfo, setUpdateInfo] = useState<{ version: string; notes: string | null } | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    let unlistenFn: (() => void) | null = null;
-    listen<{ version: string; notes: string | null }>("update-available", (ev) => {
-      setUpdateInfo(ev.payload);
-    }).then((fn) => {
-      if (cancelled) { fn(); return; }
-      unlistenFn = fn;
-    });
-    return () => {
-      cancelled = true;
-      unlistenFn?.();
-    };
-  }, []);
-
-  async function handleSwitchHub(hubId: string) {
-    if (hubId === activeHubId) return;
-    try {
-      await invoke("set_active_hub", { hubId });
-      setActiveHubId(hubId);
-      setHubs((prev) =>
-        prev.map((h) => ({ ...h, is_active: h.hub_id === hubId }))
-      );
-      // Leave per-channel unread alone -- it'll clear when the user
-      // actually opens the relevant channel.
-    } catch (e) {
-      setError(String(e));
-    }
-  }
-
-  async function handleRemoveHub(hubId: string) {
-    const hub = hubs.find((h) => h.hub_id === hubId);
-    const name = hub?.hub_name ?? "this hub";
-    if (!confirm(`Leave "${name}"?`)) return;
-    try {
-      await invoke("remove_hub", { hubId });
-      const remaining = await invoke<Hub[]>("list_hubs");
-      setHubs(remaining);
-      if (activeHubId === hubId) {
-        setActiveHubId(remaining[0]?.hub_id ?? null);
-      }
-      clearHubUnread(hubId);
-      onHubRemovedReconnect(hubId);
-    } catch (e) {
-      setError(String(e));
-    }
-  }
+  const { updateInfo, dismissUpdateInfo } = useUpdateBanner();
 
   // Auto-connect saved hubs on app start + load our own public key once
   useEffect(() => {
@@ -1310,11 +1069,11 @@ function App() {
       loadHubData();
       const hub = hubs.find((h) => h.hub_id === activeHubId);
       if (hub) loadSlashCommands(hub.hub_url);
-      else setSlashCommands([]);
+      else clearSlashCommands();
     } else {
       // No active hub — clear approval state so the next switch starts fresh.
       setMyApprovalStatus("unknown");
-      setSlashCommands([]);
+      clearSlashCommands();
     }
   }, [activeHubId]);
 
@@ -1329,30 +1088,6 @@ function App() {
     }, 10000);
     return () => clearInterval(interval);
   }, [hasActiveHub, activeHubId]);
-
-  // Ping every connected hub every 15s so the sidebar shows current latency
-  useEffect(() => {
-    if (hubs.length === 0) return;
-    let cancelled = false;
-    async function tick() {
-      for (const h of hubs) {
-        try {
-          const ms = await invoke<number>("ping_hub", { hubId: h.hub_id });
-          if (cancelled) return;
-          setPingByHub((prev) => ({ ...prev, [h.hub_id]: ms }));
-        } catch {
-          if (cancelled) return;
-          setPingByHub((prev) => ({ ...prev, [h.hub_id]: null }));
-        }
-      }
-    }
-    tick();
-    const interval = setInterval(tick, 15000);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [hubs]);
 
   async function startDmWithAndClose(targetKey: string, targetHubUrl?: string | null) {
     await startDmWith(targetKey, targetHubUrl);
@@ -1681,7 +1416,7 @@ function App() {
         <UpdateBanner
           version={updateInfo.version}
           notes={updateInfo.notes}
-          onDismiss={() => setUpdateInfo(null)}
+          onDismiss={dismissUpdateInfo}
         />
       )}
       <>
@@ -1691,25 +1426,10 @@ function App() {
             tab={farmAdminTab}
             onTab={setFarmAdminTab}
             onClose={() => setShowFarmSettings(false)}
-            actions={{
-              getSettings: (farmUrl) => invoke<FarmSettings>("get_farm_settings", { farmUrl }),
-              patchSettings: (farmUrl, settings) => invoke<FarmSettings>("patch_farm_settings", { farmUrl, settings }),
-              getHubs: (farmUrl) => invoke<{ hubs: FarmHubEntry[] }>("get_farm_hubs_admin", { farmUrl }),
-              suspendHub: (farmUrl, hubId, suspended, reason) => invoke("suspend_farm_hub", { farmUrl, hubId, suspended, reason }),
-              deleteHub: (farmUrl, hubId) => invoke("delete_farm_hub", { farmUrl, hubId }),
-              getUsers: (farmUrl, page, limit) =>
-                invoke<{ users: FarmUserEntry[]; total: number; page: number; limit: number }>("get_farm_users", { farmUrl, page, limit }),
-              revokeUserSessions: (farmUrl, pubkey) => invoke("revoke_farm_user_sessions", { farmUrl, pubkey }),
-              getServers: (farmUrl) => invoke<{ servers: FarmServerEntry[] }>("get_farm_servers", { farmUrl }),
-              generateServerToken: (farmUrl, name, region) =>
-                invoke<{ server_id: string; token: string }>("generate_farm_server_token", { farmUrl, name, region }),
-              totpSetup: (farmUrl) => invoke<{ secret: string; qr_url: string }>("farm_totp_setup", { farmUrl }),
-              totpConfirm: (farmUrl, secret, code) => invoke("farm_totp_confirm", { farmUrl, secret, code }),
-              totpDisable: (farmUrl, code) => invoke("farm_totp_disable", { farmUrl, code }),
-            }}
+            actions={farmSettingsActions}
           />
         ) : showHubAdmin ? (
-          <HubAdminPage
+          <HubAdminContainer
             tab={hubAdminTab}
             onTab={setHubAdminTab}
             onClose={() => setShowHubAdmin(false)}
@@ -1733,13 +1453,9 @@ function App() {
             onTimezoneChange={setHubTimezone}
             birthdaysEnabled={birthdaysEnabled}
             onBirthdaysEnabledChange={setBirthdaysEnabled}
-            saveError={null}
             onSave={handleSaveHubBranding}
             hubListed={hubListed}
             onHubListedChange={onHubListedChange}
-            submitToDirectory={(directoryUrl, tags, language, bio, inviteCode) =>
-              invoke("submit_to_directory", { directoryUrl, tags, language, bio, inviteCode })
-            }
             pendingMembers={pendingMembers}
             onApproveMember={handleApproveMember}
             members={adminMembers}
@@ -1750,173 +1466,19 @@ function App() {
             onVoiceMuteMember={voice.handleVoiceMuteMember}
             onVoiceUnmuteMember={voice.handleVoiceUnmuteMember}
             voiceMutedKeys={voice.voiceMutedKeys}
-            canManageRoles={isAdmin || myRoles.some((r) => r.permissions?.includes("manage_roles"))}
-            myMaxPriority={myRoles.reduce((m, r) => Math.max(m, r.priority), 0)}
             onMemberRolesChanged={() => refreshMembers()}
             bans={adminBans}
             onUnban={handleUnban}
             invites={adminInvites}
-            activeHubUrl={hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? ""}
-            hubSerial={activeHubId ?? ""}
-            myPubkey={publicKey ?? ""}
+            hubs={hubs}
+            activeHubId={activeHubId}
+            publicKey={publicKey}
+            myRoles={myRoles}
             isAdmin={isAdmin}
-            canManageSoundboard={isAdmin || myRoles.some((r) => r.permissions?.includes("manage_soundboard"))}
             soundboardActions={soundboard.soundboardActions}
             onCreateInvite={handleCreateInvite}
             onRevokeInvite={handleRevokeInvite}
             channels={channels}
-            rolesActions={{
-              listRoles: () => invoke<RoleInfo[]>("list_roles"),
-              createRole: (input) =>
-                invoke<RoleInfo>("create_role", {
-                  name: input.name,
-                  permissions: input.permissions,
-                  priority: input.priority,
-                  displaySeparately: input.display_separately,
-                }),
-              updateRole: (roleId, updates) =>
-                invoke<RoleInfo>("update_role", {
-                  roleId,
-                  name: updates.name ?? null,
-                  permissions: updates.permissions ?? null,
-                  priority: updates.priority ?? null,
-                  displaySeparately: updates.display_separately ?? null,
-                  color: updates.color ?? null,
-                  icon: updates.icon ?? null,
-                  categoryId: updates.category_id ?? null,
-                }),
-              deleteRole: (roleId) => invoke("delete_role", { roleId }),
-              listRoleCategories: () => invoke<RoleCategory[]>("list_role_categories"),
-              createRoleCategory: (input) =>
-                invoke<RoleCategory>("create_role_category", { name: input.name, position: input.position }),
-              updateRoleCategory: (id, updates) =>
-                invoke<RoleCategory>("update_role_category", {
-                  categoryId: id,
-                  name: updates.name ?? null,
-                  color: updates.color ?? null,
-                  icon: updates.icon ?? null,
-                  position: updates.position ?? null,
-                }),
-              deleteRoleCategory: (id) => invoke("delete_role_category", { categoryId: id }),
-            } as RolesSectionActions}
-            memberRoleActions={{
-              listRoles: () => invoke<RoleInfo[]>("list_roles"),
-              listUserRoles: (pubkey) => invoke<RoleInfo[]>("list_user_roles", { targetPublicKey: pubkey }),
-              assignRoleToUser: (pubkey, roleId) => invoke("assign_role", { targetPublicKey: pubkey, roleId }),
-              removeRoleFromUser: (pubkey, roleId) => invoke("unassign_role", { targetPublicKey: pubkey, roleId }),
-            } as MemberRoleManagerActions}
-            serverTagsActions={{
-              getDiscoveryTags: () => invoke<HubSelfTagSettings>("get_discovery_settings"),
-              setDiscoveryTags: (tags, nsfw) => invoke("set_discovery_tags", { tags, nsfw }),
-              listBadges: () => invoke<HubBadge[]>("list_badges"),
-              listPendingBadges: () => invoke<PendingBadgeOffer[]>("list_pending_badges"),
-              acceptBadge: (id) => invoke("accept_badge", { badgeId: id }),
-              declineBadge: (id) => invoke("decline_badge", { badgeId: id }),
-              removeBadge: (id) => invoke("remove_badge", { badgeId: id }),
-              grantBadge: (targetHubUrl, label) => invoke("grant_badge", { targetHubUrl, label }),
-            } as ServerTagsSectionActions}
-            inviteActions={{
-              listRoles: () => invoke<RoleInfo[]>("list_roles"),
-              getHubSettings: () =>
-                invoke<{ default_invite_role_id: string | null }>("get_hub_settings").then((s) => ({
-                  default_invite_role_id: s.default_invite_role_id ?? null,
-                })),
-              saveHubSettings: (settings) =>
-                invoke("update_hub_branding", { defaultInviteRoleId: settings.default_invite_role_id }),
-            } as InviteManagerActions}
-            webhookActions={{
-              loadWebhooks: () => invoke<WebhookInfo[]>("admin_list_webhooks", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "" }),
-              createWebhook: (channelId, displayName, avatarUrl) =>
-                invoke<WebhookCreatedResult>("admin_create_webhook", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "", channelId, displayName, avatarUrl }),
-              regenerateWebhook: (webhookId) =>
-                invoke<WebhookCreatedResult>("admin_regenerate_webhook", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "", webhookId }),
-              deleteWebhook: (webhookId) => invoke("admin_delete_webhook", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "", webhookId }),
-            }}
-            externalBotActions={{
-              loadBots: () => invoke<ExternalBotRow[]>("admin_list_external_bots", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "" }),
-              addBot: (pubkey, localNote) =>
-                invoke<ExternalBotInviteResult>("admin_add_external_bot", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "", pubkey, localNote }),
-              removeBot: (pubkey) => invoke("admin_remove_external_bot", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "", pubkey }),
-              getBotChannelScope: (pubkey) => invoke<string[]>("admin_get_bot_channel_scope", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "", pubkey }),
-              setBotChannelScope: (pubkey, channelIds) =>
-                invoke("admin_set_bot_channel_scope", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "", pubkey, channelIds }),
-            }}
-            nativeBotActions={{
-              listNativeBots: () => invoke<BotAdminInfo[]>("admin_list_bots", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "" }),
-              createNativeBot: (input) =>
-                invoke<BotCreatedResult>("admin_create_bot", {
-                  hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "",
-                  displayName: input.display_name,
-                  miniAppUrl: input.mini_app_url ?? null,
-                  requiresCamera: input.requires_camera ?? false,
-                }),
-              deleteNativeBot: (pubkey) => invoke("admin_delete_bot", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "", pubkey }),
-              getBotDetail: (pubkey) => invoke<BotDetailInfo>("admin_get_bot_detail", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "", pubkey }),
-              setBotWebhook: (pubkey, webhookUrl) =>
-                invoke("admin_set_bot_webhook", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "", pubkey, webhookUrl }),
-            } as NativeBotsSectionActions}
-            auditLogActions={{
-              getAuditLog: (opts) =>
-                invoke<AuditLogPage>("get_audit_log", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "", cursor: opts.cursor ?? null, limit: opts.limit ?? null }),
-            } as AuditLogSectionActions}
-            certActions={{
-              listCertIssuances: () => invoke<CertIssuance[]>("list_issued_certs", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "" }),
-              getCertSettings: () => invoke<CertAdmissionSettings>("get_cert_settings", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "" }),
-              saveCertSettings: (settings) => invoke("save_cert_settings", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "", settings }),
-              issueCertManual: (subjectPubkey) => invoke("issue_cert", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "", subjectPubkey }),
-              revokeCert: (subjectPubkey) => invoke("revoke_cert", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "", subjectPubkey }),
-              grantUserBadge: (subjectPubkey, label) =>
-                invoke("grant_user_badge", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "", subjectPubkey, label }),
-            } as CertificationsSectionActions}
-            onboardingActions={{
-              listPendingUsers: () => invoke<PendingUser[]>("list_pending_members"),
-              approvePendingUser: (pk) => invoke("approve_member", { targetPublicKey: pk }),
-              setLobbySettings: (lobbyEnabled, welcomeMd) =>
-                invoke("set_lobby_settings", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "", lobbyEnabled, welcomeMd: welcomeMd ?? null }),
-              setChallengeSettings: (mode, difficulty) =>
-                invoke("set_challenge_settings", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "", challengeMode: mode, challengeDifficulty: difficulty }),
-              getLobbyWelcome: () =>
-                invoke<{ welcome_md: string }>("lobby_get_welcome", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "" }),
-            } as OnboardingAdminSectionActions}
-            allianceActions={{
-              listAlliances: () => invoke<Alliance[]>("list_alliances"),
-              createAlliance: (name) => invoke<Alliance>("create_alliance", { name }),
-              leaveAlliance: (allianceId) => invoke("leave_alliance", { allianceId }),
-              listPendingAllianceInvites: () => invoke<PendingAllianceInvite[]>("list_pending_alliance_invites"),
-              acceptAllianceInvite: (inviteId, ownHubUrl) =>
-                invoke("respond_to_alliance_invite", { inviteId, accept: true, ownHubUrl }),
-              declineAllianceInvite: (inviteId) =>
-                invoke("respond_to_alliance_invite", { inviteId, accept: false }),
-              listAllianceSharedChannels: (allianceId) =>
-                invoke<SharedChannel[]>("list_alliance_shared_channels", { allianceId }),
-              shareChannelWithAlliance: (allianceId, channelId, includeDescendants) =>
-                invoke("share_channel_with_alliance", { allianceId, channelId, includeDescendants }),
-              unshareChannelFromAlliance: (allianceId, channelId) =>
-                invoke("unshare_channel_from_alliance", { allianceId, channelId }),
-              createAllianceInvite: (allianceId) => invoke<AllianceInvite>("create_alliance_invite", { allianceId }),
-              sendAlliancePushInvite: (allianceId, targetHubUrl, ownHubUrl, message) =>
-                invoke("send_alliance_push_invite", { allianceId, targetHubUrl, ownHubUrl, message }),
-              joinAllianceByCode: (inviterHubUrl, allianceId, inviteToken, ownHubUrl) =>
-                invoke("join_alliance", {
-                  inviterHubUrl, allianceId, inviteToken, ownHubPublicUrl: ownHubUrl,
-                }).then(() => {}),
-            }}
-            hubIconActions={{
-              listHubIcons: () => invoke<HubIcon[]>("list_hub_icons"),
-              createHubIcon: (name, svgContent) => invoke<HubIcon>("create_hub_icon", { name, svgContent }),
-              renameHubIcon: (iconId, name) => invoke("rename_hub_icon", { iconId, name }),
-              deleteHubIcon: (iconId) => invoke("delete_hub_icon", { iconId }),
-            }}
-            surveyActions={{
-              getSurveyAdmin: () => invoke<SurveyAdmin | null>("survey_admin_get", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "" }),
-              setSurveyAdmin: (survey) => invoke("survey_admin_put", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "", survey }),
-              getSurveyResponses: () =>
-                invoke<SurveyResponseView[]>("survey_admin_responses", { hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "", status: "all" }),
-              loadAssignableRoles: () =>
-                invoke<RoleInfo[]>("list_roles").then((roles) =>
-                  roles.filter((r) => !r.permissions.includes("admin")).map((r) => ({ id: r.id, name: r.name }))
-                ),
-            }}
           />
         ) : showSettings ? (
           <SettingsPage
@@ -2267,7 +1829,7 @@ function App() {
                 )}
                 {(video.videoEnabled || video.remoteStreams.size > 0) && (
                   <VideoGrid
-                    tiles={buildTiles(
+                    tiles={buildVideoTiles(
                       video.remoteStreams,
                       video.videoPubkeys,
                       users,
@@ -2535,31 +2097,21 @@ function App() {
           />
         )}
 
-        {editDescriptionChannel && (
-          <EditDescriptionModal
-            channel={editDescriptionChannel}
-            description={editDescriptionValue}
-            onDescriptionChange={setEditDescriptionValue}
-            onSave={handleSaveDescription}
-            onClose={() => setEditDescriptionChannel(null)}
-          />
-        )}
-
-        {appearanceChannel && (
-          <ChannelAppearanceModal
-            channel={appearanceChannel}
-            onSave={(icon, color, customIconSvg) => handleSaveAppearance(appearanceChannel, icon, color, customIconSvg)}
-            onClose={() => setAppearanceChannel(null)}
-          />
-        )}
-
-        {bannerEditChannel && (
-          <BannerEditModal
-            channel={bannerEditChannel}
-            onSave={handleSaveBannerUrl}
-            onClose={() => setBannerEditChannel(null)}
-          />
-        )}
+        <AppModals
+          lightbox={lightbox}
+          onCloseLightbox={() => setLightbox(null)}
+          editDescriptionChannel={editDescriptionChannel}
+          editDescriptionValue={editDescriptionValue}
+          onDescriptionChange={setEditDescriptionValue}
+          onSaveDescription={handleSaveDescription}
+          onCloseEditDescription={() => setEditDescriptionChannel(null)}
+          appearanceChannel={appearanceChannel}
+          onSaveAppearance={handleSaveAppearance}
+          onCloseAppearance={() => setAppearanceChannel(null)}
+          bannerEditChannel={bannerEditChannel}
+          onSaveBanner={handleSaveBannerUrl}
+          onCloseBanner={() => setBannerEditChannel(null)}
+        />
 
         {(showCreateChannel || channelSettingsModal) && (
           <ChannelSettingsModal
@@ -2616,14 +2168,6 @@ function App() {
             channels={channels.filter((c) => !c.is_category)}
             onClose={() => setPaletteOpen(false)}
             onSelect={(c) => { setPaletteOpen(false); channelMessages.selectChannel(c); }}
-          />
-        )}
-
-        {lightbox && (
-          <Lightbox
-            src={lightbox.src}
-            alt={lightbox.alt}
-            onClose={() => setLightbox(null)}
           />
         )}
 
