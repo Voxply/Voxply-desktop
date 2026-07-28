@@ -1,23 +1,23 @@
-import { useState } from "react";
-import type React from "react";
+import { useMemo, useState } from "react";
 import type {
   Channel,
-  Hub,
   Message,
-  DmMessage,
-  Attachment,
   User,
   RoleInfo,
-  Conversation,
-  AllianceSharedChannel,
-  VoiceParticipant,
-  ActiveStream,
   ForumAttachment,
 } from "@shared/types";
+import type { useChannelMessages } from "../../hooks/useChannelMessages";
+import type { useDms } from "../../hooks/useDms";
+import type { useAlliances } from "../../hooks/useAlliances";
+import type { useHubLifecycle } from "../../hooks/useHubLifecycle";
+import type { useHubConnection } from "../../hooks/useHubConnection";
+import type { useVoice } from "../../hooks/useVoice";
+import type { useScreenShare } from "../../hooks/useScreenShare";
+import type { useNotificationPrefs } from "../../hooks/useNotificationPrefs";
+import type { useChannelCrud } from "../../hooks/useChannelCrud";
+import type { useTypingIndicators } from "../../hooks/useTypingIndicators";
 import {
   ContentArea as SharedContentArea,
-  type UserProfileCardActions,
-  type ScreenShareViewerRef,
   type ForumActions,
   type MessageRowActions,
   type CreateEventPayload,
@@ -42,6 +42,18 @@ import {
 } from "@platform";
 import { activeSession } from "../../platform/session";
 import { getScoped, setScoped } from "@shared/utils/accountScope";
+import { profileCardActions } from "../../platform/adminActions";
+
+type ChannelMessagesState = ReturnType<typeof useChannelMessages>;
+type DmsState = ReturnType<typeof useDms>;
+type AlliancesState = ReturnType<typeof useAlliances>;
+type HubLifecycleState = ReturnType<typeof useHubLifecycle>;
+type HubConnectionState = ReturnType<typeof useHubConnection>;
+type VoiceState = ReturnType<typeof useVoice>;
+type ScreenShareState = ReturnType<typeof useScreenShare>;
+type NotifyPrefsState = ReturnType<typeof useNotificationPrefs>;
+type ChannelCrudState = ReturnType<typeof useChannelCrud>;
+type TypingIndicatorsState = ReturnType<typeof useTypingIndicators>;
 
 // Every op is channel-scoped: the hub registers ONLY nested routes
 // (/channels/{cid}/posts/{pid}/…), so channelId is required all the way down.
@@ -130,12 +142,6 @@ function dismissWelcome(hubId: string): void {
   try { setScoped(dismissKey(hubId), "1"); } catch { /* ignore */ }
 }
 
-interface SelectedAllianceChannel {
-  alliance_id: string;
-  alliance_name: string;
-  channel: AllianceSharedChannel;
-}
-
 interface TypingEntry { name: string; ts: number }
 
 interface SlashCommandEntry {
@@ -144,21 +150,24 @@ interface SlashCommandEntry {
   bot_name: string;
 }
 
+// App.tsx passes whole hook-result objects here instead of ~85 flat props
+// (state-access-design.md Phase 1) — the shared ContentArea's own prop
+// surface (mapped explicitly below) is unchanged.
 interface Props {
+  channelMessages: ChannelMessagesState;
+  dms: DmsState;
+  alliances: AlliancesState;
+  hubLifecycle: HubLifecycleState;
+  hubConnection: HubConnectionState;
+  voice: VoiceState;
+  screenShare: ScreenShareState;
+  notifyPrefs: NotifyPrefsState;
+  channelCrud: ChannelCrudState;
+  typing: TypingIndicatorsState;
+
   view: "channels" | "dms";
-  activeHubId: string | null;
-  hubs: Hub[];
   channels: Channel[];
   onBreadcrumbCategoryClick: (categoryId: string) => void;
-  selectedChannel: Channel | null;
-  selectedConversation: Conversation | null;
-  selectedAllianceChannel: SelectedAllianceChannel | null;
-  messages: Message[];
-  searchResults: Message[] | null;
-  searchOpen: boolean;
-  searchQuery: string;
-  dmMessages: Record<string, DmMessage[]>;
-  allianceMessages: Message[];
   users: User[];
   publicKey: string | null;
   blockedUsers: Set<string>;
@@ -167,73 +176,50 @@ interface Props {
   myDisplayName: string | null;
   isAdmin: boolean;
   myRoles: RoleInfo[];
-  editingMessageId: string | null;
-  editingDraft: string;
-  replyTarget: Message | null;
-  pendingAttachments: Attachment[];
-  stickToBottom: boolean;
-  newWhileScrolledUp: number;
-  hubConnected: Record<string, boolean>;
-  reconnectingHubs: Record<string, boolean>;
   memberSidebarHidden: boolean;
-  voiceActiveUsers: Set<string>;
-  selfInvisible: boolean;
-  hideBirthdays?: boolean;
-  inputText: string;
-  typingByKey: Record<string, TypingEntry>;
-  dmTypingByKey: Record<string, TypingEntry>;
-  messagesEndRef: React.RefObject<HTMLDivElement | null>;
-  messagesEndChannelRef: React.RefObject<HTMLLIElement | null>;
-  messagesContainerRef: React.RefObject<HTMLOListElement | null>;
-  messageInputRef: React.RefObject<HTMLInputElement | null>;
-  onReconnect: () => void;
-  onToggleReaction: (messageId: string, emoji: string) => void;
-  onSetReplyTarget: (message: Message | null) => void;
-  onSaveEdit: () => void;
-  onCancelEdit: () => void;
-  onStartEdit: (message: Message) => void;
-  onDeleteMessage: (messageId: string) => void;
-  onSend: () => void;
-  onSendDm: () => void;
-  onSendAllianceMessage: () => void;
-  onPingTyping: () => void;
-  onPingDmTyping: () => void;
-  onSetPendingAttachments: (items: Attachment[]) => void;
-  onAttachFiles: (files: FileList | null) => void;
-  onOpenEditDescription: (channel: Channel) => void;
-  firstNotifyingMessageId: string | null;
-  onClearFirstNotify: () => void;
-  onScrollToMessage: (id: string) => void;
   onSetMemberSidebarHidden: (v: boolean) => void;
-  onSetSearchOpen: (v: boolean) => void;
-  onSetSearchQuery: (v: string) => void;
-  onCloseSearch: () => void;
-  onJumpToBottom: () => void;
-  onMessagesScroll: () => void;
+  selfInvisible: boolean;
   onSetUserContextMenu: (menu: { x: number; y: number; user: User } | null) => void;
-  onSetEditingDraft: (v: string) => void;
-  onInputTextChange: (v: string) => void;
-  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
-  onOpenImage: (src: string, alt: string) => void;
   onToast: (msg: string) => void;
-  onError: (msg: string) => void;
   slashCommands?: SlashCommandEntry[];
-  activeScreenShares: ActiveStream[];
-  screenShareViewerRef: React.RefObject<ScreenShareViewerRef | null>;
-  onOpenHubStreams: () => void;
-  pinnedMessageIds?: Set<string>;
-  onPinToggle?: (messageId: string, isPinned: boolean) => void;
-  onOpenUserProfile?: (pubkey: string) => void;
-  onStartConversation?: (pubkey: string) => void;
-  profileCardActions: UserProfileCardActions;
-  voicePartByChannel: Record<string, VoiceParticipant[]>;
   canMoveMembers: boolean;
   onMoveMember: (targetPubkey: string, targetChannelId: string, eventId?: string) => void;
 }
 
 export function ContentArea(props: Props) {
   const [showPinsModal, setShowPinsModal] = useState(false);
-  const { channels, users, voicePartByChannel, canMoveMembers, onMoveMember, isAdmin, publicKey, selectedChannel, onScrollToMessage } = props;
+  const {
+    channelMessages, dms, alliances, hubLifecycle, hubConnection, voice, screenShare,
+    notifyPrefs, channelCrud, typing,
+    view, channels, onBreadcrumbCategoryClick, users, publicKey, blockedUsers, ignoredUsers,
+    knownDisplayNames, myDisplayName, isAdmin, myRoles, memberSidebarHidden, onSetMemberSidebarHidden,
+    selfInvisible, onSetUserContextMenu, onToast, slashCommands, canMoveMembers, onMoveMember,
+  } = props;
+  const { selectedChannel } = channelMessages;
+  const { selectedConversation } = dms;
+
+  // Scoped down from the raw typing maps to just this channel/conversation's
+  // entries — moved in from App.tsx, whose only reason to compute it was
+  // feeding this exact prop.
+  const typingByKey = useMemo(() => {
+    if (!selectedChannel) return {} as Record<string, TypingEntry>;
+    const prefix = `${selectedChannel.id}:`;
+    const out: Record<string, TypingEntry> = {};
+    for (const [k, v] of Object.entries(typing.typingByKey)) {
+      if (k.startsWith(prefix)) out[k] = v;
+    }
+    return out;
+  }, [typing.typingByKey, selectedChannel]);
+
+  const dmTypingByKey = useMemo(() => {
+    if (!selectedConversation) return {} as Record<string, TypingEntry>;
+    const prefix = `${selectedConversation.id}:`;
+    const out: Record<string, TypingEntry> = {};
+    for (const [k, v] of Object.entries(typing.dmTypingByKey)) {
+      if (k.startsWith(prefix)) out[k] = v;
+    }
+    return out;
+  }, [typing.dmTypingByKey, selectedConversation]);
 
   function getEventsAction(params?: { upcoming?: boolean; limit?: number }): Promise<HubEvent[]> {
     return getEvents(params);
@@ -248,10 +234,86 @@ export function ContentArea(props: Props) {
   return (
     <>
       <SharedContentArea
-        {...props}
+        view={view}
+        activeHubId={hubLifecycle.activeHubId}
+        hubs={hubLifecycle.hubs}
+        channels={channels}
+        onBreadcrumbCategoryClick={onBreadcrumbCategoryClick}
+        selectedChannel={selectedChannel}
+        selectedConversation={selectedConversation}
+        selectedAllianceChannel={alliances.selectedAllianceChannel}
+        messages={channelMessages.messages}
+        searchResults={channelMessages.searchResults}
+        searchOpen={channelMessages.searchOpen}
+        searchQuery={channelMessages.searchQuery}
+        dmMessages={dms.dmMessages}
+        allianceMessages={alliances.allianceMessages}
+        users={users}
+        publicKey={publicKey}
+        blockedUsers={blockedUsers}
+        ignoredUsers={ignoredUsers}
+        knownDisplayNames={knownDisplayNames}
+        myDisplayName={myDisplayName}
+        isAdmin={isAdmin}
+        myRoles={myRoles}
+        editingMessageId={channelMessages.editingMessageId}
+        editingDraft={channelMessages.editingDraft}
+        replyTarget={channelMessages.replyTarget}
+        pendingAttachments={channelMessages.pendingAttachments}
+        stickToBottom={channelMessages.stickToBottom}
+        newWhileScrolledUp={channelMessages.newWhileScrolledUp}
+        hubConnected={hubConnection.hubConnected}
+        reconnectingHubs={hubConnection.reconnectingHubs}
+        memberSidebarHidden={memberSidebarHidden}
+        voiceActiveUsers={voice.voiceActiveUsers}
+        selfInvisible={selfInvisible}
+        hideBirthdays={notifyPrefs.hideBirthdays}
+        inputText={channelMessages.inputText}
+        typingByKey={typingByKey}
+        dmTypingByKey={dmTypingByKey}
+        messagesEndRef={channelMessages.messagesEndRef}
+        messagesEndChannelRef={channelMessages.messagesEndChannelRef}
+        messagesContainerRef={channelMessages.messagesContainerRef}
+        messageInputRef={channelMessages.messageInputRef}
+        onReconnect={() => {}}
+        onToggleReaction={channelMessages.handleToggleReaction}
+        onSetReplyTarget={channelMessages.setReplyTarget}
+        onSaveEdit={channelMessages.handleSaveEdit}
+        onCancelEdit={channelMessages.handleCancelEdit}
+        onStartEdit={channelMessages.handleStartEdit}
+        onDeleteMessage={channelMessages.handleDeleteMessage}
+        onSend={channelMessages.handleSend}
+        onSendDm={dms.handleSendDm}
+        onSendAllianceMessage={() => void channelMessages.handleSendAllianceMessage()}
+        onPingTyping={typing.pingTyping}
+        onPingDmTyping={typing.pingDmTyping}
+        onSetPendingAttachments={channelMessages.setPendingAttachments}
+        onAttachFiles={() => {}}
+        onOpenEditDescription={(ch) => { channelCrud.setEditDescChannel(ch); channelCrud.setEditDescValue(ch.description ?? ""); }}
+        firstNotifyingMessageId={channelMessages.firstNotifyingMessageId}
+        onClearFirstNotify={() => channelMessages.setFirstNotifyingMessageId(null)}
+        onScrollToMessage={channelMessages.handleScrollToMessage}
+        onSetMemberSidebarHidden={onSetMemberSidebarHidden}
+        onSetSearchOpen={channelMessages.setSearchOpen}
+        onSetSearchQuery={channelMessages.setSearchQuery}
+        onCloseSearch={channelMessages.handleCloseSearch}
+        onJumpToBottom={channelMessages.handleJumpToBottom}
+        onMessagesScroll={channelMessages.handleMessagesScroll}
+        onSetUserContextMenu={onSetUserContextMenu}
+        onSetEditingDraft={channelMessages.setEditingDraft}
+        onInputTextChange={channelMessages.handleInputTextChange}
+        onKeyDown={channelMessages.handleKeyDown}
+        onOpenImage={() => {}}
+        onToast={onToast}
+        onError={(msg) => onToast(typeof msg === "string" ? msg : String((msg as Record<string, unknown>).message ?? msg))}
+        slashCommands={slashCommands}
+        activeScreenShares={screenShare.activeScreenShares}
+        screenShareViewerRef={screenShare.screenShareViewerRef}
+        onOpenHubStreams={screenShare.handleOpenHubStreams}
+        onStartConversation={dms.handleStartConversation}
+        profileCardActions={profileCardActions}
         forumActions={forumActions}
         messageRowActions={messageRowActions}
-        profileCardActions={props.profileCardActions}
         loadBotProfile={getBotProfile}
         loadHubEmojis={loadHubEmojis}
         loadChannelPolls={getPolls}
@@ -269,7 +331,7 @@ export function ContentArea(props: Props) {
         rsvpEvent={rsvpEventAction}
         createEvent={createEventAction}
         eventStaging={{
-          channels, users, voicePartByChannel, canMoveMembers, onMoveMember,
+          channels, users, voicePartByChannel: voice.voicePartByChannel, canMoveMembers, onMoveMember,
           getEvent, getEventAssignments, getEventRsvps, createEventSquadRooms,
         }}
         onShowPinned={() => setShowPinsModal(true)}
@@ -282,7 +344,7 @@ export function ContentArea(props: Props) {
           getPins={() => getPins(selectedChannel.id)}
           unpinMessage={(messageId) => unpinMessage(selectedChannel.id, messageId)}
           onClose={() => setShowPinsModal(false)}
-          onScrollToMessage={onScrollToMessage}
+          onScrollToMessage={channelMessages.handleScrollToMessage}
         />
       )}
     </>

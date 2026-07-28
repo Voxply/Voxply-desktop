@@ -25,7 +25,7 @@ import { useAppKeybinds } from "./hooks/useAppKeybinds";
 import { loadWhisperReplyBind, saveWhisperReplyBind } from "./utils/whisperReply";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
-import { flattenTree, descendantIds, computeDepth, channelPath, formatPubkey } from "@wavvon/core";
+import { flattenTree, descendantIds, computeDepth, channelPath } from "@wavvon/core";
 import { getScoped, setScoped } from "./utils/accountScope";
 import { DISCOVERY_NEW_HUB_URL, HUB_SETUP_COMMAND } from "./constants";
 import type {
@@ -35,13 +35,12 @@ import type {
   Hub,
   MeInfo,
   Conversation,
-  AllianceSharedChannel,
 } from "@shared/types";
 import type { BotAppLaunchEvent, BotAppOpenEvent } from "./types";
 import { HubSidebar } from "@wavvon/ui";
-import { ChannelSidebar } from "@wavvon/ui";
 import { WhisperInbox } from "@wavvon/ui";
 import { ContentArea } from "@components/layout/ContentArea";
+import { ChannelSidebarContainer } from "@components/layout/ChannelSidebarContainer";
 import { loadDefaultProfile, saveDefaultProfile, type DefaultProfile } from "./utils/profiles";
 import { listRoles, listUserRoles, assignRoleToUser, removeRoleFromUser, createInvite } from "@platform";
 import {
@@ -64,20 +63,18 @@ import { moveChannelOptions, computeDragIntent } from "@wavvon/ui";
 import { useVoiceMoveUx, usePresenceStatus, useHubSetupWizardGate } from "@wavvon/ui";
 import { HubAdminContainer } from "@components/admin/HubAdminContainer";
 import {
-  profileCardActions, channelPermissionsTabActions, channelBansTabActions, channelTalkPowerTabActions,
+  channelPermissionsTabActions, channelBansTabActions, channelTalkPowerTabActions,
   farmSettingsActions,
 } from "./platform/adminActions";
 import { WelcomeScreenContainer } from "@components/layout/WelcomeScreen";
-import { SettingsPage } from "@components/settings/SettingsPage";
+import { SettingsPageContainer } from "@components/settings/SettingsPageContainer";
 import { UserContextMenu } from "@wavvon/ui";
 import { VideoPipWindow } from "@components/voice/VideoPipWindow";
 import { FriendsModal } from "@wavvon/ui";
 import { listFriends, listPendingFriendRequests, sendFriendRequest, acceptFriendRequest, removeFriend } from "@platform";
-import { listSoundboardClips } from "@platform";
 import { MobileShell } from "@wavvon/ui";
 import { buildChannelTree } from "@wavvon/core";
 import type { TreeNode } from "@wavvon/core";
-import { hasDraft } from "./utils/drafts";
 import { ScreenShareSelfPreview } from "@components/voice/ScreenShareSelfPreview";
 import { listBotCommands, updateDmBlocks, getDmBlocks, fetchVoiceRoster, activeSession, sendBotAppJoin } from "@platform";
 import { sendSetStatus } from "@platform";
@@ -124,28 +121,15 @@ export default function App({ initialView }: AppProps = {}) {
   const [ready, setReady] = useState<"checking" | "setup" | "ok">("checking");
   const [publicKey, setPublicKey] = useState<string | null>(null);
 
-  const {
-    showSettings, setShowSettings,
-    settingsTab, setSettingsTab,
-    theme,
-    skin,
-    customThemes,
-    activeCustomThemeId,
-    recoveryPhrase, setRecoveryPhrase,
-    mentionPingEnabled, setMentionPingEnabled,
-    handleSetTheme,
-    handleSkinChange,
-    handleApplyCustomTheme,
-    handleNewCustomTheme,
-    handleRenameCustomTheme,
-    handleDuplicateCustomTheme,
-    handleDeleteCustomTheme,
-    handleImportCustomTheme,
-    handleShowRecovery,
-    handleRecoverIdentity,
-  } = useSettingsProfile(setPublicKey, initialView);
+  // Captured wholesale (not just destructured) so it can be passed straight
+  // through to SettingsPageContainer/ChannelSidebarContainer as one grouped
+  // prop (state-access-design.md Phase 1) — App still pulls out the handful
+  // of fields it needs directly (useAppKeybinds, the mention-ping ref).
+  const settingsProfile = useSettingsProfile(setPublicKey, initialView);
+  const { showSettings, setShowSettings, mentionPingEnabled } = settingsProfile;
 
   // === Hubs ===
+  const hubLifecycle = useHubLifecycle({ loadHubData, resetChannelSelectionState, goToChannelsView });
   const {
     hubs, setHubs,
     activeHubId, setActiveHubIdState,
@@ -156,13 +140,13 @@ export default function App({ initialView }: AppProps = {}) {
     handleHubReorder,
     handleSwitchHub,
     handleRemoveHub,
-  } = useHubLifecycle({ loadHubData, resetChannelSelectionState, goToChannelsView });
-  const { hubConnected, reconnectingHubs, handleStatusChange } = useHubConnection();
+  } = hubLifecycle;
+  const hubConnection = useHubConnection();
+  const { hubConnected, reconnectingHubs, handleStatusChange } = hubConnection;
   const [assertiveAnnouncement, setAssertiveAnnouncement] = useState("");
   const [voicePoliteAnnouncement, setVoicePoliteAnnouncement] = useState("");
   const voiceAnnounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingVoiceAnnouncementsRef = useRef<string[]>([]);
-  const [hubDropdownOpen, setHubDropdownOpen] = useState(false);
   const [showQuickInvite, setShowQuickInvite] = useState(false);
   const [homeHubUrl, setHomeHubUrl] = useState<string | undefined>(undefined);
   const [channelCtxMenu, setChannelCtxMenu] = useState<{ channel: Channel; x: number; y: number } | null>(null);
@@ -177,26 +161,38 @@ export default function App({ initialView }: AppProps = {}) {
   const [users, setUsers] = useState<User[]>([]);
   const [meInfo, setMeInfo] = useState<MeInfo | null>(null);
   const [slashCommands, setSlashCommands] = useState<Array<{ command: string; description: string; bot_name: string }>>([]);
+  const alliances = useAlliances(showHubError);
   const {
     userAlliances, setUserAlliances, allianceChannels, setAllianceChannels,
     selectedAllianceChannel, allianceMessages, loadAlliances,
     selectAllianceChannel, clearSelectedAllianceChannel, sendAllianceMessage,
-  } = useAlliances(showHubError);
+  } = alliances;
 
   // === View ===
   const [view, setView] = useState<View>("channels");
 
   // === Unread / notifications ===
+  const unreadCounts = useUnreadCounts();
   const {
     unreadByChannel, unreadDms, setUnreadDms,
-    bumpUnread, clearUnread, clearHubUnread: clearHubUnreadFn, seedUnreadFromServer,
-  } = useUnreadCounts();
+    bumpUnread, clearUnread, seedUnreadFromServer,
+  } = unreadCounts;
 
   // === Messages ===
   // App-side navigation when a channel/alliance channel is selected — one of
   // the two directions between this hook and useDms has to be a callback
   // defined here, since each needs the other's setter.
   function clearConversationSelection() { setSelectedConversation(null); }
+  const channelMessages = useChannelMessages({
+    activeHubId,
+    setView,
+    clearConversationSelection,
+    clearUnread,
+    selectedAllianceChannel,
+    clearSelectedAllianceChannel,
+    selectAllianceChannel,
+    sendAllianceMessage,
+  });
   const {
     selectedChannel, setSelectedChannel, selectedChannelRef, selectedChannelIdRef,
     messages, setMessages,
@@ -228,16 +224,7 @@ export default function App({ initialView }: AppProps = {}) {
     handleMessagesScroll,
     handleInputTextChange,
     handleCloseSearch,
-  } = useChannelMessages({
-    activeHubId,
-    setView,
-    clearConversationSelection,
-    clearUnread,
-    selectedAllianceChannel,
-    clearSelectedAllianceChannel,
-    selectAllianceChannel,
-    sendAllianceMessage,
-  });
+  } = channelMessages;
   const [memberSidebarHidden, setMemberSidebarHidden] = useState(false);
 
   // Reset shared by useHubLifecycle's handleSwitchHub (clearMessages=true) and
@@ -256,12 +243,7 @@ export default function App({ initialView }: AppProps = {}) {
   function goToChannelsView() { setView("channels"); }
 
   // === DMs ===
-  const {
-    conversations, setConversations, dmMessages,
-    selectedConversation, setSelectedConversation, selectedConvRef,
-    handleSelectConversation, handleStartConversation, handleSendDm,
-    onDm, onDmMemberChanged,
-  } = useDms({
+  const dms = useDms({
     inputText,
     setInputText,
     setUnreadDms,
@@ -269,10 +251,17 @@ export default function App({ initialView }: AppProps = {}) {
     showHubError,
   });
   const {
+    conversations, setConversations, dmMessages,
+    selectedConversation, setSelectedConversation, selectedConvRef,
+    handleSelectConversation, handleStartConversation, handleSendDm,
+    onDm, onDmMemberChanged,
+  } = dms;
+  const notifyPrefs = useNotificationPrefs();
+  const {
     hubNotifyMode, channelNotifyMode, pinnedChannels, collapsedCategories, hideSilenced,
     hideBirthdays, toggleHideBirthdays,
     setHubNotifyMode, setChannelNotifyMode, setCollapsedCategories, toggleHideSilenced, effectiveNotifyMode,
-  } = useNotificationPrefs();
+  } = notifyPrefs;
   const silencedChannelIds = useMemo(() => {
     if (!activeHubId) return new Set<string>();
     return new Set(
@@ -406,7 +395,7 @@ export default function App({ initialView }: AppProps = {}) {
   effectiveNotifyModeRef.current = effectiveNotifyMode;
 
   // === Presence (own status, shared across every hub this account is on) ===
-  const { myPresence, myPresenceRef, handleSetStatus } = usePresenceStatus({
+  const presence = usePresenceStatus({
     loadRaw: () => getScoped("wavvon.presence"),
     persist: (p) => { try { setScoped("wavvon.presence", JSON.stringify(p)); } catch { /* storage unavailable */ } },
     broadcast: (s) => { try { sendSetStatus(s, null); } catch { /* ws not ready */ } },
@@ -421,6 +410,7 @@ export default function App({ initialView }: AppProps = {}) {
       ));
     },
   });
+  const { myPresence, myPresenceRef, handleSetStatus } = presence;
 
   // === Voice / video / whisper / voice-move UX ===
   // The hubFetch("/channels") -> setChannels resync used when a spawner join
@@ -474,7 +464,6 @@ export default function App({ initialView }: AppProps = {}) {
     replyBind: whisperReplyBind,
     replyTarget: whisperReplyTarget,
   });
-  const [showWhisperPanel, setShowWhisperPanel] = useState(false);
   const [surveyToShow, setSurveyToShow] = useState<import("@platform").SurveyAdmin | null>(null);
   const surveyDismissedRef = useRef<Set<string>>(new Set());
   // Registered so switchAccount can refuse a mid-voice switch at the source
@@ -530,11 +519,12 @@ export default function App({ initialView }: AppProps = {}) {
 
   // === Typing ===
   const selectedConvIdRef = useRef<string | undefined>(undefined);
-  const { typingByKey, dmTypingByKey, receiveTyping, pingTyping, pingDmTyping } = useTypingIndicators(
+  const typingIndicators = useTypingIndicators(
     () => selectedChannelIdRef.current,
     () => selectedConvIdRef.current,
     () => publicKeyRef.current,
   );
+  const { receiveTyping, pingTyping, pingDmTyping } = typingIndicators;
   const { chipsByChannel: soundboardChipsByChannel, receiveSoundboardPlayed } = useSoundboardChips();
 
   // === Refs ===
@@ -546,12 +536,13 @@ export default function App({ initialView }: AppProps = {}) {
   useEffect(() => { activeHubIdRef.current = activeHubId; }, [activeHubId]);
 
   // Outbound screen share + cross-channel hub-streams discovery.
+  const screenShare = useScreenShare({ activeHubIdRef, showHubError });
   const {
     screenShareViewerRef, activeScreenShares, sharing, shareKbps, shareLocalStream,
     hubStreams, showHubStreams, setShowHubStreams, subscribedStreamIds,
     handleStartShare, handleStopShare, handleOpenHubStreams, handleWatchStream,
     handleStopWatchStream, onScreenShare, onScreenShareChunk,
-  } = useScreenShare({ activeHubIdRef, showHubError });
+  } = screenShare;
 
   const hubsRef = useRef<Hub[]>([]);
   const channelsRef = useRef<Channel[]>([]);
@@ -632,8 +623,6 @@ export default function App({ initialView }: AppProps = {}) {
     void restore();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
-
-  function clearHubUnread(hubId: string) { clearHubUnreadFn(hubId); }
 
   // === Hub data loading ===
 
@@ -929,26 +918,6 @@ export default function App({ initialView }: AppProps = {}) {
     ws.sendVoiceMove(targetPubkey, targetChannelId, eventId);
   }
 
-  const channelTypingByKey = useMemo(() => {
-    if (!selectedChannel) return {} as Record<string, { name: string; ts: number }>;
-    const prefix = `${selectedChannel.id}:`;
-    const out: Record<string, { name: string; ts: number }> = {};
-    for (const [k, v] of Object.entries(typingByKey)) {
-      if (k.startsWith(prefix)) out[k] = v;
-    }
-    return out;
-  }, [typingByKey, selectedChannel]);
-
-  const convTypingByKey = useMemo(() => {
-    if (!selectedConversation) return {} as Record<string, { name: string; ts: number }>;
-    const prefix = `${selectedConversation.id}:`;
-    const out: Record<string, { name: string; ts: number }> = {};
-    for (const [k, v] of Object.entries(dmTypingByKey)) {
-      if (k.startsWith(prefix)) out[k] = v;
-    }
-    return out;
-  }, [dmTypingByKey, selectedConversation]);
-
   const isAdmin = useMemo(
     () => meInfo?.roles?.some((r) => r.permissions?.includes("admin")) ?? false,
     [meInfo],
@@ -965,6 +934,10 @@ export default function App({ initialView }: AppProps = {}) {
     channelCount: channels.length,
   });
 
+  const channelCrud = useChannelCrud({
+    setChannels, selectedChannel, setSelectedChannel, showHubError, handleSelectChannel,
+    activeHubId, closeHubSetupWizard,
+  });
   const {
     createChannelCtx, setCreateChannelCtx,
     createChannelLoading,
@@ -986,10 +959,7 @@ export default function App({ initialView }: AppProps = {}) {
     handleSaveDescription,
     handleRenameRoom,
     handleHubSetupWizardComplete,
-  } = useChannelCrud({
-    setChannels, selectedChannel, setSelectedChannel, showHubError, handleSelectChannel,
-    activeHubId, closeHubSetupWizard,
-  });
+  } = channelCrud;
 
   const canManageRoles = useMemo(
     () => meInfo?.roles?.some((r) => r.permissions?.includes("admin") || r.permissions?.includes("manage_roles")) ?? false,
@@ -1239,45 +1209,19 @@ export default function App({ initialView }: AppProps = {}) {
         />
       )}
 
-      {showSettings && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: "var(--bg, #1a1a2e)", overflow: "auto", display: "flex" }}>
-          <SettingsPage
-            tab={settingsTab}
-            onTab={setSettingsTab}
-            onClose={() => setShowSettings(false)}
-            hubs={hubs}
-            publicKey={publicKey}
-            theme={theme}
-            onThemeChange={handleSetTheme}
-            skin={skin}
-            onSkinChange={handleSkinChange}
-            customThemes={customThemes}
-            activeCustomThemeId={activeCustomThemeId}
-            onApplyCustomTheme={handleApplyCustomTheme}
-            onNewCustomTheme={handleNewCustomTheme}
-            onRenameCustomTheme={handleRenameCustomTheme}
-            onDuplicateCustomTheme={handleDuplicateCustomTheme}
-            onDeleteCustomTheme={handleDeleteCustomTheme}
-            onImportSkin={handleImportCustomTheme}
-            onHubProfileSaved={handleHubProfileSaved}
-            mentionPingEnabled={mentionPingEnabled}
-            onMentionPingChange={(v) => {
-              setMentionPingEnabled(v);
-              try { setScoped("wavvon.mentionPing", v ? "1" : "0"); } catch {}
-            }}
-            recoveryPhrase={recoveryPhrase}
-            onShowRecovery={handleShowRecovery}
-            blocks={Array.from(blockedUsers).map((p) => ({ pubkey: p, since: 0 }))}
-            ignores={Array.from(ignoredUsers).map((p) => ({ pubkey: p, since: 0 }))}
-            onUnblock={toggleBlockUser}
-            onUnignore={toggleIgnoreUser}
-            knownNames={pubkeyToName}
-            hideBirthdays={hideBirthdays}
-            onToggleHideBirthdays={toggleHideBirthdays}
-            inVoice={voice.voiceChannelId !== null}
-          />
-        </div>
-      )}
+      <SettingsPageContainer
+        settingsProfile={settingsProfile}
+        notifyPrefs={notifyPrefs}
+        hubs={hubs}
+        publicKey={publicKey}
+        blockedUsers={blockedUsers}
+        ignoredUsers={ignoredUsers}
+        knownNames={pubkeyToName}
+        inVoice={voice.voiceChannelId !== null}
+        onHubProfileSaved={handleHubProfileSaved}
+        onUnblock={toggleBlockUser}
+        onUnignore={toggleIgnoreUser}
+      />
 
       {userContextMenu && (
         <UserContextMenu
@@ -1377,112 +1321,41 @@ export default function App({ initialView }: AppProps = {}) {
         onFarmSettings={() => { setShowFarmSettings(true); setFarmAdminTab("general"); }}
       />
 
-      <ChannelSidebar
+      <ChannelSidebarContainer
+        voice={voice}
+        video={video}
+        whisper={whisper}
+        voiceMoveUx={voiceMoveUx}
+        notifyPrefs={notifyPrefs}
+        hubLifecycle={hubLifecycle}
+        unreadCounts={unreadCounts}
+        dms={dms}
+        alliances={alliances}
+        presence={presence}
+        screenShare={screenShare}
+        channelCrud={channelCrud}
+        channelMessages={channelMessages}
+        hubAdmin={hubAdminState}
         view={sidebarView as "channels" | "dms"}
-        activeHubId={activeHubId}
-        hubs={hubs}
         channels={channels}
-        selectedChannel={selectedChannel}
-        unreadByChannel={unreadByChannel}
-        collapsedCategories={collapsedCategories}
-        voicePartByChannel={voice.voicePartByChannel}
-        voiceChannelId={voice.voiceChannelId}
-        voiceChannelNameHint={voiceMoveUx.voiceChannelNameHint}
-        selfMuted={voice.selfMuted}
-        selfDeafened={voice.selfDeafened}
+        channelTree={channelTree}
         users={users}
         publicKey={publicKey}
-        pingByHub={pingByHub}
         isAdmin={isAdmin}
         canCreateInvites={canCreateInvites}
-        hubNotifyMode={hubNotifyMode}
-        hubDropdownOpen={hubDropdownOpen}
-        hubTimezone={activeHubTimezone}
-        hideSilenced={hideSilenced}
-        silencedChannelIds={silencedChannelIds}
-        userAlliances={userAlliances}
-        allianceChannels={allianceChannels}
-        selectedAllianceChannel={selectedAllianceChannel}
-        conversations={conversations}
-        selectedConversation={selectedConversation}
-        unreadDms={unreadDms}
-        channelTree={channelTree}
-        effectiveNotifyMode={effectiveNotifyMode}
-        onToggleCategoryCollapsed={(hubId, catId) =>
-          setCollapsedCategories((prev) => {
-            const m = { ...(prev[hubId] ?? {}) };
-            if (m[catId]) delete m[catId]; else m[catId] = true;
-            return { ...prev, [hubId]: m };
-          })
-        }
-        onHubDropdownOpenChange={setHubDropdownOpen}
-        onSetHubMode={(hubId, mode) =>
-          setHubNotifyMode((prev) => { const n = { ...prev }; if (mode === "all") delete n[hubId]; else n[hubId] = mode; return n; })
-        }
-        onToggleHideSilenced={toggleHideSilenced}
-        onClearHubUnread={clearHubUnread}
-        onRemoveHub={handleRemoveHub}
-        onOpenHubAdmin={() => void openHubAdmin()}
-        onOpenHubAdminInvites={() => { void openHubAdmin(); setHubAdminTab("invites"); }}
-        onOpenQuickInvite={() => setShowQuickInvite(true)}
-        onOpenCreateChannel={(parentId, isCategory) => { setChannelSettingsCtx(null); setCreateChannelCtx({ parentId, isCategory }); setCreateChannelError(null); }}
-        onSelectChannel={handleSelectChannel}
-        onChannelContextMenu={(e, channel) => { e.preventDefault(); setChannelCtxMenu({ channel, x: e.clientX, y: e.clientY }); }}
-        canOpenChannelSettings={isAdmin || canManageRoles}
-        myStatus={myPresence.status === "online" ? null : myPresence.status}
-        onSetStatus={handleSetStatus}
-        onOpenChannelSettings={(channel) => { setCreateChannelCtx(null); setChannelSettingsCtx(channel); setChannelSettingsError(null); }}
-        onVoiceJoin={(ch) => ch && void voice.handleVoiceJoin(ch.id)}
-        onVoiceLeave={voice.handleVoiceLeave}
-        onParticipantContextMenu={canMoveMembers ? (e, p, channelId) => {
-          e.preventDefault();
-          if (p.public_key === publicKey) return; // hide self — move your own voice by joining directly
-          voiceMoveUx.setVoiceMoveMenu({
-            pubkey: p.public_key,
-            displayName: p.display_name || formatPubkey(p.public_key),
-            position: { x: e.clientX, y: e.clientY },
-            currentChannelId: channelId,
-          });
-        } : undefined}
-        onSelectAllianceChannel={(a, c) => handleSelectAllianceChannel(a, c as AllianceSharedChannel)}
-        onOpenFriends={() => setShowFriends(true)}
-        onSelectConversation={handleSelectConversation}
-        onToggleSelfMute={voice.handleToggleMute}
-        onToggleSelfDeafen={voice.handleToggleDeafen}
-        onOpenSettings={() => setShowSettings(true)}
-        onDragEnd={handleChannelDragEnd}
-        voiceGains={voice.voiceGains}
-        onSetVoiceGain={voice.handleSetVoiceGain}
-        inboundWhispers={whisper.inboundWhispers}
-        hasDraft={hasDraft}
-        onOpenSearch={() => setShowSearchBar(true)}
+        canManageRoles={canManageRoles}
+        canMoveMembers={canMoveMembers}
         canUseSoundboard={canUseSoundboard}
-        onListSoundboardClips={listSoundboardClips}
-        onTriggerSoundboardClip={voice.handleTriggerSoundboardClip}
-        soundboardPlayingClipId={voice.soundboardPlayingClipId}
-        soundboardChips={voice.voiceChannelId ? soundboardChipsByChannel[voice.voiceChannelId] ?? [] : []}
-        sharing={sharing}
-        onScreenShare={() => {
-          if (sharing) handleStopShare();
-          else if (selectedChannel) void handleStartShare(selectedChannel.id);
-        }}
-        videoEnabled={video.videoEnabled}
-        onToggleVideo={video.handleToggleVideo}
-        isWhispering={whisper.isWhispering}
-        whisperTargets={whisper.whisperTargets}
-        whisperLists={whisper.whisperLists}
-        showWhisperPanel={showWhisperPanel}
-        onToggleWhisperPanel={() => setShowWhisperPanel((p) => !p)}
-        onCloseWhisperPanel={() => setShowWhisperPanel(false)}
-        onStartWhisper={whisper.startWhisper}
-        onStopWhisper={whisper.stopWhisper}
-        onSaveWhisperList={whisper.saveWhisperList}
-        onDeleteWhisperList={whisper.deleteWhisperList}
-        onListWhisperRoles={() => listRoles().then((rs) => rs.map((r) => ({ id: r.id, name: r.name })))}
+        silencedChannelIds={silencedChannelIds}
+        soundboardChipsByChannel={soundboardChipsByChannel}
         whisperReplyBind={whisperReplyBind}
         onSetWhisperReplyBind={setWhisperReplyBind}
-        whisperOptout={whisper.whisperOptout}
-        onSetWhisperOptout={whisper.setWhisperOptout}
+        onOpenQuickInvite={() => setShowQuickInvite(true)}
+        onChannelContextMenu={(e, channel) => { e.preventDefault(); setChannelCtxMenu({ channel, x: e.clientX, y: e.clientY }); }}
+        onOpenFriends={() => setShowFriends(true)}
+        onOpenSettings={() => setShowSettings(true)}
+        onOpenSearch={() => setShowSearchBar(true)}
+        onDragEnd={handleChannelDragEnd}
       />
 
       {activeOpenApp && (
@@ -1562,91 +1435,39 @@ export default function App({ initialView }: AppProps = {}) {
           );
         })()}
         <ContentArea
-        view={view as "channels" | "dms"}
-        activeHubId={activeHubId}
-        hubs={hubs}
-        channels={channels}
-        onBreadcrumbCategoryClick={handleBreadcrumbCategoryClick}
-        selectedChannel={selectedChannel}
-        selectedConversation={selectedConversation}
-        selectedAllianceChannel={selectedAllianceChannel}
-        messages={messages}
-        searchResults={searchResults}
-        searchOpen={searchOpen}
-        searchQuery={searchQuery}
-        dmMessages={dmMessages}
-        allianceMessages={allianceMessages}
-        users={users}
-        publicKey={publicKey}
-        blockedUsers={blockedUsers}
-        ignoredUsers={ignoredUsers}
-        knownDisplayNames={knownDisplayNames}
-        myDisplayName={meInfo?.display_name ?? null}
-        isAdmin={isAdmin}
-        myRoles={myRoles}
-        editingMessageId={editingMessageId}
-        editingDraft={editingDraft}
-        replyTarget={replyTarget}
-        pendingAttachments={pendingAttachments}
-        stickToBottom={stickToBottom}
-        newWhileScrolledUp={newWhileScrolledUp}
-        hubConnected={hubConnected}
-        reconnectingHubs={reconnectingHubs}
-        memberSidebarHidden={memberSidebarHidden}
-        voiceActiveUsers={voice.voiceActiveUsers}
-        inputText={inputText}
-        typingByKey={channelTypingByKey}
-        dmTypingByKey={convTypingByKey}
-        messagesEndRef={messagesEndRef}
-        messagesEndChannelRef={messagesEndChannelRef}
-        messagesContainerRef={messagesContainerRef}
-        messageInputRef={messageInputRef}
-        onReconnect={() => {}}
-        onToggleReaction={handleToggleReaction}
-        onSetReplyTarget={setReplyTarget}
-        onSaveEdit={handleSaveEdit}
-        onCancelEdit={handleCancelEdit}
-        onStartEdit={handleStartEdit}
-        onDeleteMessage={handleDeleteMessage}
-        onSend={handleSend}
-        onSendDm={handleSendDm}
-        onSendAllianceMessage={() => void handleSendAllianceMessage()}
-        onPingTyping={pingTyping}
-        onPingDmTyping={pingDmTyping}
-        onSetPendingAttachments={setPendingAttachments}
-        onAttachFiles={() => {}}
-        onOpenEditDescription={(ch) => { setEditDescChannel(ch); setEditDescValue(ch.description ?? ""); }}
-        firstNotifyingMessageId={firstNotifyingMessageId}
-        onClearFirstNotify={() => setFirstNotifyingMessageId(null)}
-        onScrollToMessage={handleScrollToMessage}
-        onSetMemberSidebarHidden={setMemberSidebarHidden}
-        onSetSearchOpen={setSearchOpen}
-        onSetSearchQuery={setSearchQuery}
-        onCloseSearch={handleCloseSearch}
-        onJumpToBottom={handleJumpToBottom}
-        onMessagesScroll={handleMessagesScroll}
-        onSetUserContextMenu={(menu) => {
-          if (!menu) { setUserContextMenu(null); return; }
-          setUserContextMenu({ user: menu.user, position: { x: menu.x, y: menu.y } });
-        }}
-        onSetEditingDraft={setEditingDraft}
-        onInputTextChange={handleInputTextChange}
-        onKeyDown={handleKeyDown}
-        onOpenImage={() => {}}
-        onToast={(msg) => showHubError(msg)}
-        onError={(msg) => showHubError(typeof msg === "string" ? msg : String((msg as Record<string, unknown>).message ?? msg))}
-        slashCommands={slashCommands}
-        activeScreenShares={activeScreenShares}
-        screenShareViewerRef={screenShareViewerRef}
-        onOpenHubStreams={handleOpenHubStreams}
-        onStartConversation={handleStartConversation}
-        profileCardActions={profileCardActions}
-        voicePartByChannel={voice.voicePartByChannel}
-        selfInvisible={myPresence.status === "invisible"}
-        hideBirthdays={hideBirthdays}
-        canMoveMembers={canMoveMembers}
-        onMoveMember={handleMoveMember}
-      /></>}
+          channelMessages={channelMessages}
+          dms={dms}
+          alliances={alliances}
+          hubLifecycle={hubLifecycle}
+          hubConnection={hubConnection}
+          voice={voice}
+          screenShare={screenShare}
+          notifyPrefs={notifyPrefs}
+          channelCrud={channelCrud}
+          typing={typingIndicators}
+          view={view as "channels" | "dms"}
+          channels={channels}
+          onBreadcrumbCategoryClick={handleBreadcrumbCategoryClick}
+          users={users}
+          publicKey={publicKey}
+          blockedUsers={blockedUsers}
+          ignoredUsers={ignoredUsers}
+          knownDisplayNames={knownDisplayNames}
+          myDisplayName={meInfo?.display_name ?? null}
+          isAdmin={isAdmin}
+          myRoles={myRoles}
+          memberSidebarHidden={memberSidebarHidden}
+          onSetMemberSidebarHidden={setMemberSidebarHidden}
+          selfInvisible={myPresence.status === "invisible"}
+          onSetUserContextMenu={(menu) => {
+            if (!menu) { setUserContextMenu(null); return; }
+            setUserContextMenu({ user: menu.user, position: { x: menu.x, y: menu.y } });
+          }}
+          onToast={showHubError}
+          slashCommands={slashCommands}
+          canMoveMembers={canMoveMembers}
+          onMoveMember={handleMoveMember}
+        /></>}
       </MobileShell>
 
       {showHubAdmin && activeHubId && (
