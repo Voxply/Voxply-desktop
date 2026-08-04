@@ -255,6 +255,10 @@ export async function saveHubSettings(settings: {
    *  fields). */
   timezone?: string;
   birthdays_enabled?: boolean;
+  /** AFK channel for the hub's idle-voice sweep; "" clears it. */
+  afk_channel_id?: string;
+  /** Idle threshold in seconds; hub minimum is 60. */
+  afk_timeout_secs?: number;
 }): Promise<void> {
   await hubFetch("/hub", {
     method: "PATCH",
@@ -274,6 +278,8 @@ export async function getHubSettings(): Promise<{
   default_invite_role_id: string | null;
   timezone: string;
   birthdays_enabled: boolean;
+  afk_channel_id: string;
+  afk_timeout_secs: number;
 }> {
   const [settingsRes, infoRes] = await Promise.all([
     hubFetch("/hub/settings").then((r) => r.json() as Promise<{
@@ -284,6 +290,8 @@ export async function getHubSettings(): Promise<{
       default_invite_role_id?: string | null;
       timezone?: string | null;
       birthdays_enabled?: boolean;
+      afk_channel_id?: string | null;
+      afk_timeout_secs?: number;
     }>),
     hubFetch("/info").then((r) => r.json() as Promise<{
       name: string;
@@ -305,6 +313,8 @@ export async function getHubSettings(): Promise<{
     default_invite_role_id: settingsRes.default_invite_role_id ?? null,
     timezone: settingsRes.timezone ?? "",
     birthdays_enabled: settingsRes.birthdays_enabled ?? true,
+    afk_channel_id: settingsRes.afk_channel_id ?? "",
+    afk_timeout_secs: settingsRes.afk_timeout_secs ?? 300,
   };
 }
 

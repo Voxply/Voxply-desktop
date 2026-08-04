@@ -296,6 +296,10 @@ function App() {
     setHubTimezone,
     birthdaysEnabled,
     setBirthdaysEnabled,
+    afkChannelId,
+    setAfkChannelId,
+    afkTimeoutSecs,
+    setAfkTimeoutSecs,
     pendingMembers,
     hubListed,
     onHubListedChange,
@@ -1434,6 +1438,10 @@ function App() {
             onTimezoneChange={setHubTimezone}
             birthdaysEnabled={birthdaysEnabled}
             onBirthdaysEnabledChange={setBirthdaysEnabled}
+            afkChannelId={afkChannelId}
+            onAfkChannelIdChange={setAfkChannelId}
+            afkTimeoutSecs={afkTimeoutSecs}
+            onAfkTimeoutSecsChange={setAfkTimeoutSecs}
             onSave={handleSaveHubBranding}
             hubListed={hubListed}
             onHubListedChange={onHubListedChange}

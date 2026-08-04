@@ -16,6 +16,7 @@ import { AuditLogSection, type AuditLogSectionActions } from "./AuditLogSection"
 import { CertificationsSection, type CertificationsSectionActions } from "./CertificationsSection";
 import { SoundboardAdminSection, type SoundboardAdminSectionActions } from "./SoundboardAdminSection";
 import { OnboardingAdminSection, type OnboardingAdminSectionActions } from "./OnboardingAdminSection";
+import { moveChannelOptions } from "../../utils/voiceMove";
 
 export type HubAdminTab =
   | "overview"
@@ -65,6 +66,14 @@ export interface HubAdminPageProps {
   onTimezoneChange: (v: string) => void;
   birthdaysEnabled: boolean;
   onBirthdaysEnabledChange: (v: boolean) => void;
+  /** Channel idle voice participants are auto-moved into, or "" for unset
+   *  (sweep disabled) — same empty-string-clears convention as `timezone`. */
+  afkChannelId: string;
+  onAfkChannelIdChange: (v: string) => void;
+  /** Idle threshold in seconds before the hub moves someone to the AFK
+   *  channel. Hub minimum is 60. */
+  afkTimeoutSecs: number;
+  onAfkTimeoutSecsChange: (v: number) => void;
   saveError: string | null;
   onSave: () => void;
 
@@ -317,6 +326,38 @@ export function HubAdminPage(props: HubAdminPageProps) {
                 />
                 Show member birthdays (🎂 badge on the day, if the member shared one)
               </label>
+            </div>
+            <div className="settings-section">
+              <label className="settings-label" htmlFor="admin-afk-channel">AFK channel</label>
+              <p className="muted">
+                Members idle in voice (not speaking) longer than the timeout are moved here automatically.
+              </p>
+              <select
+                id="admin-afk-channel"
+                value={props.afkChannelId}
+                onChange={(e) => props.onAfkChannelIdChange(e.target.value)}
+              >
+                <option value="">No AFK channel</option>
+                {moveChannelOptions(props.channels).map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              {props.afkChannelId && (
+                <>
+                  <label className="settings-label" htmlFor="admin-afk-timeout" style={{ marginTop: "var(--space-2)" }}>AFK timeout</label>
+                  <select
+                    id="admin-afk-timeout"
+                    value={props.afkTimeoutSecs}
+                    onChange={(e) => props.onAfkTimeoutSecsChange(Number(e.target.value))}
+                  >
+                    <option value={60}>1 minute</option>
+                    <option value={300}>5 minutes</option>
+                    <option value={900}>15 minutes</option>
+                    <option value={1800}>30 minutes</option>
+                    <option value={3600}>1 hour</option>
+                  </select>
+                </>
+              )}
             </div>
             <div className="settings-section">
               <label className="settings-label" htmlFor="admin-max-depth">Max channel nesting depth</label>

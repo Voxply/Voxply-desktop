@@ -165,6 +165,14 @@ pub(crate) struct HubSettings {
     pub timezone: Option<String>,
     #[serde(default = "default_birthdays_enabled")]
     pub birthdays_enabled: bool,
+    #[serde(default)]
+    pub afk_channel_id: Option<String>,
+    #[serde(default = "default_afk_timeout_secs")]
+    pub afk_timeout_secs: u32,
+}
+
+pub(crate) fn default_afk_timeout_secs() -> u32 {
+    300
 }
 
 #[derive(Serialize, Deserialize, Clone)]

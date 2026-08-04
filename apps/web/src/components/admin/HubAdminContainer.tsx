@@ -71,6 +71,10 @@ export function HubAdminContainer({
         onTimezoneChange={hubAdmin.setHubAdminTimezone}
         birthdaysEnabled={hubAdmin.hubAdminBirthdaysEnabled}
         onBirthdaysEnabledChange={hubAdmin.setHubAdminBirthdaysEnabled}
+        afkChannelId={hubAdmin.hubAdminAfkChannelId}
+        onAfkChannelIdChange={hubAdmin.setHubAdminAfkChannelId}
+        afkTimeoutSecs={hubAdmin.hubAdminAfkTimeoutSecs}
+        onAfkTimeoutSecsChange={hubAdmin.setHubAdminAfkTimeoutSecs}
         saveError={hubAdmin.hubAdminSaveError}
         onSave={hubAdmin.saveHubAdminSettings}
         hubListed={hubAdmin.hubListed}

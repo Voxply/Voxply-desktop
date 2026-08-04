@@ -32,6 +32,8 @@ export function useHubAdmin({ activeHubId, onSaved }: UseHubAdminParams) {
   const [hubAdminWelcomeInviteUrl, setHubAdminWelcomeInviteUrl] = useState("");
   const [hubAdminTimezone, setHubAdminTimezone] = useState("");
   const [hubAdminBirthdaysEnabled, setHubAdminBirthdaysEnabled] = useState(true);
+  const [hubAdminAfkChannelId, setHubAdminAfkChannelId] = useState("");
+  const [hubAdminAfkTimeoutSecs, setHubAdminAfkTimeoutSecs] = useState(300);
   const [hubAdminSaveError, setHubAdminSaveError] = useState<string | null>(null);
   const [hubAdminMembers, setHubAdminMembers] = useState<MemberAdminInfo[]>([]);
   const [hubAdminBans, setHubAdminBans] = useState<BanInfo[]>([]);
@@ -57,6 +59,8 @@ export function useHubAdmin({ activeHubId, onSaved }: UseHubAdminParams) {
       setHubAdminWelcomeInviteUrl(s.welcome_invite_url ?? "");
       setHubAdminTimezone(s.timezone ?? "");
       setHubAdminBirthdaysEnabled(s.birthdays_enabled ?? true);
+      setHubAdminAfkChannelId(s.afk_channel_id ?? "");
+      setHubAdminAfkTimeoutSecs(s.afk_timeout_secs ?? 300);
     } catch { /* prefill skipped */ }
     try {
       const [members, bans, invites, pending] = await Promise.allSettled([
@@ -138,6 +142,8 @@ export function useHubAdmin({ activeHubId, onSaved }: UseHubAdminParams) {
         welcome_invite_url: hubAdminWelcomeInviteUrl,
         timezone: hubAdminTimezone,
         birthdays_enabled: hubAdminBirthdaysEnabled,
+        afk_channel_id: hubAdminAfkChannelId,
+        afk_timeout_secs: hubAdminAfkTimeoutSecs,
       });
       onSaved?.();
     } catch (e) {
@@ -180,6 +186,10 @@ export function useHubAdmin({ activeHubId, onSaved }: UseHubAdminParams) {
     setHubAdminTimezone,
     hubAdminBirthdaysEnabled,
     setHubAdminBirthdaysEnabled,
+    hubAdminAfkChannelId,
+    setHubAdminAfkChannelId,
+    hubAdminAfkTimeoutSecs,
+    setHubAdminAfkTimeoutSecs,
     hubAdminSaveError,
     hubAdminMembers,
     hubAdminBans,
