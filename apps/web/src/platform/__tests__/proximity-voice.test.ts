@@ -57,16 +57,26 @@ vi.stubGlobal("localStorage", {
   removeItem: (k: string) => { delete localStorageData[k]; },
 });
 
-import { VoiceWsSession } from "../voice";
+import { VoiceWtSession } from "../voice";
 import type { VoiceZone } from "../voice";
 
 const STUB_HANDLERS = {
   onReady: vi.fn(),
   onClose: vi.fn(),
+  sendKeyOffer: vi.fn(),
+};
+
+const JOIN_INFO = {
+  channelId: "ch1",
+  senderId: 0,
+  participants: [],
+  wtUrl: "https://hub.example/voice",
+  token: "token",
+  certHash: null,
 };
 
 function makeSession(myPubkey = "mypk") {
-  return new VoiceWsSession("http://hub.example", "token", "ch1", STUB_HANDLERS, undefined, myPubkey);
+  return new VoiceWtSession(JOIN_INFO, STUB_HANDLERS, undefined, myPubkey);
 }
 
 beforeEach(() => {
@@ -151,7 +161,7 @@ describe("computeAttenuation", () => {
   });
 });
 
-describe("VoiceWsSession proximity gains", () => {
+describe("VoiceWtSession proximity gains", () => {
   function makeZone(overrides: Partial<VoiceZone> = {}): VoiceZone {
     return {
       zone_id: "z1",

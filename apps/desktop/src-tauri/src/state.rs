@@ -43,7 +43,6 @@ pub(crate) enum WsCommand {
     Unsubscribe(String),
     VoiceJoin {
         channel_id: String,
-        udp_port: u16,
     },
     VoiceLeave {
         channel_id: String,
@@ -51,6 +50,12 @@ pub(crate) enum WsCommand {
     VoiceSpeaking {
         channel_id: String,
         speaking: bool,
+    },
+    /// V4 voice encryption (voice-transport-v2.md): our sender-key bundles
+    /// for one or more recipients in `channel_id`.
+    VoiceKeyOffer {
+        channel_id: String,
+        bundles: Vec<crate::types::VoiceKeyBundleInfo>,
     },
     Typing {
         channel_id: String,
@@ -90,11 +95,15 @@ pub(crate) struct VoiceSession {
     pub voice_zones: std::sync::Arc<std::sync::Mutex<HashMap<String, ZoneInfo>>>,
     /// My own position per zone: zone_id → Vec<f64>
     pub my_position: std::sync::Arc<std::sync::Mutex<HashMap<String, Vec<f64>>>>,
-    /// UDP source-address registration token (64-char hex). Set by the ws task
-    /// when the hub sends a `voice_joined` message with `udp_register_token`.
-    /// The registration loop (running in the voice thread) reads this to send
-    /// VXRG packets until acked.
-    pub udp_reg_token: std::sync::Arc<std::sync::Mutex<Option<String>>>,
+    /// The WebTransport voice session. Set by the ws task's `voice_joined`
+    /// handler, which spawns the QUIC connect against `voice_wt_url` once
+    /// the hub hands over the URL/token (voice-transport-v2.md).
+    pub transport: std::sync::Arc<
+        tokio::sync::RwLock<Option<std::sync::Arc<wavvon_voice::transport::VoiceTransport>>>,
+    >,
+    /// E2E voice-key state shared with the audio pipeline (own sending key
+    /// + known remote keys + replay watermarks).
+    pub voice_keys: std::sync::Arc<tokio::sync::RwLock<wavvon_voice::VoiceKeys>>,
     /// Shared with the audio pipeline's send task -- set by
     /// `soundboard_play_clip` to mix a decoded clip into the outbound
     /// stream (soundboard.md §1).

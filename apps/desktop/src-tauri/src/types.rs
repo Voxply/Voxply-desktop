@@ -402,6 +402,16 @@ pub(crate) struct VoiceRosterEntryInfo {
     pub display_name: Option<String>,
 }
 
+/// One encrypted voice sender-key bundle destined for a single recipient
+/// (voice-transport-v2.md). Carried inside the outbound `voice_key_offer`
+/// and forwarded verbatim by the hub as `voice_key_received`.
+#[derive(Serialize, Deserialize, Clone)]
+pub(crate) struct VoiceKeyBundleInfo {
+    pub recipient_pubkey: String,
+    pub ciphertext_hex: String,
+    pub nonce_hex: String,
+}
+
 // ---------------------------------------------------------------------------
 // Admin / moderation types
 // ---------------------------------------------------------------------------
@@ -946,10 +956,17 @@ pub(crate) enum WsServerMessage {
     #[serde(rename = "voice_joined")]
     VoiceJoined {
         channel_id: String,
-        hub_udp_port: u16,
         participants: Vec<VoiceParticipantInfo>,
+        /// Single-use token presented when opening the WebTransport session
+        /// (`voice_wt_url?token=<hex>`); renamed from `udp_register_token`
+        /// (voice-transport-v2.md, alpha -- no compat).
+        voice_token: String,
+        /// Absolute `https://host:port/voice` WebTransport voice endpoint.
+        voice_wt_url: String,
+        /// Hex SHA-256 digest of the WT endpoint's certificate, when the
+        /// hub is on the self-signed tier; `None` for a CA-issued cert.
         #[serde(default)]
-        udp_register_token: Option<String>,
+        voice_cert_hash: Option<String>,
     },
     #[serde(rename = "voice_participant_joined")]
     VoiceParticipantJoined {
@@ -1057,6 +1074,27 @@ pub(crate) enum WsServerMessage {
     VoiceWhisperStarted { sender_pubkey: String },
     #[serde(rename = "voice_whisper_stopped")]
     VoiceWhisperStopped { sender_pubkey: String },
+    /// Targeted delivery of another participant's encrypted sender-key
+    /// bundle (voice-transport-v2.md). Forwarded by the hub verbatim from
+    /// that participant's `voice_key_offer`.
+    #[serde(rename = "voice_key_received")]
+    VoiceKeyReceived {
+        channel_id: String,
+        #[serde(default)]
+        from_sender_id: u16,
+        from_pubkey: String,
+        ciphertext_hex: String,
+        nonce_hex: String,
+    },
+    /// Broadcast to existing voice participants: a new sender joined and
+    /// needs each participant to send it their current sender key.
+    #[serde(rename = "voice_key_request")]
+    VoiceKeyRequest {
+        channel_id: String,
+        #[serde(default)]
+        new_sender_id: u16,
+        new_pubkey: String,
+    },
     #[serde(rename = "bot_app_launch")]
     BotAppLaunch {
         bot_id: String,

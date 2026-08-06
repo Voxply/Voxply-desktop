@@ -207,7 +207,6 @@ export function useWsHandlers({
         await listen<{
           hub_id: string;
           channel_id: string;
-          hub_udp_port: number;
           participants: VoiceParticipant[];
         }>("voice-joined", (event) => {
           if (event.payload.hub_id !== activeHubIdRef.current) return;

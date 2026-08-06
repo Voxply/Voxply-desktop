@@ -596,6 +596,8 @@ export default function App({ initialView }: AppProps = {}) {
     voiceOnVoiceZoneCreated: voice.onVoiceZoneCreated,
     voiceOnVoiceZoneDestroyed: voice.onVoiceZoneDestroyed,
     voiceOnVoicePositionUpdated: voice.onVoicePositionUpdated,
+    voiceOnVoiceKeyReceived: voice.onVoiceKeyReceived,
+    voiceOnVoiceKeyRequest: voice.onVoiceKeyRequest,
     handleVideoMessage: video.handleVideoMessage,
     receiveWhisperEvent: whisper.receiveWhisperEvent,
     onVoiceMovePush: voiceMoveUx.onVoiceMovePush,

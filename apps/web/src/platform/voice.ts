@@ -1,6 +1,8 @@
 import OpusScript from 'opusscript';
-import { resolveVoiceChannelId } from './voiceReady';
+import { hexToBytes, voicePacketSeal, voicePacketOpen } from '@wavvon/core';
 import { getScoped, setScoped } from '../utils/accountScope';
+import { VoiceKeyManager, type VoiceKeyBundle } from './voiceKeys';
+import { parseDownlinkDatagram, peekSealedKeyId, ReplayGuard } from './voiceDatagram';
 
 export interface VoiceZoneAttenuation {
   model: 'linear' | 'inverse_square' | 'step' | 'exponential';
@@ -42,6 +44,23 @@ export interface VoiceSessionHandlers {
    *  caller passed to the constructor. */
   onReady: (senderId: number, participants: unknown[], channelId: string) => void;
   onClose: () => void;
+  /** Send a `voice_key_offer` over the MAIN hub WS (voice-transport-v2.md
+   *  "E2E key distribution") — the WebTransport session has no signaling
+   *  channel of its own, only datagrams. */
+  sendKeyOffer: (channelId: string, bundles: VoiceKeyBundle[]) => void;
+}
+
+/** What `voice_join` gets back from the hub (the `voice_joined` reply) —
+ *  everything the session needs to open its WebTransport connection and
+ *  seed the initial key exchange, gathered by the caller (useVoice) before
+ *  constructing a session. */
+export interface VoiceJoinInfo {
+  channelId: string;
+  senderId: number;
+  participants: { sender_id: number; public_key: string }[];
+  wtUrl: string;
+  token: string;
+  certHash: string | null;
 }
 
 export interface AudioProfileConfig {
@@ -113,14 +132,15 @@ export function downmixChannels(channels: Float32Array[]): Float32Array {
   return out;
 }
 
-export class VoiceWsSession {
-  private ws: WebSocket | null = null;
+export class VoiceWtSession {
+  private transport: WebTransport | null = null;
+  private datagramWriter: WritableStreamDefaultWriter<Uint8Array> | null = null;
+  private datagramReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
   private audioCtx: AudioContext | null = null;
   private mediaStream: MediaStream | null = null;
   private processor: ScriptProcessorNode | null = null;
   private encoder: OpusCodec | null = null;
   private decoder: OpusCodec | null = null;
-  private sequence = 0;
   private timestamp = 0;
   private muted = false;
   private deafened = false;
@@ -134,16 +154,25 @@ export class VoiceWsSession {
   private myPubkey: string;
   private activeClip: ActiveClip | null = null;
   private activeClipId: string | null = null;
+  private channelId: string;
+  private keys: VoiceKeyManager;
+  private replayGuard = new ReplayGuard();
 
   constructor(
-    private hubUrl: string,
-    private token: string,
-    private channelId: string,
+    private join: VoiceJoinInfo,
     private handlers: VoiceSessionHandlers,
     private audioConfig?: AudioProfileConfig,
     myPubkey?: string,
+    ownSeedHex?: string,
+    private fetchDhKey: (pubkey: string) => Promise<string | null> = async () => null,
+    // See VoiceKeyManager: resolveDmSendAttribution(identity).dhPriv — the
+    // canonical DH scalar on a paired device, seed-derived otherwise.
+    ownDhPriv?: Uint8Array,
   ) {
     this.myPubkey = myPubkey ?? "";
+    this.channelId = join.channelId;
+    this.keys = new VoiceKeyManager(join.channelId, ownSeedHex ?? "", this.fetchDhKey, ownDhPriv);
+    this.handleRosterUpdate(join.participants);
     try {
       this.savedGains = JSON.parse(getScoped(GAINS_STORAGE_KEY) || '{}') as Record<string, number>;
     } catch {
@@ -195,28 +224,117 @@ export class VoiceWsSession {
     source.connect(this.processor);
     this.processor.connect(this.audioCtx.destination);
 
-    const wsBase = this.hubUrl
-      .replace(/^https:\/\//, 'wss://')
-      .replace(/^http:\/\//, 'ws://');
-    const url = `${wsBase}/voice/ws?token=${encodeURIComponent(this.token)}&channel_id=${encodeURIComponent(this.channelId)}`;
-    this.ws = new WebSocket(url);
-    this.ws.binaryType = 'arraybuffer';
-
-    this.ws.onmessage = (ev) => this.onWsMessage(ev);
-    this.ws.onclose = () => {
+    const url = `${this.join.wtUrl}?token=${encodeURIComponent(this.join.token)}`;
+    const certHash = this.join.certHash;
+    const options: WebTransportOptions | undefined = certHash
+      // Re-wrap: hexToBytes's declared `Uint8Array` return type erases the
+      // `ArrayBuffer` (vs `ArrayBufferLike`) generic BufferSource needs.
+      ? { serverCertificateHashes: [{ algorithm: 'sha-256', value: new Uint8Array(hexToBytes(certHash)) }] }
+      : undefined;
+    this.transport = new WebTransport(url, options);
+    await this.transport.ready;
+    this.datagramWriter = this.transport.datagrams.writable.getWriter();
+    this.datagramReader = this.transport.datagrams.readable.getReader();
+    void this.readLoop();
+    this.transport.closed.then(() => {
       if (!this.closed) this.handlers.onClose();
-    };
-    this.ws.onerror = () => this.ws?.close();
-
-    await new Promise<void>((resolve, reject) => {
-      const ws = this.ws!;
-      ws.addEventListener('open', () => resolve(), { once: true });
-      ws.addEventListener('error', () => reject(new Error('Voice WS failed to open')), { once: true });
+    }).catch(() => {
+      if (!this.closed) this.handlers.onClose();
     });
+
+    // Seal outgoing frames with our own key from the moment capture starts —
+    // no need to wait on the (async, network-bound) key offer below, since
+    // sealing only needs the locally-generated key.
+    const others = this.join.participants
+      .filter((p) => p.public_key !== this.myPubkey)
+      .map((p) => p.public_key);
+    void this.offerKeyTo(others);
+
+    this.handlers.onReady(this.join.senderId, this.join.participants, this.join.channelId);
+  }
+
+  private async readLoop(): Promise<void> {
+    const reader = this.datagramReader;
+    if (!reader) return;
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (value) this.onDatagram(value);
+      }
+    } catch { /* transport closed — `.closed` above drives teardown */ }
+  }
+
+  private onDatagram(data: Uint8Array): void {
+    if (this.deafened || !this.decoder) return;
+
+    const frame = parseDownlinkDatagram(data);
+    if (!frame) return;
+    const senderPubkey = this.senderIdToPubkey.get(frame.senderId);
+    if (!senderPubkey) return;
+
+    let opened: { ctr: bigint; ts: number; opus: Uint8Array };
+    try {
+      const keyId = peekSealedKeyId(frame.sealed);
+      const remoteKey = this.keys.lookupKey(senderPubkey, keyId);
+      if (!remoteKey) return; // unknown (sender, key_id) — drop silently
+      opened = voicePacketOpen(remoteKey.key, remoteKey.salt, frame.sealed);
+      if (!this.replayGuard.accept(frame.senderId, keyId, opened.ctr)) return;
+    } catch {
+      return;
+    }
+
+    let pcm: Uint8Array;
+    try {
+      pcm = this.decoder.decode(opened.opus);
+    } catch {
+      return;
+    }
+
+    this.playPcm(new Int16Array(pcm.buffer, pcm.byteOffset, pcm.byteLength / 2), frame.senderId);
+  }
+
+  /** Wraps our current own key for each target and sends it as one
+   *  `voice_key_offer` — used at join (all other participants), on a
+   *  `voice_key_request` for a single newcomer, and after a leave-triggered
+   *  rotation. Best-effort: a target whose DH key can't be resolved is
+   *  silently skipped by the key manager. */
+  private async offerKeyTo(targets: string[]): Promise<void> {
+    if (targets.length === 0) return;
+    try {
+      const bundles = await this.keys.buildOffer(targets);
+      if (bundles.length > 0) this.handlers.sendKeyOffer(this.channelId, bundles);
+    } catch { /* best-effort */ }
+  }
+
+  /** `voice_key_received` (main WS) — store the sender's key. */
+  handleKeyReceived(fromPubkey: string, ciphertextHex: string, nonceHex: string): void {
+    void this.keys.receiveKey(fromPubkey, ciphertextHex, nonceHex);
+  }
+
+  /** `voice_key_request` (main WS) — a newcomer needs our current key. */
+  handleKeyRequest(newPubkey: string): void {
+    void this.offerKeyTo([newPubkey]);
+  }
+
+  /** `voice_participant_left` (main WS) — rotate and re-offer to whoever
+   *  remains (read off our own roster map, minus the departed member and
+   *  ourselves), so the departed member's cached key goes stale. */
+  handleParticipantLeft(leftPubkey: string): void {
+    const remaining = [...new Set(this.senderIdToPubkey.values())]
+      .filter((pk) => pk !== leftPubkey && pk !== this.myPubkey);
+    void this.rotateAndReoffer(remaining);
+  }
+
+  private async rotateAndReoffer(remainingPubkeys: string[]): Promise<void> {
+    try {
+      const bundles = await this.keys.rotate(remainingPubkeys);
+      if (bundles.length > 0) this.handlers.sendKeyOffer(this.channelId, bundles);
+    } catch { /* best-effort */ }
   }
 
   private onAudioProcess(e: AudioProcessingEvent): void {
-    if (this.muted || !this.ws || this.ws.readyState !== WebSocket.OPEN || !this.encoder) return;
+    if (this.muted || !this.datagramWriter || !this.encoder) return;
 
     const micFrame = e.inputBuffer.getChannelData(0);
     const { output, nextClip } = mixClipIntoFrame(micFrame, this.activeClip);
@@ -243,60 +361,13 @@ export class VoiceWsSession {
           return;
         }
 
-        const packet = new ArrayBuffer(6 + opusBytes.length);
-        const view = new DataView(packet);
-        view.setUint16(0, this.sequence & 0xffff, false);
-        view.setUint32(2, this.timestamp & 0xffffffff, false);
-        new Uint8Array(packet, 6).set(opusBytes);
-        this.sequence++;
+        const ownKey = this.keys.ownKey();
+        const sealed = voicePacketSeal(ownKey.key, ownKey.salt, ownKey.keyId, this.keys.nextCtr(), this.timestamp, opusBytes);
         this.timestamp += OPUS_FRAME_SIZE;
-        this.ws.send(packet);
+        this.datagramWriter.write(sealed).catch(() => {});
         this.sampleAccumLen = 0;
       }
     }
-  }
-
-  private onWsMessage(ev: MessageEvent): void {
-    if (typeof ev.data === 'string') {
-      try {
-        const msg = JSON.parse(ev.data) as Record<string, unknown>;
-        if (msg.type === 'voice_ws_ready') {
-          const participants = msg.participants as Array<{ sender_id: number; public_key: string }> | undefined;
-          if (participants) {
-            this.handleRosterUpdate(participants);
-          }
-          const resolvedChannelId = resolveVoiceChannelId(this.channelId, msg as { channel_id?: string });
-          this.handlers.onReady(
-            msg.sender_id as number,
-            msg.participants as unknown[],
-            resolvedChannelId,
-          );
-        }
-      } catch {}
-      return;
-    }
-
-    if (this.deafened || !this.decoder) return;
-
-    const data = new Uint8Array(ev.data as ArrayBuffer);
-    if (data.length < 9) return;
-    // Wire format: [sender_id: u16 BE][packet_type: u8][seq: u16 BE][ts: u32 BE][opus...]
-    const senderId = (data[0] << 8) | data[1];
-    const packetType = data[2];
-    // 0x00 = normal, 0x01 = whisper (targeted). Play both — the server only
-    // delivers whisper frames to resolved targets, so receiving one means
-    // it's meant for us.
-    if (packetType !== 0x00 && packetType !== 0x01) return;
-    const opusBytes = data.slice(9);
-
-    let pcm: Uint8Array;
-    try {
-      pcm = this.decoder.decode(opusBytes);
-    } catch {
-      return;
-    }
-
-    this.playPcm(new Int16Array(pcm.buffer, pcm.byteOffset, pcm.byteLength / 2), senderId);
   }
 
   private getOrCreateGainNode(senderId: number): GainNode {
@@ -475,8 +546,12 @@ export class VoiceWsSession {
     this.gainNodes.clear();
     this.audioCtx?.close().catch(() => {});
     this.audioCtx = null;
-    this.ws?.close();
-    this.ws = null;
+    try { this.datagramWriter?.close(); } catch { /* transport may already be gone */ }
+    this.datagramWriter = null;
+    try { this.datagramReader?.cancel(); } catch { /* transport may already be gone */ }
+    this.datagramReader = null;
+    try { this.transport?.close(); } catch { /* already closed */ }
+    this.transport = null;
     this.encoder?.delete();
     this.decoder?.delete();
     this.encoder = null;

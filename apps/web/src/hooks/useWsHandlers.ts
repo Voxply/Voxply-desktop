@@ -49,6 +49,8 @@ export interface UseWsHandlersParams {
   voiceOnVoiceZoneCreated: (raw: unknown) => void;
   voiceOnVoiceZoneDestroyed: (raw: unknown) => void;
   voiceOnVoicePositionUpdated: (raw: unknown) => void;
+  voiceOnVoiceKeyReceived: (raw: unknown) => void;
+  voiceOnVoiceKeyRequest: (raw: unknown) => void;
   handleVideoMessage: (raw: Record<string, unknown>) => void;
   receiveWhisperEvent: (senderPubkey: string, isWhisper: boolean) => void;
   onVoiceMovePush: (raw: unknown) => void;
@@ -71,7 +73,8 @@ export function useWsHandlers(deps: UseWsHandlersParams) {
     onDm, onDmMemberChanged, receiveTyping, onScreenShare, onScreenShareChunk,
     receiveSoundboardPlayed, handleStatusChange, setAssertiveAnnouncement, showHubError,
     loadHubDataRef, voiceOnVoiceState, voiceOnVoiceZoneState, voiceOnVoiceZoneCreated,
-    voiceOnVoiceZoneDestroyed, voiceOnVoicePositionUpdated, handleVideoMessage,
+    voiceOnVoiceZoneDestroyed, voiceOnVoicePositionUpdated, voiceOnVoiceKeyReceived,
+    voiceOnVoiceKeyRequest, handleVideoMessage,
     receiveWhisperEvent, onVoiceMovePush, setActiveBotApps, setActiveOpenApp,
   } = deps;
 
@@ -303,6 +306,16 @@ export function useWsHandlers(deps: UseWsHandlersParams) {
       const m = raw as { _hub_id?: string };
       if (m._hub_id !== activeHubIdRef.current) return;
       voiceOnVoicePositionUpdated(raw);
+    },
+    onVoiceKeyReceived: (raw) => {
+      const m = raw as { _hub_id?: string };
+      if (m._hub_id !== activeHubIdRef.current) return;
+      voiceOnVoiceKeyReceived(raw);
+    },
+    onVoiceKeyRequest: (raw) => {
+      const m = raw as { _hub_id?: string };
+      if (m._hub_id !== activeHubIdRef.current) return;
+      voiceOnVoiceKeyRequest(raw);
     },
     onBotApp: (raw) => {
       const m = raw as Record<string, unknown>;

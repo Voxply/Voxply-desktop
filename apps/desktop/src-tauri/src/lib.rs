@@ -32,6 +32,7 @@ mod state;
 mod types;
 mod updater;
 mod voice_cmd;
+mod voice_keys;
 mod ws;
 
 use tauri::Manager;

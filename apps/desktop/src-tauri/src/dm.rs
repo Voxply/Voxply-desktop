@@ -416,7 +416,7 @@ pub(crate) async fn publish_dh_key(state: State<'_, AppState>) -> Result<(), Str
 /// Fetch a user's published static DH key from a hub. Returns None on any
 /// failure (unpublished key, network error) — callers treat that as
 /// "cannot responder-init".
-async fn fetch_dh_key_http(
+pub(crate) async fn fetch_dh_key_http(
     client: &reqwest::Client,
     hub_url: &str,
     token: &str,

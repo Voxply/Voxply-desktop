@@ -28,6 +28,7 @@
     "@wavvon/core": "workspace:*",
     "@wavvon/i18n": "workspace:*",
     "@wavvon/ui": "workspace:*",
+    "buffer": "^6.0.3",
     "dompurify": "^3.4.8",
     "i18next": "^24.2.3",
     "i18next-icu": "^2.4.3",

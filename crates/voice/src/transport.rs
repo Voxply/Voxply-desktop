@@ -1,92 +1,70 @@
-use std::net::SocketAddr;
+//! WebTransport client for voice (docs/docs/voice-transport-v2.md). Replaces
+//! the old raw-UDP `VoiceSocket`: connects to the hub's
+//! `voice_wt_url?token=<hex>` session and exchanges opaque datagrams (the
+//! sealed uplink packets from `crypto.rs`) -- the encryption itself lives
+//! one layer up, this module is purely transport.
 
 use anyhow::{Context, Result};
-use tokio::net::UdpSocket;
+use wtransport::tls::Sha256Digest;
+use wtransport::{ClientConfig, Endpoint};
 
-use crate::protocol::{ReceivedVoicePacket, VoicePacket};
-
-pub struct VoiceSocket {
-    socket: UdpSocket,
-    remote_addr: Option<SocketAddr>,
+/// An open WebTransport voice session against a hub. Cheap to clone -- the
+/// underlying `wtransport::Connection` is `Arc`-backed.
+#[derive(Clone)]
+pub struct VoiceTransport {
+    connection: wtransport::Connection,
 }
 
-impl VoiceSocket {
-    pub async fn bind(port: u16) -> Result<Self> {
-        let addr = format!("0.0.0.0:{port}");
-        let socket = UdpSocket::bind(&addr)
+impl VoiceTransport {
+    /// Connects to `voice_wt_url?token=<voice_token>`. When `cert_hash_hex`
+    /// is set (self-signed tier), trusts exactly that certificate by
+    /// SHA-256 digest, matching the browser
+    /// `WebTransportOptions.serverCertificateHashes` trust model; otherwise
+    /// falls back to normal CA validation (operator-supplied cert).
+    pub async fn connect(
+        voice_wt_url: &str,
+        voice_token: &str,
+        cert_hash_hex: Option<&str>,
+    ) -> Result<Self> {
+        let builder = ClientConfig::builder().with_bind_default();
+        let config = match cert_hash_hex {
+            Some(hash_hex) => {
+                let bytes = hex::decode(hash_hex).context("invalid voice_cert_hash hex")?;
+                let digest: [u8; 32] = bytes.try_into().map_err(|_| {
+                    anyhow::anyhow!("voice_cert_hash must be a 32-byte SHA-256 digest")
+                })?;
+                builder
+                    .with_server_certificate_hashes([Sha256Digest::new(digest)])
+                    .build()
+            }
+            None => builder.with_native_certs().build(),
+        };
+
+        let endpoint = Endpoint::client(config).context("wtransport client endpoint")?;
+        let session_url = format!("{voice_wt_url}?token={voice_token}");
+        let connection = endpoint
+            .connect(&session_url)
             .await
-            .context(format!("Failed to bind UDP socket on {addr}"))?;
+            .context("wtransport connect")?;
 
-        let local = socket.local_addr()?;
-        tracing::info!("Voice UDP socket bound to {local}");
-
-        Ok(Self {
-            socket,
-            remote_addr: None,
-        })
+        Ok(Self { connection })
     }
 
-    pub fn set_remote(&mut self, addr: SocketAddr) {
-        self.remote_addr = Some(addr);
+    /// Sends an unreliable/unordered datagram -- the sealed uplink packet.
+    pub fn send_datagram(&self, payload: &[u8]) -> Result<()> {
+        self.connection
+            .send_datagram(payload)
+            .context("wtransport send_datagram")
     }
 
-    pub fn local_addr(&self) -> Result<SocketAddr> {
-        self.socket.local_addr().context("Get local addr")
-    }
-
-    pub async fn send(&self, packet: &VoicePacket) -> Result<()> {
-        let addr = self.remote_addr.context("No remote address set")?;
-        let data = packet.serialize();
-        self.socket
-            .send_to(&data, addr)
+    /// Waits for the next datagram from the hub relay (routing prefix +
+    /// sealed packet, unparsed).
+    pub async fn recv_datagram(&self) -> Result<Vec<u8>> {
+        let datagram = self
+            .connection
+            .receive_datagram()
             .await
-            .context("UDP send failed")?;
-        Ok(())
-    }
-
-    pub async fn recv(&self) -> Result<(VoicePacket, SocketAddr)> {
-        let mut buf = [0u8; 2048];
-        let (len, from) = self
-            .socket
-            .recv_from(&mut buf)
-            .await
-            .context("UDP recv failed")?;
-        let packet = VoicePacket::deserialize(&buf[..len])?;
-        Ok((packet, from))
-    }
-
-    pub async fn recv_from_hub(&self) -> Result<(ReceivedVoicePacket, SocketAddr)> {
-        let mut buf = [0u8; 2048];
-        let (len, from) = self
-            .socket
-            .recv_from(&mut buf)
-            .await
-            .context("UDP recv failed")?;
-        let packet = ReceivedVoicePacket::deserialize(&buf[..len])?;
-        Ok((packet, from))
-    }
-
-    /// Receive raw bytes from the socket without any parsing. Used by callers
-    /// that need to inspect the first bytes before deciding how to interpret
-    /// the packet (e.g. to detect the 4-byte VXRA registration ack before
-    /// handing audio packets to the normal deserialiser).
-    pub async fn recv_raw(&self) -> Result<(Vec<u8>, SocketAddr)> {
-        let mut buf = [0u8; 2048];
-        let (len, from) = self
-            .socket
-            .recv_from(&mut buf)
-            .await
-            .context("UDP recv failed")?;
-        Ok((buf[..len].to_vec(), from))
-    }
-
-    /// Send raw bytes to the hub's UDP endpoint.
-    pub async fn send_raw(&self, data: &[u8]) -> Result<()> {
-        let addr = self.remote_addr.context("No remote address set")?;
-        self.socket
-            .send_to(data, addr)
-            .await
-            .context("UDP send_raw failed")?;
-        Ok(())
+            .context("wtransport receive_datagram")?;
+        Ok(datagram.payload().to_vec())
     }
 }

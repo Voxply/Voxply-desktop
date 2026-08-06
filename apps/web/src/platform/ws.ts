@@ -1,3 +1,5 @@
+import type { VoiceKeyBundle } from "./voiceKeys";
+
 export interface WsHandlers {
   onMessage?: (m: object) => void;
   onDm?: (m: object) => void;
@@ -41,6 +43,10 @@ export interface WsHandlers {
   onBotApp?: (e: object) => void;
   /** Hub-pushed voice_move (events.md §7.1) — targeted-by-pubkey, like whisper. */
   onVoiceMove?: (e: object) => void;
+  /** voice-transport-v2.md E2E key distribution — a peer's key offer for us. */
+  onVoiceKeyReceived?: (e: object) => void;
+  /** A newcomer needs our current voice key; reply with a one-bundle offer. */
+  onVoiceKeyRequest?: (e: object) => void;
 }
 
 const BACKOFF_INITIAL = 1000;
@@ -195,6 +201,10 @@ export class HubWebSocket {
       this.handlers.onVoiceZoneState?.(tagged);
     } else if (type === "voice_move") {
       this.handlers.onVoiceMove?.(tagged);
+    } else if (type === "voice_key_received") {
+      this.handlers.onVoiceKeyReceived?.(tagged);
+    } else if (type === "voice_key_request") {
+      this.handlers.onVoiceKeyRequest?.(tagged);
     }
   }
 
@@ -236,6 +246,17 @@ export class HubWebSocket {
 
   watchVoice(channelId: string): void {
     this.send({ type: "voice_watch", channel_id: channelId });
+  }
+
+  // --- voice-transport-v2.md: join now travels over the main WS (the hub
+  // replies with `voice_joined`, carrying the WebTransport URL/token/cert
+  // hash — see useVoice.handleVoiceJoin for the request/response pairing).
+  joinVoice(channelId: string): void {
+    this.send({ type: "voice_join", channel_id: channelId });
+  }
+
+  sendVoiceKeyOffer(channelId: string, bundles: VoiceKeyBundle[]): void {
+    this.send({ type: "voice_key_offer", channel_id: channelId, bundles });
   }
 
   // --- Camera video signaling (full-mesh WebRTC, main WS) ---
