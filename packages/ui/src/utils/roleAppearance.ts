@@ -75,3 +75,9 @@ export function roleTintStyle(color: string | null | undefined): CSSProperties |
   if (!safe) return undefined;
   return { "--role-color": safe } as CSSProperties;
 }
+
+// Member name colors reuse the exact same sanitize + --role-color custom-
+// property mechanism as role tints (paired with the `.name-colored` CSS
+// class) — kept as its own name since the two are visually distinct features
+// that happen to share styling machinery.
+export const nameColorStyle = roleTintStyle;

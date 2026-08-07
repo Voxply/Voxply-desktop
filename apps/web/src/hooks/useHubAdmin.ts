@@ -10,7 +10,7 @@ import type {
   PendingUser,
   RoleInfo,
 } from "@shared/types";
-import type { HubAdminTab } from "@wavvon/ui";
+import type { HubAdminTab, NameColorMode } from "@wavvon/ui";
 
 interface UseHubAdminParams {
   activeHubId: string | null;
@@ -32,6 +32,7 @@ export function useHubAdmin({ activeHubId, onSaved }: UseHubAdminParams) {
   const [hubAdminWelcomeInviteUrl, setHubAdminWelcomeInviteUrl] = useState("");
   const [hubAdminTimezone, setHubAdminTimezone] = useState("");
   const [hubAdminBirthdaysEnabled, setHubAdminBirthdaysEnabled] = useState(true);
+  const [hubAdminNameColorMode, setHubAdminNameColorMode] = useState<NameColorMode>("role_over_user");
   const [hubAdminAfkChannelId, setHubAdminAfkChannelId] = useState("");
   const [hubAdminAfkTimeoutSecs, setHubAdminAfkTimeoutSecs] = useState(300);
   const [hubAdminSaveError, setHubAdminSaveError] = useState<string | null>(null);
@@ -59,6 +60,7 @@ export function useHubAdmin({ activeHubId, onSaved }: UseHubAdminParams) {
       setHubAdminWelcomeInviteUrl(s.welcome_invite_url ?? "");
       setHubAdminTimezone(s.timezone ?? "");
       setHubAdminBirthdaysEnabled(s.birthdays_enabled ?? true);
+      setHubAdminNameColorMode(s.name_color_mode ?? "role_over_user");
       setHubAdminAfkChannelId(s.afk_channel_id ?? "");
       setHubAdminAfkTimeoutSecs(s.afk_timeout_secs ?? 300);
     } catch { /* prefill skipped */ }
@@ -144,6 +146,7 @@ export function useHubAdmin({ activeHubId, onSaved }: UseHubAdminParams) {
         birthdays_enabled: hubAdminBirthdaysEnabled,
         afk_channel_id: hubAdminAfkChannelId,
         afk_timeout_secs: hubAdminAfkTimeoutSecs,
+        name_color_mode: hubAdminNameColorMode,
       });
       onSaved?.();
     } catch (e) {
@@ -186,6 +189,8 @@ export function useHubAdmin({ activeHubId, onSaved }: UseHubAdminParams) {
     setHubAdminTimezone,
     hubAdminBirthdaysEnabled,
     setHubAdminBirthdaysEnabled,
+    hubAdminNameColorMode,
+    setHubAdminNameColorMode,
     hubAdminAfkChannelId,
     setHubAdminAfkChannelId,
     hubAdminAfkTimeoutSecs,

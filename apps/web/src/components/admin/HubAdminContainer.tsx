@@ -71,6 +71,8 @@ export function HubAdminContainer({
         onTimezoneChange={hubAdmin.setHubAdminTimezone}
         birthdaysEnabled={hubAdmin.hubAdminBirthdaysEnabled}
         onBirthdaysEnabledChange={hubAdmin.setHubAdminBirthdaysEnabled}
+        nameColorMode={hubAdmin.hubAdminNameColorMode}
+        onNameColorModeChange={hubAdmin.setHubAdminNameColorMode}
         afkChannelId={hubAdmin.hubAdminAfkChannelId}
         onAfkChannelIdChange={hubAdmin.setHubAdminAfkChannelId}
         afkTimeoutSecs={hubAdmin.hubAdminAfkTimeoutSecs}

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { formatPubkey, formatRelative, type Channel } from "@wavvon/core";
-import type { BanInfo, InviteInfo, MemberAdminInfo, PendingUser, RoleInfo } from "../../types";
+import type { BanInfo, InviteInfo, MemberAdminInfo, NameColorMode, PendingUser, RoleInfo } from "../../types";
 import { ImagePicker } from "../ImagePicker";
 import { AlliancesSection, type AlliancesSectionActions } from "./AlliancesSection";
 import { ExternalBotSection, type ExternalBotSectionActions } from "./ExternalBotSection";
@@ -66,6 +66,10 @@ export interface HubAdminPageProps {
   onTimezoneChange: (v: string) => void;
   birthdaysEnabled: boolean;
   onBirthdaysEnabledChange: (v: boolean) => void;
+  /** How the hub resolves a member's rendered name color when both a role
+   *  color and the member's own choice are set. Default "role_over_user". */
+  nameColorMode: NameColorMode;
+  onNameColorModeChange: (v: NameColorMode) => void;
   /** Channel idle voice participants are auto-moved into, or "" for unset
    *  (sweep disabled) — same empty-string-clears convention as `timezone`. */
   afkChannelId: string;
@@ -326,6 +330,23 @@ export function HubAdminPage(props: HubAdminPageProps) {
                 />
                 Show member birthdays (🎂 badge on the day, if the member shared one)
               </label>
+            </div>
+            <div className="settings-section">
+              <label className="settings-label" htmlFor="admin-name-color-mode">Member name colors</label>
+              <p className="muted">
+                Members can pick their own name color; roles can carry a color too. This decides which one wins when both are set.
+              </p>
+              <select
+                id="admin-name-color-mode"
+                value={props.nameColorMode}
+                onChange={(e) => props.onNameColorModeChange(e.target.value as typeof props.nameColorMode)}
+              >
+                <option value="role_over_user">Role color wins over the member's own choice</option>
+                <option value="user_over_role">Member's own choice wins over their role color</option>
+                <option value="role_only">Only role colors — members can't pick their own</option>
+                <option value="user_only">Only member-chosen colors — role colors don't apply to names</option>
+                <option value="none">No name colors at all</option>
+              </select>
             </div>
             <div className="settings-section">
               <label className="settings-label" htmlFor="admin-afk-channel">AFK channel</label>

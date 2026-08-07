@@ -264,7 +264,7 @@ export function useWsHandlers(deps: UseWsHandlersParams) {
       if (hubId !== activeHubIdRef.current) return;
       setUsers((prev) => prev.map((u) => u.public_key === publicKey ? { ...u, online: false } : u));
     },
-    onMemberUpdated: (publicKey, displayName, avatar, hubId) => {
+    onMemberUpdated: (publicKey, displayName, avatar, nameColor, hubId) => {
       if (hubId !== activeHubIdRef.current) return;
       // Update the member's name/avatar in place so the member list and every
       // message author (names resolve from this map) refresh live. If we've
@@ -275,7 +275,7 @@ export function useWsHandlers(deps: UseWsHandlersParams) {
           return prev;
         }
         return prev.map((u) =>
-          u.public_key === publicKey ? { ...u, display_name: displayName, avatar } : u,
+          u.public_key === publicKey ? { ...u, display_name: displayName, avatar, name_color: nameColor } : u,
         );
       });
     },

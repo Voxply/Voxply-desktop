@@ -1908,6 +1908,13 @@ select,
   color: color-mix(in srgb, var(--role-color) 70%, var(--text-muted));
 }
 
+/* Member name colors (decisions.md 2026-08-07): blends toward the theme's own text
+   color rather than the raw hex, same rationale as .role-badge-tinted above —
+   keeps a member-chosen or role-derived color readable in both themes. */
+.name-colored {
+  color: color-mix(in srgb, var(--role-color) 70%, var(--text));
+}
+
 /* ============================================================
    ALLIANCES (sidebar)
    ============================================================ */

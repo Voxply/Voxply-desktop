@@ -15,6 +15,7 @@ export interface MyHubProfile {
   status_message: string | null;
   activities: string | null;
   accent_color: string | null;
+  name_color: string | null;
   cover: string | null;
   favorite_hubs: FavoriteHub[];
   show_hubs: boolean;
@@ -35,6 +36,7 @@ export interface MyProfileUpdate {
   status_message: string | null;
   activities: string | null;
   accent_color: string | null;
+  name_color: string | null;
   cover: string | null;
   favorite_hubs: FavoriteHub[];
   show_hubs: boolean;
@@ -64,6 +66,7 @@ export async function getMyProfileOnHub(hubId: string, pubkey: string): Promise<
     status_message?: string | null;
     activities?: string | null;
     accent_color?: string | null;
+    name_color?: string | null;
     cover?: string | null;
     favorite_hubs?: FavoriteHub[];
     show_hubs?: boolean;
@@ -78,6 +81,7 @@ export async function getMyProfileOnHub(hubId: string, pubkey: string): Promise<
     status_message: p.status_message ?? null,
     activities: p.activities ?? null,
     accent_color: p.accent_color ?? null,
+    name_color: p.name_color ?? null,
     cover: p.cover ?? null,
     favorite_hubs: p.favorite_hubs ?? [],
     show_hubs: p.show_hubs ?? false,
@@ -114,6 +118,7 @@ export async function updateMyProfileOnHub(hubId: string, profile: MyProfileUpda
       status_message: profile.status_message ?? "",
       activities: profile.activities ?? "",
       accent_color: profile.accent_color ?? "",
+      name_color: profile.name_color ?? "",
       cover: profile.cover ?? "",
       favorite_hubs: profile.favorite_hubs,
       show_hubs: profile.show_hubs,

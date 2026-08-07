@@ -214,8 +214,10 @@ export {
   distinguishingRoles,
   groupRolesByCategory,
   roleTintStyle,
+  nameColorStyle,
 } from "./utils/roleAppearance";
 export type { RoleCategoryGroup } from "./utils/roleAppearance";
+export type { NameColorMode } from "./types";
 export { identityGradient, profileBannerStyle } from "./utils/identityColor";
 export { insertAtLineStart } from "./utils/activityEmoji";
 export type {

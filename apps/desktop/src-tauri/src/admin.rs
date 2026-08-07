@@ -159,6 +159,7 @@ pub(crate) async fn update_hub_branding(
     birthdays_enabled: Option<bool>,
     afk_channel_id: Option<String>,
     afk_timeout_secs: Option<u32>,
+    name_color_mode: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let (hub_url, token) = active_session(&state)?;
@@ -180,6 +181,7 @@ pub(crate) async fn update_hub_branding(
             "birthdays_enabled": birthdays_enabled,
             "afk_channel_id": afk_channel_id,
             "afk_timeout_secs": afk_timeout_secs,
+            "name_color_mode": name_color_mode,
         }))
         .send()
         .await

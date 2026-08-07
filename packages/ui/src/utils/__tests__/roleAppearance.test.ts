@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { RoleCategory, RoleInfo } from "../../types";
-import { distinguishingRoles, groupRolesByCategory, roleTintStyle, safeRoleColor } from "../roleAppearance";
+import { distinguishingRoles, groupRolesByCategory, nameColorStyle, roleTintStyle, safeRoleColor } from "../roleAppearance";
 
 function makeRole(overrides: Partial<RoleInfo> = {}): RoleInfo {
   return {
@@ -118,6 +118,21 @@ describe("roleTintStyle", () => {
 
   it("drops a malicious non-hex color rather than exposing it", () => {
     expect(roleTintStyle("url(https://attacker.example/beacon)")).toBeUndefined();
+  });
+});
+
+describe("nameColorStyle", () => {
+  it("returns undefined for no color", () => {
+    expect(nameColorStyle(null)).toBeUndefined();
+    expect(nameColorStyle(undefined)).toBeUndefined();
+  });
+
+  it("exposes a valid hex color as the shared --role-color custom property", () => {
+    expect(nameColorStyle("#ff8800")).toEqual({ "--role-color": "#ff8800" });
+  });
+
+  it("drops a malicious non-hex color rather than exposing it", () => {
+    expect(nameColorStyle("url(https://attacker.example/beacon)")).toBeUndefined();
   });
 });
 

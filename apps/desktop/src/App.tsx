@@ -296,6 +296,8 @@ function App() {
     setHubTimezone,
     birthdaysEnabled,
     setBirthdaysEnabled,
+    nameColorMode,
+    setNameColorMode,
     afkChannelId,
     setAfkChannelId,
     afkTimeoutSecs,
@@ -1438,6 +1440,8 @@ function App() {
             onTimezoneChange={setHubTimezone}
             birthdaysEnabled={birthdaysEnabled}
             onBirthdaysEnabledChange={setBirthdaysEnabled}
+            nameColorMode={nameColorMode}
+            onNameColorModeChange={setNameColorMode}
             afkChannelId={afkChannelId}
             onAfkChannelIdChange={setAfkChannelId}
             afkTimeoutSecs={afkTimeoutSecs}

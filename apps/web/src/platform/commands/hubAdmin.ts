@@ -8,7 +8,7 @@ import type {
   RecoveryRequestBundle,
   InviteInfo,
 } from "../../types";
-import type { CertIssuance, CertAdmissionSettings } from "@wavvon/ui";
+import type { CertIssuance, CertAdmissionSettings, NameColorMode } from "@wavvon/ui";
 import { signRecoveryRequest, signRecoveryAttestation, publicKeyHex } from "@wavvon/core";
 import { loadIdentity } from "../../identity/store";
 
@@ -259,6 +259,7 @@ export async function saveHubSettings(settings: {
   afk_channel_id?: string;
   /** Idle threshold in seconds; hub minimum is 60. */
   afk_timeout_secs?: number;
+  name_color_mode?: NameColorMode;
 }): Promise<void> {
   await hubFetch("/hub", {
     method: "PATCH",
@@ -280,6 +281,7 @@ export async function getHubSettings(): Promise<{
   birthdays_enabled: boolean;
   afk_channel_id: string;
   afk_timeout_secs: number;
+  name_color_mode: NameColorMode;
 }> {
   const [settingsRes, infoRes] = await Promise.all([
     hubFetch("/hub/settings").then((r) => r.json() as Promise<{
@@ -292,6 +294,7 @@ export async function getHubSettings(): Promise<{
       birthdays_enabled?: boolean;
       afk_channel_id?: string | null;
       afk_timeout_secs?: number;
+      name_color_mode?: NameColorMode;
     }>),
     hubFetch("/info").then((r) => r.json() as Promise<{
       name: string;
@@ -315,6 +318,7 @@ export async function getHubSettings(): Promise<{
     birthdays_enabled: settingsRes.birthdays_enabled ?? true,
     afk_channel_id: settingsRes.afk_channel_id ?? "",
     afk_timeout_secs: settingsRes.afk_timeout_secs ?? 300,
+    name_color_mode: settingsRes.name_color_mode ?? "role_over_user",
   };
 }
 

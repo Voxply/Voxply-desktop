@@ -72,6 +72,7 @@ interface Draft {
   status_message: string;
   activities: string;
   accent_color: string | null;
+  name_color: string | null;
   cover: string | null;
   favorite_hubs: FavoriteHub[];
   show_hubs: boolean;
@@ -88,6 +89,7 @@ function fromExternal(p: Omit<ProfileDraftFields, "display_name"> & { display_na
     status_message: p.status_message ?? "",
     activities: p.activities ?? "",
     accent_color: p.accent_color,
+    name_color: p.name_color,
     cover: p.cover,
     favorite_hubs: p.favorite_hubs,
     show_hubs: p.show_hubs,
@@ -103,6 +105,7 @@ const sameDraft = (a: Draft, b: Draft) =>
   a.status_message === b.status_message &&
   a.activities === b.activities &&
   a.accent_color === b.accent_color &&
+  a.name_color === b.name_color &&
   a.cover === b.cover &&
   a.show_hubs === b.show_hubs &&
   a.birthday === b.birthday &&
@@ -365,6 +368,7 @@ export function ProfileEditorSection({ hubs, account, isActive, publicKey, accou
           status_message: trimToNull(d.status_message),
           activities: trimToNull(d.activities),
           accent_color: d.accent_color,
+          name_color: d.name_color,
           cover: d.cover,
           favorite_hubs: d.favorite_hubs,
           show_hubs: d.show_hubs,
@@ -798,6 +802,30 @@ export function ProfileEditorSection({ hubs, account, isActive, publicKey, accou
                     {t("settings.profile.banner.reset_hint")}
                   </span>
                 </div>
+
+                <div className="settings-label" style={{ fontSize: "var(--text-sm)", margin: "var(--space-3) 0 4px" }}>
+                  {t("settings.profile.banner.name_color_label")}
+                </div>
+                <p className="muted" style={{ fontSize: "var(--text-xs)", marginTop: 0 }}>
+                  {t("settings.profile.banner.name_color_hint")}
+                </p>
+                <div className="settings-row" style={{ gap: "var(--space-2)", alignItems: "center" }}>
+                  <input
+                    type="color"
+                    value={draft.name_color ?? "#7c5cff"}
+                    onChange={(e) => update({ name_color: e.target.value })}
+                    aria-label={t("settings.profile.banner.name_color_label")}
+                    style={{ width: 44, height: 32, padding: 0, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "none", cursor: "pointer" }}
+                  />
+                  <button
+                    type="button"
+                    className="btn-small btn-secondary"
+                    onClick={() => update({ name_color: null })}
+                    disabled={!draft.name_color}
+                  >
+                    {t("settings.profile.banner.reset")}
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -826,6 +854,7 @@ function blankDraft(): Draft {
     status_message: "",
     activities: "",
     accent_color: null,
+    name_color: null,
     cover: null,
     favorite_hubs: [],
     show_hubs: false,

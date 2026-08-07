@@ -101,6 +101,10 @@ export interface User {
   /** MM-DD (never a year) — null/absent when unset or the hub has birthdays
    *  disabled (the server omits it entirely in that case). */
   birthday?: string | null;
+  /** Final, server-resolved name color (`#rrggbb`) per the hub's
+   *  `name_color_mode` — clients render it as-is, no priority logic. Null
+   *  when nothing resolved (mode "none", or neither role nor user color set). */
+  name_color: string | null;
 }
 
 export interface LinkPreview {
@@ -732,6 +736,10 @@ export interface ProfileDraftFields {
   status_message: string | null;
   activities: string | null;
   accent_color: string | null;
+  /** The member's raw name-color choice (hex `#rrggbb`, or null/unset). The
+   *  hub resolves this against `name_color_mode` into `User.name_color`/
+   *  `UserProfile.name_color` for rendering — this is only the write side. */
+  name_color: string | null;
   cover: string | null;
   favorite_hubs: FavoriteHub[];
   show_hubs: boolean;
@@ -803,6 +811,8 @@ export interface UserProfile {
   roles: RoleInfo[];
   badges: BadgeSummary[];
   birthday: string | null;
+  /** Final, server-resolved name color — see User.name_color. */
+  name_color: string | null;
 }
 
 export interface PublicHubEntry {
@@ -868,6 +878,10 @@ export interface PendingUser {
   display_name: string | null;
   first_seen_at: number;
 }
+
+/** Hub-wide policy for resolving a member's name color when both a role
+ *  color and a user-chosen name_color are present. Default "role_over_user". */
+export type NameColorMode = "user_over_role" | "role_over_user" | "role_only" | "user_only" | "none";
 
 export interface MemberAdminInfo {
   public_key: string;

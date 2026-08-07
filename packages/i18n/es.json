@@ -232,6 +232,8 @@
   "settings.profile.banner.accent_label": "Color de acento",
   "settings.profile.banner.reset": "Restablecer",
   "settings.profile.banner.reset_hint": "Volver a los colores de tu identidad",
+  "settings.profile.banner.name_color_label": "Color del nombre",
+  "settings.profile.banner.name_color_hint": "Colorea tu nombre en el chat y en la lista de miembros, si este hub lo permite.",
   "settings.profile.context.default_option": "Perfil predeterminado",
   "settings.profile.scope.for": "para",
   "settings.profile.context.loading": "Cargando…",

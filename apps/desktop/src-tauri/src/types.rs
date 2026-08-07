@@ -169,10 +169,16 @@ pub(crate) struct HubSettings {
     pub afk_channel_id: Option<String>,
     #[serde(default = "default_afk_timeout_secs")]
     pub afk_timeout_secs: u32,
+    #[serde(default = "default_name_color_mode")]
+    pub name_color_mode: String,
 }
 
 pub(crate) fn default_afk_timeout_secs() -> u32 {
     300
+}
+
+pub(crate) fn default_name_color_mode() -> String {
+    "role_over_user".to_string()
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -231,6 +237,10 @@ pub(crate) struct UserInfo {
     pub is_bot: bool,
     #[serde(default)]
     pub birthday: Option<String>,
+    /// Final, server-resolved name color per the hub's `name_color_mode` —
+    /// rendered as-is, no client-side priority logic.
+    #[serde(default)]
+    pub name_color: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]

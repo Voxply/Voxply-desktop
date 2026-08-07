@@ -336,6 +336,7 @@ export function ContentArea({
       avatar: null,
       online: false,
       group_role: null,
+      name_color: null,
     };
     onSetUserContextMenu({ x: e.clientX, y: e.clientY, user });
   }

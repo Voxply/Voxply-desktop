@@ -8,7 +8,7 @@ import type {
   InviteInfo,
   PendingUser,
 } from "../types";
-import type { HubAdminTab } from "@wavvon/ui";
+import type { HubAdminTab, NameColorMode } from "@wavvon/ui";
 
 interface UseHubAdminParams {
   activeHubId: string | null;
@@ -44,6 +44,7 @@ export function useHubAdmin({
   const [maxChannelDepth, setMaxChannelDepth] = useState(0);
   const [hubTimezone, setHubTimezone] = useState("");
   const [birthdaysEnabled, setBirthdaysEnabled] = useState(true);
+  const [nameColorMode, setNameColorMode] = useState<NameColorMode>("role_over_user");
   const [afkChannelId, setAfkChannelId] = useState("");
   const [afkTimeoutSecs, setAfkTimeoutSecs] = useState(300);
   const [pendingMembers, setPendingMembers] = useState<PendingUser[]>([]);
@@ -81,6 +82,7 @@ export function useHubAdmin({
         birthdays_enabled?: boolean;
         afk_channel_id?: string | null;
         afk_timeout_secs?: number;
+        name_color_mode?: NameColorMode;
       }>("get_hub_settings");
       setRequireApproval(settings.require_approval);
       setMinSecurityLevel(settings.min_security_level ?? 0);
@@ -89,6 +91,7 @@ export function useHubAdmin({
       setBirthdaysEnabled(settings.birthdays_enabled ?? true);
       setAfkChannelId(settings.afk_channel_id ?? "");
       setAfkTimeoutSecs(settings.afk_timeout_secs ?? 300);
+      setNameColorMode(settings.name_color_mode ?? "role_over_user");
     } catch (e) {
       setError(String(e));
     }
@@ -122,6 +125,7 @@ export function useHubAdmin({
         birthdaysEnabled,
         afkChannelId,
         afkTimeoutSecs,
+        nameColorMode,
       });
       const refreshed = await invoke<Hub[]>("list_hubs");
       setHubs(() => refreshed);
@@ -332,6 +336,8 @@ export function useHubAdmin({
     setHubTimezone,
     birthdaysEnabled,
     setBirthdaysEnabled,
+    nameColorMode,
+    setNameColorMode,
     afkChannelId,
     setAfkChannelId,
     afkTimeoutSecs,

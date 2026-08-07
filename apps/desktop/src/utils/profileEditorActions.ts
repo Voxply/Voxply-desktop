@@ -82,6 +82,7 @@ interface RawHubProfile {
   status_message?: string | null;
   activities?: string | null;
   accent_color?: string | null;
+  name_color?: string | null;
   cover?: string | null;
   favorite_hubs?: ProfileDraftFields["favorite_hubs"];
   show_hubs?: boolean;
@@ -99,6 +100,7 @@ function shapeHubProfile(raw: RawHubProfile): HubProfileSnapshot {
     status_message: raw.status_message ?? null,
     activities: raw.activities ?? null,
     accent_color: raw.accent_color ?? null,
+    name_color: raw.name_color ?? null,
     cover: raw.cover ?? null,
     favorite_hubs: raw.favorite_hubs ?? [],
     show_hubs: raw.show_hubs ?? false,
@@ -128,6 +130,7 @@ export function buildProfileEditorActions(hubs: Hub[]): ProfileEditorActions {
           status_message: profile.status_message ?? "",
           activities: profile.activities ?? "",
           accent_color: profile.accent_color ?? "",
+          name_color: profile.name_color ?? "",
           cover: profile.cover ?? "",
           favorite_hubs: profile.favorite_hubs,
           show_hubs: profile.show_hubs,

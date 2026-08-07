@@ -101,6 +101,7 @@ export interface MeInfo {
   status_message: string | null;
   activities: string | null;
   accent_color: string | null;
+  name_color: string | null;
   cover: string | null;
   favorite_hubs: FavoriteHub[];
   show_hubs: boolean;

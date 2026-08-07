@@ -88,6 +88,8 @@ pub(crate) struct DefaultProfileFields {
     #[serde(default)]
     pub accent_color: Option<String>,
     #[serde(default)]
+    pub name_color: Option<String>,
+    #[serde(default)]
     pub cover: Option<String>,
     #[serde(default)]
     pub favorite_hubs: Vec<FavoriteHubEntry>,

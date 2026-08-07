@@ -25,6 +25,7 @@ import { MessageAttachments } from "../Attachments";
 import { MessageContent } from "../MessageContent";
 import { GameCard } from "../GameCard";
 import { PollCard } from "../polls/PollCard";
+import { nameColorStyle, safeRoleColor } from "../../utils/roleAppearance";
 
 interface HubEmojiEntry { id: string; name: string; url: string; }
 
@@ -176,6 +177,12 @@ export function MessageRow({
   const isEditing = editingMessageId === m.id;
   const senderUser = users.find((u) => u.public_key === m.sender);
   const senderLabel = senderUser?.display_name || m.sender_name || formatPubkey(m.sender);
+  // Server-resolved name color from the roster; falls back to the per-pubkey
+  // deterministic color when the sender has none (or isn't in the roster —
+  // e.g. an alliance-proxied message).
+  const senderNameColor = safeRoleColor(senderUser?.name_color);
+  const senderNameStyle = senderNameColor ? nameColorStyle(senderNameColor) : { color: colorForKey(m.sender) };
+  const senderNameClass = `message-sender${senderNameColor ? " name-colored" : ""}`;
   const showBirthdayBadge = !hideBirthdays && isBirthdayToday(senderUser?.birthday);
   const isMentioned = m.sender !== publicKey && mentionsName(m.content, myDisplayName);
   const isEphemeral = !!m.visible_to_pubkey && m.visible_to_pubkey === publicKey;
@@ -287,8 +294,8 @@ export function MessageRow({
         >
           <span className="action-asterisk" aria-hidden="true">*</span>
           <span
-            className="message-sender"
-            style={{ color: colorForKey(m.sender) }}
+            className={senderNameClass}
+            style={senderNameStyle}
             onContextMenu={(e) => onAuthorContextMenu(e, m.sender, senderLabel)}
           >
             {senderLabel}
@@ -336,8 +343,8 @@ export function MessageRow({
           <Avatar src={senderUser?.avatar} name={senderLabel} pubkey={m.sender} size={28} />
         </span>
         <span
-          className="message-sender"
-          style={{ color: colorForKey(m.sender), cursor: "pointer" }}
+          className={senderNameClass}
+          style={{ ...senderNameStyle, cursor: "pointer" }}
           onClick={senderUser?.is_bot && !senderUser?.is_webhook ? (e) => onOpenBotCard(m.sender, e) : (e) => onAuthorClick(m.sender, e)}
           onContextMenu={(e) => onAuthorContextMenu(e, m.sender, senderLabel)}
         >
@@ -539,9 +546,13 @@ export function MessageRow({
                 {(threadReplies[m.id] ?? []).map((reply) => {
                   const rSenderUser = users.find((u) => u.public_key === reply.sender);
                   const rLabel = rSenderUser?.display_name || reply.sender_name || formatPubkey(reply.sender);
+                  const rNameColor = safeRoleColor(rSenderUser?.name_color);
                   return (
                     <div key={reply.id} className="message" style={{ paddingTop: 2, paddingBottom: 2 }}>
-                      <span className="message-sender" style={{ color: colorForKey(reply.sender) }}>
+                      <span
+                        className={`message-sender${rNameColor ? " name-colored" : ""}`}
+                        style={rNameColor ? nameColorStyle(rNameColor) : { color: colorForKey(reply.sender) }}
+                      >
                         {rLabel}
                       </span>
                       <span className="message-time" title={formatFullTimestamp(reply.created_at)}>

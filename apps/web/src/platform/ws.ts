@@ -31,6 +31,7 @@ export interface WsHandlers {
     publicKey: string,
     displayName: string | null,
     avatar: string | null,
+    nameColor: string | null,
     hubId: string,
   ) => void;
   /** Presence status changed: status is null (online), "away", or "dnd". */
@@ -180,6 +181,7 @@ export class HubWebSocket {
         tagged.public_key as string,
         (tagged.display_name as string | null) ?? null,
         (tagged.avatar as string | null) ?? null,
+        (tagged.name_color as string | null) ?? null,
         this.hub_id,
       );
     } else if (type === "member_status") {

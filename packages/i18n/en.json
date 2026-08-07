@@ -277,6 +277,8 @@
   "settings.profile.banner.accent_label": "Accent color",
   "settings.profile.banner.reset": "Reset",
   "settings.profile.banner.reset_hint": "Back to your identity colors",
+  "settings.profile.banner.name_color_label": "Name color",
+  "settings.profile.banner.name_color_hint": "Colors your name in chat and the member list, if this hub allows it.",
   "settings.profile.context.default_option": "Default profile",
   "settings.profile.scope.for": "for",
   "settings.profile.context.loading": "Loading…",
