@@ -49,7 +49,7 @@ import {
   forumListTags, forumCreateTag, forumEditTag, forumDeleteTag,
 } from "@platform";
 import type { UserContextMenuActions, WhisperTarget, WhisperReplyBind } from "@wavvon/ui";
-import { getCurrentSurvey, isLobbyScopeConfined, connectHubWebSocket } from "@platform";
+import { getCurrentSurvey, isLobbyScopeConfined, connectHubWebSocket, fetchAllUsers } from "@platform";
 import { SurveyModal } from "@components/polls/SurveyModal";
 import { HubStreamsPanel } from "@wavvon/ui";
 import { AddHubModal } from "@wavvon/ui";
@@ -350,7 +350,7 @@ export default function App({ initialView }: AppProps = {}) {
         }),
       });
       hubFetch("/me").then((r) => r.json() as Promise<MeInfo>).then(setMeInfo).catch(() => {});
-      hubFetch("/users").then((r) => r.json() as Promise<User[]>).then(setUsers).catch(() => {});
+      fetchAllUsers().then(setUsers).catch(() => {});
     } catch (e) {
       showHubError(e instanceof HubApiError ? e.message : String(e));
     }
@@ -361,7 +361,7 @@ export default function App({ initialView }: AppProps = {}) {
   function handleHubProfileSaved(hubId: string) {
     if (hubId !== activeHubId) return;
     hubFetch("/me").then((r) => r.json() as Promise<MeInfo>).then(setMeInfo).catch(() => {});
-    hubFetch("/users").then((r) => r.json() as Promise<User[]>).then(setUsers).catch(() => {});
+    fetchAllUsers().then(setUsers).catch(() => {});
   }
 
   // === Farm admin ===
@@ -651,7 +651,7 @@ export default function App({ initialView }: AppProps = {}) {
     try {
       const [ch, usr, me, convs, cmds, voiceRoster, dmBlocks] = await Promise.allSettled([
         hubFetch("/channels").then((r) => r.json() as Promise<Channel[]>),
-        hubFetch("/users").then((r) => r.json() as Promise<User[]>),
+        fetchAllUsers(),
         hubFetch("/me").then((r) => r.json() as Promise<MeInfo>),
         hubFetch("/conversations").then((r) => r.json() as Promise<Conversation[]>),
         listBotCommands().catch(() => [] as Array<{ command: string; description: string; bot_name: string }>),
@@ -1241,7 +1241,7 @@ export default function App({ initialView }: AppProps = {}) {
           onClose={() => setUserContextMenu(null)}
           onToast={(msg) => showHubError(msg)}
           onRolesChanged={() => {
-            hubFetch("/users").then((r) => r.json() as Promise<User[]>).then(setUsers).catch(() => {});
+            fetchAllUsers().then(setUsers).catch(() => {});
           }}
         />
       )}

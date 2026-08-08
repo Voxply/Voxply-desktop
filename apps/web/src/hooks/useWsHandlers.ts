@@ -2,7 +2,7 @@ import { useMemo, useRef } from "react";
 import type { RefObject } from "react";
 import {
   activeSession, getSession, sendSetStatusTo, hubFetch, reauthorizeHub,
-  refreshHubInfo, listHubs, fetchVoiceRoster,
+  refreshHubInfo, listHubs, fetchVoiceRoster, fetchAllUsers,
 } from "@platform";
 import type { WsHandlers } from "@platform";
 import { mentionsName, playMentionPing } from "@wavvon/core";
@@ -190,7 +190,7 @@ export function useWsHandlers(deps: UseWsHandlersParams) {
         try { getSession(hubId)?.ws?.setWhisperOptout(whisperOptoutRef.current); } catch { /* ws not ready */ }
       }
       if (connected && hubId === activeHubIdRef.current) {
-        hubFetch("/users").then((r) => r.json() as Promise<User[]>).then(setUsers).catch(() => {});
+        fetchAllUsers().then(setUsers).catch(() => {});
         try { activeSession().ws?.requestStreamList(); } catch {}
       }
     },
@@ -231,7 +231,7 @@ export function useWsHandlers(deps: UseWsHandlersParams) {
       // event-maintained state that has no other healing path: channels,
       // the member roster (presence), and who's in which voice channel.
       hubFetch("/channels").then((r) => r.json() as Promise<Channel[]>).then(setChannels).catch(() => {});
-      hubFetch("/users").then((r) => r.json() as Promise<User[]>).then(setUsers).catch(() => {});
+      fetchAllUsers().then(setUsers).catch(() => {});
       fetchVoiceRoster().then(setVoicePartByChannel).catch(() => {});
     },
     onHubUpdated: (hubId) => {
@@ -252,7 +252,7 @@ export function useWsHandlers(deps: UseWsHandlersParams) {
         // their presence registration and say offline, and no further
         // member_online would arrive to correct it.
         if (!known) {
-          hubFetch("/users").then((r) => r.json() as Promise<User[]>).then((list) =>
+          fetchAllUsers().then((list) =>
             setUsers(list.map((u) => u.public_key === publicKey ? { ...u, online: true } : u)),
           ).catch(() => {});
           return prev;
@@ -271,7 +271,7 @@ export function useWsHandlers(deps: UseWsHandlersParams) {
       // never seen them, refetch so they appear.
       setUsers((prev) => {
         if (!prev.some((u) => u.public_key === publicKey)) {
-          hubFetch("/users").then((r) => r.json() as Promise<User[]>).then(setUsers).catch(() => {});
+          fetchAllUsers().then(setUsers).catch(() => {});
           return prev;
         }
         return prev.map((u) =>
