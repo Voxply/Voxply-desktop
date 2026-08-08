@@ -31,7 +31,16 @@ interface SubkeyCert {
 type PairingStatus =
   | { state: "pending" }
   | { state: "claimed"; subkey_pubkey: string; device_label: string }
-  | { state: "complete"; cert: SubkeyCert; wrapped_blob_key_hex: string }
+  | {
+      state: "complete";
+      cert: SubkeyCert;
+      wrapped_blob_key_hex: string;
+      // The canonical DM DH scalar, ECIES-wrapped for this device
+      // (multi-device.md "Mechanism A"). Absent from hubs/enrolling devices
+      // that predate it — this device then pairs without working E2E DMs or
+      // voice, which is what it did before the field existed.
+      wrapped_dh_seed_hex?: string;
+    }
   | { state: "expired" };
 
 type Mode = null | "offer" | "claim";
@@ -244,6 +253,7 @@ export function PairingSection({ hubs }: { hubs: Hub[] }) {
             cert: status.cert,
             homeHubs: saved.homeHubs,
             wrappedBlobKeyHex: status.wrapped_blob_key_hex,
+            wrappedDhSeedHex: status.wrapped_dh_seed_hex ?? null,
           });
           setSyncResult(result);
           setClaimStep("done");

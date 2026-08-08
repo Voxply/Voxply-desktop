@@ -240,9 +240,9 @@ pub(crate) async fn spawn_ws_task(
                                             tokio::spawn(async move {
                                                 let Ok(identity_path) = crate::identity::Identity::default_path() else { return };
                                                 let Ok(identity) = crate::identity::Identity::load(&identity_path) else { return };
-                                                // Scalar selection matches the desktop DM path; paired-device
-                                                // gap documented on voice_keys::build_offer_bundles.
-                                                let (my_dh_sec, _) = identity.dh_keypair();
+                                                // Canonical scalar on a paired device, seed-derived
+                                                // otherwise -- same choice the DM path makes.
+                                                let my_dh_sec = identity.e2e_dh_secret();
                                                 let Some(dh_hex) = crate::dm::fetch_dh_key_http(&http_client_recv, &hub_url_recv, &token_recv, &from_pubkey2).await else { return };
                                                 let Ok(dh_bytes) = hex::decode(&dh_hex) else { return };
                                                 let Ok(dh_arr): Result<[u8; 32], _> = dh_bytes.try_into() else { return };

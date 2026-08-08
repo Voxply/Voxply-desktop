@@ -174,13 +174,9 @@ pub async fn poll_pairing_status(
 }
 
 /// E side — after the user confirms a claim, build a master-signed
-/// SubkeyCert for the claiming subkey, wrap the prefs-blob key for
-/// it, and POST the completion to the home hub that holds the offer.
-///
-/// The wrapped blob key is currently a placeholder: real X25519 ECIES
-/// will land alongside the prefs-blob sync feature. The protocol
-/// shape is correct so we don't have to revise the wire types when
-/// that lands.
+/// SubkeyCert for the claiming subkey, wrap the prefs-blob key **and the
+/// canonical DM DH scalar** for it, and POST the completion to the home hub
+/// that holds the offer.
 #[tauri::command]
 pub async fn complete_pairing(
     home_hub_url: String,
@@ -229,10 +225,41 @@ pub async fn complete_pairing(
         let _ = crate::prefs_blob::push_prefs_blob(&master, &blob_key, &home_hubs, &client).await;
     }
 
+    // multi-device.md "Mechanism A": wrap this device's canonical DM DH
+    // *scalar* for the claiming subkey. Peers fetch our published DH key
+    // under the roster pubkey (`Identity`, not `MasterIdentity` — see
+    // dm.rs's publish_dh_key), so a paired device deriving a DH key from its
+    // own subkey seed would compute a shared secret nobody else agrees with.
+    // That is exactly why paired desktop accounts could not read DMs or
+    // unwrap voice sender keys before this.
+    //
+    // Failing to load the local identity is not fatal to pairing: the new
+    // device still gets a working account, minus E2E DM/voice, which is what
+    // it had before this field existed.
+    let wrapped_dh_seed_hex = match crate::identity::Identity::default_path()
+        .and_then(|p| crate::identity::Identity::load(&p))
+    {
+        Ok(identity) => {
+            let (dh_secret, _) = identity.dh_keypair();
+            match crate::identity::wrap_blob_key(&dh_secret.to_bytes(), &cert.subkey_pubkey) {
+                Ok(hex) => Some(hex),
+                Err(e) => {
+                    eprintln!("pairing: DH scalar wrap failed, paired device gets no E2E: {e}");
+                    None
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("pairing: no local identity to share a DH scalar from: {e}");
+            None
+        }
+    };
+
     let complete = PairingComplete {
         pairing_token,
         cert,
         wrapped_blob_key_hex,
+        wrapped_dh_seed_hex,
     };
 
     let client = http_client()?;
@@ -286,6 +313,14 @@ pub struct PairedIdentity {
     pub device_label: String,
     pub cert: SubkeyCert,
     pub home_hubs: Vec<String>,
+    /// The canonical DM DH X25519 scalar, unwrapped at pairing time from
+    /// `PairingComplete.wrapped_dh_seed_hex` (multi-device.md "Mechanism A").
+    /// This device's own subkey seed does **not** derive the DH key peers
+    /// fetch under the roster pubkey, so every E2E DM and voice sender-key
+    /// operation on a paired device must use this scalar instead. `None` on
+    /// accounts paired before this shipped — they behave as before (no E2E).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub canonical_dh_scalar_hex: Option<String>,
 }
 
 #[derive(serde::Serialize)]
@@ -392,6 +427,7 @@ pub async fn save_paired_identity(
     cert: SubkeyCert,
     home_hubs: Vec<String>,
     wrapped_blob_key_hex: String,
+    wrapped_dh_seed_hex: Option<String>,
 ) -> Result<SyncResult, String> {
     cert.verify().map_err(|e| format!("cert signature: {e}"))?;
     if cert.master_pubkey != master_pubkey {
@@ -414,6 +450,23 @@ pub async fn save_paired_identity(
         return Err("subkey secret doesn't match its pubkey".to_string());
     }
 
+    // Unwrap the canonical DM DH scalar the enrolling device wrapped for us
+    // (multi-device.md "Mechanism A"). A failure here costs E2E DMs and voice
+    // on this device but must not block pairing — the account is still valid
+    // for messages, membership, roles and bans, which are token-based.
+    let canonical_dh_scalar_hex = wrapped_dh_seed_hex
+        .as_deref()
+        .filter(|h| !h.is_empty())
+        .and_then(
+            |wrapped| match crate::identity::unwrap_blob_key(wrapped, &secret_array) {
+                Ok(scalar) => Some(hex::encode(scalar)),
+                Err(e) => {
+                    eprintln!("pairing: canonical DH scalar unwrap failed, no E2E here: {e}");
+                    None
+                }
+            },
+        );
+
     let identity = PairedIdentity {
         master_pubkey: master_pubkey.clone(),
         subkey_pubkey,
@@ -421,6 +474,7 @@ pub async fn save_paired_identity(
         device_label,
         cert,
         home_hubs: home_hubs.clone(),
+        canonical_dh_scalar_hex,
     };
 
     let path = paired_identity_path()?;
@@ -490,6 +544,16 @@ pub fn get_paired_identity() -> Option<PairedIdentity> {
     }
     let text = std::fs::read_to_string(&path).ok()?;
     serde_json::from_str(&text).ok()
+}
+
+/// The canonical DM DH scalar for a paired device, if this device is paired
+/// and was given one (multi-device.md "Mechanism A"). `None` on a primary
+/// device — and on accounts paired before the field existed, which keep the
+/// pre-Mechanism-A behaviour of no working E2E rather than a wrong key.
+pub fn canonical_dh_scalar() -> Option<[u8; 32]> {
+    let hex_str = get_paired_identity()?.canonical_dh_scalar_hex?;
+    let bytes = hex::decode(hex_str).ok()?;
+    bytes.try_into().ok()
 }
 
 fn fingerprint_inner(public_key_hex: &str) -> String {

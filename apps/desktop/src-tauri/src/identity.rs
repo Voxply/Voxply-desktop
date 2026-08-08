@@ -175,6 +175,30 @@ impl Identity {
         (secret, public)
     }
 
+    /// The X25519 scalar every E2E operation on this device must use: the
+    /// canonical one provisioned at pairing time if this is a paired device,
+    /// otherwise this identity's own seed-derived scalar.
+    ///
+    /// Peers agree on E2E DM and voice sender keys against the DH key
+    /// published under our *roster* pubkey (`dm.rs::publish_dh_key`). A
+    /// paired device's subkey seed derives a different scalar, so calling
+    /// `dh_keypair()` directly there computes a shared secret nobody else
+    /// arrives at — silently, as an undecryptable message rather than an
+    /// error. Every DM and voice-key path routes through here so there is
+    /// exactly one place that choice is made.
+    ///
+    // ponytail: re-reads paired_identity.json per call, so decrypting a page
+    // of DMs stats (primary device) or reads+parses (paired device) that file
+    // once per message. It is a sub-KB file and the alternative is caching
+    // keyed on the active account, which has to invalidate on account switch
+    // — not worth it until a profile says otherwise.
+    pub fn e2e_dh_secret(&self) -> x25519_dalek::StaticSecret {
+        if let Some(scalar) = crate::pairing::canonical_dh_scalar() {
+            return x25519_dalek::StaticSecret::from(scalar);
+        }
+        self.dh_keypair().0
+    }
+
     /// Improve security level by computing more proof-of-work.
     pub fn improve_security_level(&mut self, target_level: u32) -> u32 {
         let pub_key = self.public_key_hex();
@@ -769,6 +793,16 @@ pub struct PairingComplete {
     pub pairing_token: String,
     pub cert: SubkeyCert,
     pub wrapped_blob_key_hex: String,
+    /// The canonical (subkey-0/entropy) DM DH X25519 **scalar** (not the
+    /// Ed25519 seed), ECIES-wrapped for the claiming subkey with the same
+    /// `wrap_blob_key` primitive as `wrapped_blob_key_hex`. Lets the paired
+    /// device agree on E2E DM and voice keys as the canonical identity
+    /// without ever holding a signing seed (multi-device.md "Mechanism A").
+    /// `None` for hubs/clients that predate this field — a plain JSON
+    /// addition with no signing-bytes impact, since `PairingComplete` is not
+    /// itself signed; only the nested `cert` is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wrapped_dh_seed_hex: Option<String>,
 }
 
 /// Status returned by the pairing status endpoint.
@@ -783,6 +817,8 @@ pub enum PairingStatus {
     Complete {
         cert: SubkeyCert,
         wrapped_blob_key_hex: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        wrapped_dh_seed_hex: Option<String>,
     },
     Expired,
 }
@@ -1318,5 +1354,113 @@ mod wire_vector_tests {
         let attestation_sb =
             recovery_attestation_signing_bytes(HUB_PUB, OLD_PUB, &new_pub, REQUEST_NONCE);
         assert_ne!(request_sb, attestation_sb);
+    }
+
+    // -----------------------------------------------------------------
+    // Pairing Mechanism A (multi-device.md): the canonical DM DH scalar
+    // travels to a paired device ECIES-wrapped for its subkey. Mirrors
+    // identity/tests/wire_vectors.rs's
+    // `wrapped_dh_scalar_round_trips_through_existing_ecies_primitive`
+    // and packages/core's wire.test.ts equivalent.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn pairing_complete_without_wrapped_dh_seed_parses_as_none() {
+        // JSON from an enrolling device that predates the field must still
+        // deserialize — pairing against an older peer degrades to "no E2E",
+        // it does not fail.
+        let json = serde_json::json!({
+            "pairing_token": "tok123",
+            "cert": {
+                "master_pubkey": MASTER_PUB,
+                "subkey_pubkey": SUBKEY_PUB,
+                "device_label": "laptop",
+                "issued_at": TS,
+                "not_after": null,
+                "fallback_hubs": [],
+                "signature": SUBKEY_CERT_SIG,
+            },
+            "wrapped_blob_key_hex": "deadbeef",
+        });
+        let complete: PairingComplete = serde_json::from_value(json).unwrap();
+        assert_eq!(complete.wrapped_dh_seed_hex, None);
+    }
+
+    /// The property that actually matters: what the claiming device unwraps
+    /// must be the *X25519 scalar* behind the enrolling device's published
+    /// DH key — not its Ed25519 seed. Wrapping the wrong one still
+    /// round-trips 32 bytes and still "works", but every shared secret comes
+    /// out different and messages simply fail to decrypt.
+    #[test]
+    fn unwrapped_canonical_scalar_reproduces_the_published_dh_pubkey() {
+        let enrolling =
+            Identity::from_secret_key_hex(&hex::encode(master_key().to_bytes())).unwrap();
+        let (canonical_secret, canonical_pub) = enrolling.dh_keypair();
+
+        let subkey = subkey_signing_key();
+        let subkey_pubkey_hex = hex_pubkey(&subkey);
+
+        let wrapped = wrap_blob_key(&canonical_secret.to_bytes(), &subkey_pubkey_hex)
+            .expect("wrapping the canonical DH scalar");
+        let unwrapped = unwrap_blob_key(&wrapped, &subkey.to_bytes()).expect("unwrapping it");
+
+        let recovered = x25519_dalek::StaticSecret::from(unwrapped);
+        assert_eq!(
+            x25519_dalek::PublicKey::from(&recovered).as_bytes(),
+            canonical_pub.as_bytes(),
+            "paired device must derive the same DH pubkey peers fetch for the roster identity",
+        );
+    }
+
+    /// A paired device holding the canonical scalar and the enrolling device
+    /// must agree on the same static-static shared secret with any third
+    /// party — that agreement is the whole point of Mechanism A.
+    #[test]
+    fn paired_device_agrees_with_enrolling_device_on_the_shared_secret() {
+        let enrolling =
+            Identity::from_secret_key_hex(&hex::encode(master_key().to_bytes())).unwrap();
+        let (canonical_secret, _) = enrolling.dh_keypair();
+        let subkey = subkey_signing_key();
+
+        let wrapped = wrap_blob_key(&canonical_secret.to_bytes(), &hex_pubkey(&subkey)).unwrap();
+        let paired_scalar = x25519_dalek::StaticSecret::from(
+            unwrap_blob_key(&wrapped, &subkey.to_bytes()).unwrap(),
+        );
+
+        let peer = Identity::from_secret_key_hex(&hex::encode([7u8; 32])).unwrap();
+        let (peer_secret, peer_pub) = peer.dh_keypair();
+
+        assert_eq!(
+            paired_scalar.diffie_hellman(&peer_pub).as_bytes(),
+            canonical_secret.diffie_hellman(&peer_pub).as_bytes(),
+            "paired device must reach the peer's shared secret",
+        );
+        // And the peer reaches the same one from its side.
+        let (_, canonical_pub) = enrolling.dh_keypair();
+        assert_eq!(
+            peer_secret.diffie_hellman(&canonical_pub).as_bytes(),
+            paired_scalar.diffie_hellman(&peer_pub).as_bytes(),
+        );
+    }
+
+    /// The failure this replaces: deriving from the paired device's own
+    /// subkey seed produces a scalar nobody else agrees with. If this ever
+    /// starts passing, `e2e_dh_secret` has stopped mattering.
+    #[test]
+    fn subkey_derived_scalar_does_not_agree_with_the_canonical_one() {
+        let enrolling =
+            Identity::from_secret_key_hex(&hex::encode(master_key().to_bytes())).unwrap();
+        let (canonical_secret, _) = enrolling.dh_keypair();
+        let subkey_identity =
+            Identity::from_secret_key_hex(&hex::encode(subkey_signing_key().to_bytes())).unwrap();
+        let (subkey_secret, _) = subkey_identity.dh_keypair();
+
+        let peer = Identity::from_secret_key_hex(&hex::encode([9u8; 32])).unwrap();
+        let (_, peer_pub) = peer.dh_keypair();
+
+        assert_ne!(
+            subkey_secret.diffie_hellman(&peer_pub).as_bytes(),
+            canonical_secret.diffie_hellman(&peer_pub).as_bytes(),
+        );
     }
 }

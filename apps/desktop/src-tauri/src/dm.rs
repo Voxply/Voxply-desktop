@@ -258,7 +258,7 @@ fn decrypt_dm_inner(
     use hkdf::Hkdf;
     use sha2::Sha256;
 
-    let (my_dh_sec, _) = identity.dh_keypair();
+    let my_dh_sec = identity.e2e_dh_secret();
     let sender_dh_hex = envelope["dh_pubkey_hex"]
         .as_str()
         .ok_or("missing dh_pubkey_hex")?;
@@ -598,7 +598,7 @@ pub(crate) async fn push_group_sender_key(
 
     let identity_path = crate::identity::Identity::default_path().map_err(|e| e.to_string())?;
     let identity = crate::identity::Identity::load(&identity_path).map_err(|e| e.to_string())?;
-    let (my_dh_sec, _) = identity.dh_keypair();
+    let my_dh_sec = identity.e2e_dh_secret();
 
     let mut key_state = load_sender_key_state()?;
 
@@ -741,7 +741,7 @@ pub(crate) async fn rotate_group_sender_key(
 
     let identity_path = crate::identity::Identity::default_path().map_err(|e| e.to_string())?;
     let identity = crate::identity::Identity::load(&identity_path).map_err(|e| e.to_string())?;
-    let (my_dh_sec, _) = identity.dh_keypair();
+    let my_dh_sec = identity.e2e_dh_secret();
 
     let mut key_state = load_sender_key_state()?;
 
@@ -867,7 +867,7 @@ pub(crate) async fn fetch_group_sender_keys(
 ) -> Result<(), String> {
     let identity_path = crate::identity::Identity::default_path().map_err(|e| e.to_string())?;
     let identity = crate::identity::Identity::load(&identity_path).map_err(|e| e.to_string())?;
-    let (my_dh_sec, _) = identity.dh_keypair();
+    let my_dh_sec = identity.e2e_dh_secret();
 
     let (hub_url, token) = active_session(&state)?;
     let client = state.http_client.clone();
@@ -1365,7 +1365,7 @@ pub(crate) async fn init_dr_session(
 
     let identity_path = crate::identity::Identity::default_path().map_err(|e| e.to_string())?;
     let identity = crate::identity::Identity::load(&identity_path).map_err(|e| e.to_string())?;
-    let (my_dh_priv, _) = identity.dh_keypair();
+    let my_dh_priv = identity.e2e_dh_secret();
 
     let session = initiator_init_session(&conv_id, &my_dh_priv, &their_dh_pub_hex)?;
     sessions.insert(conv_id, session);
@@ -1494,7 +1494,7 @@ fn decrypt_dm_dr_inner(
         let identity_path = crate::identity::Identity::default_path().map_err(|e| e.to_string())?;
         let identity =
             crate::identity::Identity::load(&identity_path).map_err(|e| e.to_string())?;
-        let (my_dh_priv, _) = identity.dh_keypair();
+        let my_dh_priv = identity.e2e_dh_secret();
         let session = responder_init_session(conv_id, &my_dh_priv, sender_key, dh_pubkey_hex)?;
         sessions.insert(conv_id.to_string(), session);
     }

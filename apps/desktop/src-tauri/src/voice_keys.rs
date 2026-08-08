@@ -134,17 +134,10 @@ pub(crate) fn voice_key_unwrap(
 /// silently skipped -- matching the hub's "unknown recipients are silently
 /// dropped" convention for `VoiceKeyOffer`.
 ///
-/// DH-scalar selection matches the desktop DM path exactly: derive from this
-/// device's `Identity` seed (`identity.dh_keypair()`, as every `dm.rs` wrap
-/// does). KNOWN GAP -- paired devices: desktop pairing does not yet
-/// provision the canonical DH scalar (multi-device.md "Mechanism A";
-/// `PairingComplete` in identity.rs has no `wrapped_dh_seed_hex`), so on a
-/// paired account this -- like all desktop DM E2E -- cannot use the DH key
-/// peers fetch under our roster pubkey (in practice both no-op there:
-/// `Identity::load` fails, a paired account has only paired_identity.json).
-/// When desktop pairing ships Mechanism A, select the canonical scalar here
-/// and in ws.rs's `VoiceKeyReceived` unwrap, mirroring web's
-/// `resolveDmSendAttribution`.
+/// DH-scalar selection matches the desktop DM path exactly, because both go
+/// through `Identity::e2e_dh_secret()` -- the canonical scalar provisioned at
+/// pairing time on a paired device (multi-device.md "Mechanism A"), the
+/// seed-derived one otherwise. Mirrors web's `resolveDmSendAttribution`.
 pub(crate) async fn build_offer_bundles(
     client: &reqwest::Client,
     hub_url: &str,
@@ -154,7 +147,7 @@ pub(crate) async fn build_offer_bundles(
     gen: &SenderKeyGen,
     recipients: &[String],
 ) -> Vec<VoiceKeyBundleInfo> {
-    let (my_dh_sec, _) = identity.dh_keypair();
+    let my_dh_sec = identity.e2e_dh_secret();
     let mut bundles = Vec::new();
     for pubkey in recipients {
         let Some(dh_hex) = crate::dm::fetch_dh_key_http(client, hub_url, token, pubkey).await
