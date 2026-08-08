@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { WhisperList, WhisperReplyBind, WhisperTarget } from "@wavvon/ui";
+import type { WhisperList, WhisperReplyBind, WhisperTarget } from "../types";
 
 interface Params {
   voiceChannelId: string | null;

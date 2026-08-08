@@ -45,7 +45,6 @@ export function useChannelCrud({
   const [editDescriptionChannel, setEditDescriptionChannel] = useState<Channel | null>(null);
   const [editDescriptionValue, setEditDescriptionValue] = useState("");
 
-  const [appearanceChannel, setAppearanceChannel] = useState<Channel | null>(null);
   const [channelSettingsModal, setChannelSettingsModal] = useState<Channel | null>(null);
   const [channelSettingsSaving, setChannelSettingsSaving] = useState(false);
   const [channelSettingsDeleting, setChannelSettingsDeleting] = useState(false);
@@ -195,26 +194,11 @@ export function useChannelCrud({
     }
   }
 
-  function handleEditAppearance(channel: Channel) {
-    setAppearanceChannel(channel);
-  }
-
   async function handleSaveBannerUrl(channelId: string, bannerUrl: string) {
     try {
       await invoke("patch_channel_banner_url", { channelId, bannerUrl });
       setChannels((prev) =>
         prev.map((c) => (c.id === channelId ? { ...c, banner_url: bannerUrl, banner_file_id: null } : c))
-      );
-    } catch (e) {
-      setError(String(e));
-    }
-  }
-
-  async function handleSaveAppearance(channel: Channel, icon: string | null, color: string | null, customIconSvg: string | null) {
-    try {
-      await invoke("update_channel_appearance", { channelId: channel.id, icon, color, customIconSvg });
-      setChannels((prev) =>
-        prev.map((c) => (c.id === channel.id ? { ...c, icon, color, custom_icon_svg: customIconSvg } : c))
       );
     } catch (e) {
       setError(String(e));
@@ -336,8 +320,6 @@ export function useChannelCrud({
     setEditDescriptionChannel,
     editDescriptionValue,
     setEditDescriptionValue,
-    appearanceChannel,
-    setAppearanceChannel,
     channelSettingsModal,
     setChannelSettingsModal,
     channelSettingsSaving,
@@ -352,9 +334,7 @@ export function useChannelCrud({
     openEditDescription,
     handleSaveDescription,
     handleDeleteChannel,
-    handleEditAppearance,
     handleSaveBannerUrl,
-    handleSaveAppearance,
     handleSaveChannelSettings,
     handleDeleteChannelSettings,
     openCreateChannelUnder,

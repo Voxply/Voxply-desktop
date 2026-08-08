@@ -143,13 +143,6 @@ export interface SoundboardClip {
   created_at: number;
 }
 
-export interface SoundboardPlayedEvent {
-  channel_id: string;
-  clip_id: string;
-  clip_name: string;
-  public_key: string;
-}
-
 export interface InviteInfo {
   code: string;
   created_by: string;

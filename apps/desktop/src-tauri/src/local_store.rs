@@ -186,6 +186,10 @@ pub(crate) fn dnd_settings_path() -> Result<std::path::PathBuf, String> {
     crate::accounts::active_dnd_settings_path()
 }
 
+pub(crate) fn whisper_optout_path() -> Result<std::path::PathBuf, String> {
+    crate::accounts::active_whisper_optout_path()
+}
+
 pub(crate) fn notif_prefs_path() -> Result<std::path::PathBuf, String> {
     crate::accounts::active_notif_prefs_path()
 }
@@ -465,6 +469,33 @@ pub(crate) fn save_dnd_settings(active: bool) -> Result<(), String> {
         std::fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
     }
     let text = serde_json::to_string(&serde_json::json!({ "active": active }))
+        .map_err(|e| e.to_string())?;
+    std::fs::write(&path, text).map_err(|e| format!("write: {e}"))?;
+    Ok(())
+}
+
+/// Whisper receive opt-out. Per-account (not device-global): two accounts on
+/// one machine can disagree about whether they accept whispers. The hub holds
+/// this per *connection*, so the frontend re-sends it on every reconnect —
+/// this file is only the local memory of the choice.
+#[tauri::command]
+pub(crate) fn load_whisper_optout() -> Result<bool, String> {
+    let path = whisper_optout_path()?;
+    if !path.exists() {
+        return Ok(false);
+    }
+    let text = std::fs::read_to_string(&path).map_err(|e| format!("read: {e}"))?;
+    let v: serde_json::Value = serde_json::from_str(&text).map_err(|e| format!("parse: {e}"))?;
+    Ok(v.get("enabled").and_then(|a| a.as_bool()).unwrap_or(false))
+}
+
+#[tauri::command]
+pub(crate) fn save_whisper_optout(enabled: bool) -> Result<(), String> {
+    let path = whisper_optout_path()?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
+    }
+    let text = serde_json::to_string(&serde_json::json!({ "enabled": enabled }))
         .map_err(|e| e.to_string())?;
     std::fs::write(&path, text).map_err(|e| format!("write: {e}"))?;
     Ok(())

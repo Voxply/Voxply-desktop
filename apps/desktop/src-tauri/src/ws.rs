@@ -527,7 +527,48 @@ pub(crate) async fn spawn_ws_task(
                                             "channel_id": channel_id,
                                         }));
                                     }
-                                    WsServerMessage::Other => {}
+                                    WsServerMessage::HubUpdated => {
+                                        let _ = app.emit("hub-updated", serde_json::json!({
+                                            "hub_id": hub_id_for_task,
+                                        }));
+                                    }
+                                    WsServerMessage::ChannelsUpdated => {
+                                        let _ = app.emit("channels-updated", serde_json::json!({
+                                            "hub_id": hub_id_for_task,
+                                        }));
+                                    }
+                                    WsServerMessage::MemberUpdated { public_key, display_name, avatar, name_color } => {
+                                        let _ = app.emit("member-updated", serde_json::json!({
+                                            "hub_id": hub_id_for_task,
+                                            "public_key": public_key,
+                                            "display_name": display_name,
+                                            "avatar": avatar,
+                                            "name_color": name_color,
+                                        }));
+                                    }
+                                    WsServerMessage::SoundboardPlayed { channel_id, clip_id, clip_name, public_key } => {
+                                        let _ = app.emit("soundboard-played", serde_json::json!({
+                                            "hub_id": hub_id_for_task,
+                                            "channel_id": channel_id,
+                                            "clip_id": clip_id,
+                                            "clip_name": clip_name,
+                                            "public_key": public_key,
+                                        }));
+                                    }
+                                    // A hub event this build does not model. Four
+                                    // of them (hub_updated, channels_updated,
+                                    // member_updated, soundboard_played) sat here
+                                    // unnoticed for months because the arm was a
+                                    // silent no-op — desktop simply never learned
+                                    // about features web had shipped. Name the
+                                    // frame so the next one shows up in the log.
+                                    WsServerMessage::Other => {
+                                        let kind = serde_json::from_str::<serde_json::Value>(&text)
+                                            .ok()
+                                            .and_then(|v| v.get("type").and_then(|t| t.as_str()).map(str::to_string))
+                                            .unwrap_or_else(|| "<untyped>".to_string());
+                                        eprintln!("WS: unhandled hub event type {kind:?} — no desktop handler");
+                                    }
                                 }
                             }
                         }

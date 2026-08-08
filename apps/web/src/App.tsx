@@ -3,16 +3,16 @@ import { useTranslation } from "react-i18next";
 import { useUnreadCounts } from "./hooks/useUnreadCounts";
 import { useNotificationPrefs } from "./hooks/useNotificationPrefs";
 import { useTypingIndicators } from "./hooks/useTypingIndicators";
-import { useSoundboardChips } from "./hooks/useSoundboardChips";
+
 import { useHubConnection } from "./hooks/useHubConnection";
 import { useHubAdmin } from "./hooks/useHubAdmin";
 import { useAlliances } from "./hooks/useAlliances";
 import { useSettingsProfile } from "./hooks/useSettingsProfile";
 import { useFarmAdmin } from "./hooks/useFarmAdmin";
-import { useWhisper, pickReplyPubkey } from "./hooks/useWhisper";
+import { useWhisper } from "./hooks/useWhisper";
+import { pickReplyPubkey, useWhisperKeybinds } from "@wavvon/ui";
 import { useScreenShare } from "./hooks/useScreenShare";
 import { useDms } from "./hooks/useDms";
-import { useWhisperKeybinds } from "./hooks/useWhisperKeybinds";
 import { useVoice } from "./hooks/useVoice";
 import type { VoiceExtDeps } from "./hooks/useVoice";
 import { useVideo } from "./hooks/useVideo";
@@ -38,6 +38,7 @@ import type {
 } from "@shared/types";
 import type { BotAppLaunchEvent, BotAppOpenEvent } from "./types";
 import { HubSidebar } from "@wavvon/ui";
+import { useSoundboardChips } from "@wavvon/ui";
 import { WhisperInbox } from "@wavvon/ui";
 import { ContentArea } from "@components/layout/ContentArea";
 import { ChannelSidebarContainer } from "@components/layout/ChannelSidebarContainer";

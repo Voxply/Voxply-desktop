@@ -1,59 +1,13 @@
 import { useEffect, useState } from "react";
 import { activeSession, allSessions } from "@platform";
-import type { WhisperTarget, WhisperList } from "@wavvon/ui";
+import type { WhisperTarget, WhisperList, InboundWhisperEntry } from "@wavvon/ui";
+import { applyWhisperLogEvent } from "@wavvon/ui";
 import { loadWhisperLists, saveWhisperLists } from "../utils/whisperLists";
 import { loadWhisperOptout, saveWhisperOptout } from "../utils/whisperOptout";
 
 interface UseWhisperParams {
   activeHubId: string | null;
   voiceChannelId: string | null;
-}
-
-// The hook only knows senders by pubkey — WhisperInbox's `name` is resolved
-// by the caller (App.tsx has the member/participant list) at render time.
-export interface InboundWhisperEntry {
-  pubkey: string;
-  startedAt: number;
-  live: boolean;
-}
-
-/** Pure reducer for the whisper inbox log (WhisperInbox.tsx): a "started"
- *  event either reopens the existing live entry for that sender (no
- *  duplicate rows while someone whispers continuously) or appends a new
- *  one; a "stopped" event just flips the matching live entry to ended —
- *  entries otherwise persist until the caller dismisses them. */
-export function applyWhisperLogEvent(
-  log: InboundWhisperEntry[],
-  pubkey: string,
-  isWhisper: boolean,
-  now: number = Date.now(),
-): InboundWhisperEntry[] {
-  if (isWhisper) {
-    if (log.some((e) => e.pubkey === pubkey && e.live)) return log;
-    return [...log, { pubkey, startedAt: now, live: true }];
-  }
-  let done = false;
-  return log.map((e) => {
-    if (!done && e.pubkey === pubkey && e.live) {
-      done = true;
-      return { ...e, live: false };
-    }
-    return e;
-  });
-}
-
-/** Who a whisper-reply keypress should target: the currently-live inbound
- *  whisperer if there is one, otherwise the most recent entry still in the
- *  inbox (reply works after the whisper ended — that's the inbox's point).
- *  Null when nobody has whispered us (the reply key is then a no-op). */
-export function pickReplyPubkey(log: InboundWhisperEntry[]): string | null {
-  const live = [...log].reverse().find((e) => e.live);
-  if (live) return live.pubkey;
-  const latest = log.reduce<InboundWhisperEntry | null>(
-    (best, e) => (!best || e.startedAt > best.startedAt ? e : best),
-    null,
-  );
-  return latest?.pubkey ?? null;
 }
 
 // Web mirror of the desktop useWhisper hook (apps/desktop/src/hooks/useWhisper.ts):

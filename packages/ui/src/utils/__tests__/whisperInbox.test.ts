@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyWhisperLogEvent, pickReplyPubkey } from "../useWhisper";
+import { applyWhisperLogEvent, pickReplyPubkey } from "../whisperInbox";
 
 describe("applyWhisperLogEvent", () => {
   it("appends a new live entry on whisper start", () => {

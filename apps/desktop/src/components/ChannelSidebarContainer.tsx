@@ -2,7 +2,7 @@ import type React from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { ChannelSidebar } from "@wavvon/ui";
-import type { VoiceMoveMenuState } from "@wavvon/ui";
+import type { VoiceMoveMenuState, SoundboardChip, WhisperReplyBind } from "@wavvon/ui";
 import { formatPubkey, type TreeNode } from "@wavvon/core";
 import { hasDraft } from "../utils/drafts";
 import type {
@@ -61,6 +61,9 @@ interface Props {
   onSetStatus: (status: "online" | "away" | "dnd" | "invisible", ttlMinutes: number | null) => void;
   showWhisperPanel: boolean;
   setShowWhisperPanel: Dispatch<SetStateAction<boolean>>;
+  soundboardChipsByChannel: Record<string, SoundboardChip[]>;
+  whisperReplyBind: WhisperReplyBind;
+  onSetWhisperReplyBind: (bind: WhisperReplyBind) => void;
 
   voice: ReturnType<typeof useVoice>;
   video: ReturnType<typeof useVideo>;
@@ -93,7 +96,8 @@ export function ChannelSidebarContainer({
   setShowCreateChannel, setChannelSettingsModal,
   leaveVoiceChannel, canMoveMembers, openFriends, openSettings, onDragEnd,
   setShowSearchBar, myPresence, onSetStatus,
-  showWhisperPanel, setShowWhisperPanel,
+  showWhisperPanel, setShowWhisperPanel, soundboardChipsByChannel,
+  whisperReplyBind, onSetWhisperReplyBind,
   voice, video, whisper, soundboard, notifyPrefs, hubLifecycle, channelMessages,
   unreadCounts, dms,
 }: Props) {
@@ -185,12 +189,17 @@ export function ChannelSidebarContainer({
       onStopWhisper={whisper.stopWhisper}
       onSaveWhisperList={whisper.saveWhisperList}
       onDeleteWhisperList={whisper.deleteWhisperList}
+      whisperReplyBind={whisperReplyBind}
+      onSetWhisperReplyBind={onSetWhisperReplyBind}
+      whisperOptout={whisper.whisperOptout}
+      onSetWhisperOptout={whisper.setWhisperOptout}
       videoEnabled={video.videoEnabled}
       onToggleVideo={(deviceId) => (video.videoEnabled ? video.disableVideo() : video.enableVideo(deviceId))}
       canUseSoundboard={canUseSoundboard}
       onListSoundboardClips={soundboard.listClips}
       onTriggerSoundboardClip={soundboard.triggerClip}
       soundboardPlayingClipId={soundboard.playingClipId}
+      soundboardChips={voice.voiceChannelId ? soundboardChipsByChannel[voice.voiceChannelId] ?? [] : []}
     />
   );
 }

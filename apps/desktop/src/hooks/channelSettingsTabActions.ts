@@ -28,9 +28,7 @@ export const channelPermissionsTabActions: ChannelPermissionsTabActions = {
 
 export const channelBansTabActions: ChannelBansTabActions = {
   listChannelBans: (channelId) =>
-    invoke<{ target_public_key: string; reason: string | null }[]>("list_channel_bans", { channelId }).then(
-      (rows) => rows.map((r) => ({ pubkey: r.target_public_key, reason: r.reason })),
-    ),
+    invoke<{ pubkey: string; reason: string | null }[]>("list_channel_bans", { channelId }),
   banFromChannel: (channelId, pubkey, reason) =>
     invoke("channel_ban_user", { channelId, targetPublicKey: pubkey, reason: reason ?? null }),
   unbanFromChannel: (channelId, pubkey) =>

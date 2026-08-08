@@ -779,13 +779,17 @@ pub(crate) async fn timeout_user_cmd(
     .await
 }
 
+/// Mirrors the hub's `ChannelBanByPubkeyResponse`. Desktop used to call a
+/// second set of routes under `/moderation/channels/{id}/bans` that wrote the
+/// same table under different field names and a weaker permission gate; those
+/// were folded into `/channels/{id}/bans` on the hub (2026-08-08).
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub(crate) struct ChannelBanInfo {
     pub channel_id: String,
-    pub target_public_key: String,
+    pub pubkey: String,
     pub banned_by: String,
     pub reason: Option<String>,
-    pub created_at: i64,
+    pub banned_at: i64,
 }
 
 #[tauri::command]
@@ -798,10 +802,10 @@ pub(crate) async fn channel_ban_user(
     let (hub_url, token) = active_session(&state)?;
     let client = state.http_client.clone();
     let resp = client
-        .post(format!("{hub_url}/moderation/channels/{channel_id}/bans"))
+        .post(format!("{hub_url}/channels/{channel_id}/bans"))
         .bearer_auth(&token)
         .json(&serde_json::json!({
-            "target_public_key": target_public_key,
+            "pubkey": target_public_key,
             "reason": reason,
         }))
         .send()
@@ -823,7 +827,7 @@ pub(crate) async fn channel_unban_user(
     let client = state.http_client.clone();
     let resp = client
         .delete(format!(
-            "{hub_url}/moderation/channels/{channel_id}/bans/{target_public_key}"
+            "{hub_url}/channels/{channel_id}/bans/{target_public_key}"
         ))
         .bearer_auth(&token)
         .send()
@@ -843,7 +847,7 @@ pub(crate) async fn list_channel_bans(
     let (hub_url, token) = active_session(&state)?;
     let client = state.http_client.clone();
     let resp = client
-        .get(format!("{hub_url}/moderation/channels/{channel_id}/bans"))
+        .get(format!("{hub_url}/channels/{channel_id}/bans"))
         .bearer_auth(&token)
         .send()
         .await

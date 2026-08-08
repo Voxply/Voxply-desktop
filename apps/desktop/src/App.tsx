@@ -46,7 +46,10 @@ import { ScreenShareModal } from "./components/ScreenShareModal";
 import { ScreenShareOverlay } from "./components/ScreenShareOverlay";
 import { BotAppLaunchCard, CreateHubWizard, KeyboardShortcuts, DiscoverPage, Lobby, FarmSettingsPage, HubSetupWizard, ChannelContextMenu, EventComposer, PollComposer, type CreateEventPayload, type HubEvent, type Poll } from "@wavvon/ui";
 import { VoiceMoveMenu, VoiceMoveToast, VoiceMovePromptModal, SearchBar, moveChannelOptions, computeDragIntent } from "@wavvon/ui";
-import { useVoiceMoveUx, usePresenceStatus, useHubSetupWizardGate } from "@wavvon/ui";
+import { useVoiceMoveUx, usePresenceStatus, useHubSetupWizardGate, useSoundboardChips } from "@wavvon/ui";
+import { useWhisperKeybinds, pickReplyPubkey, WhisperInbox } from "@wavvon/ui";
+import type { WhisperReplyBind, WhisperTarget } from "@wavvon/ui";
+import { loadWhisperReplyBind, saveWhisperReplyBind } from "./utils/whisperReply";
 import type { GlobalSearchResult } from "@wavvon/ui";
 import { useVoice } from "./hooks/useVoice";
 import { useSoundboard } from "./hooks/useSoundboard";
@@ -548,8 +551,6 @@ function App() {
     setEditDescriptionChannel,
     editDescriptionValue,
     setEditDescriptionValue,
-    appearanceChannel,
-    setAppearanceChannel,
     channelSettingsModal,
     setChannelSettingsModal,
     channelSettingsSaving,
@@ -564,9 +565,7 @@ function App() {
     openEditDescription,
     handleSaveDescription,
     handleDeleteChannel,
-    handleEditAppearance,
     handleSaveBannerUrl,
-    handleSaveAppearance,
     handleSaveChannelSettings,
     handleDeleteChannelSettings,
     openCreateChannelUnder,
@@ -648,6 +647,30 @@ function App() {
 
   const whisper = useWhisper({ activeHubId, voiceChannelId: voice.voiceChannelId });
   const soundboard = useSoundboard(voice.voiceChannelId);
+  const { chipsByChannel: soundboardChipsByChannel, receiveSoundboardPlayed } = useSoundboardChips();
+  const whisperOptoutRef = useRef(whisper.whisperOptout);
+  whisperOptoutRef.current = whisper.whisperOptout;
+  const [whisperReplyBind, setWhisperReplyBindState] = useState<WhisperReplyBind>(loadWhisperReplyBind);
+  const setWhisperReplyBind = (bind: WhisperReplyBind) => {
+    setWhisperReplyBindState(bind);
+    saveWhisperReplyBind(bind);
+  };
+  // Reply key target: the most recent inbound whisperer (see pickReplyPubkey).
+  const whisperReplyTarget = useMemo<WhisperTarget | null>(() => {
+    const pk = pickReplyPubkey(whisper.inboundWhisperLog);
+    if (!pk) return null;
+    const name = users.find((u) => u.public_key === pk)?.display_name;
+    return { type: "user", id: pk, label: name || pk.slice(0, 8) };
+  }, [whisper.inboundWhisperLog, users]);
+  useWhisperKeybinds({
+    voiceChannelId: voice.voiceChannelId,
+    whisperLists: whisper.whisperLists,
+    isWhispering: whisper.isWhispering,
+    startWhisper: whisper.startWhisper,
+    stopWhisper: whisper.stopWhisper,
+    replyBind: whisperReplyBind,
+    replyTarget: whisperReplyTarget,
+  });
   const [showWhisperPanel, setShowWhisperPanel] = useState(false);
   const [showSearchBar, setShowSearchBar] = useState(false);
 
@@ -814,6 +837,7 @@ function App() {
     users,
     setUsers,
     myPresenceRef,
+    whisperOptoutRef,
     setHubConnected,
     setAssertiveAnnouncement,
     setToast,
@@ -864,6 +888,18 @@ function App() {
       invoke("close_mini_app", { label: `mini-app-${ev.bot_id}` }).catch(() => {});
     },
     onVoiceMove: onVoiceMovePush,
+    onChannelsChanged: () => {
+      invoke<Channel[]>("list_channels").then(setChannels).catch(() => {});
+    },
+    onHubBrandingChanged: () => {
+      invoke<{ timezone?: string | null }>("get_hub_branding")
+        .then((b) => setActiveHubTimezone(b.timezone ?? null))
+        .catch(() => {});
+      // The hub's name/icon live in the Rust-side account store, so the
+      // sidebar entry only refreshes by re-reading the saved hub list.
+      invoke<Hub[]>("list_hubs").then(setHubs).catch(() => {});
+    },
+    onSoundboardPlayed: receiveSoundboardPlayed,
   });
 
   async function loadHubData() {
@@ -1394,6 +1430,14 @@ function App() {
       >
         {voicePoliteAnnouncement}
       </div>
+      <WhisperInbox
+        entries={whisper.inboundWhisperLog.map((e) => ({
+          ...e,
+          name: users.find((u) => u.public_key === e.pubkey)?.display_name || e.pubkey.slice(0, 8),
+        }))}
+        onDismiss={whisper.dismissInbound}
+        onClearAll={whisper.clearInbound}
+      />
       {toast && (
         <div className="toast" onClick={() => setToast(null)}>
           {toast}
@@ -1601,6 +1645,9 @@ function App() {
               <>
                 <ChannelSidebarContainer
                   view={view}
+                  soundboardChipsByChannel={soundboardChipsByChannel}
+                  whisperReplyBind={whisperReplyBind}
+                  onSetWhisperReplyBind={setWhisperReplyBind}
                   channels={channels}
                   users={users}
                   publicKey={publicKey}
@@ -1879,7 +1926,6 @@ function App() {
             onCreateChannelIn={(parentId) => openCreateChannelUnder(parentId)}
             onCreateChannel={isAdmin ? () => openCreateChannelUnder(null) : undefined}
             onCreateCategory={isAdmin ? () => openCreateChannelUnder(null, true) : undefined}
-            onEditAppearance={handleEditAppearance}
             onEditChannel={setChannelSettingsModal}
             onDeleteChannel={(channel) => handleDeleteChannel(channel.id)}
           />
@@ -1893,9 +1939,6 @@ function App() {
           onDescriptionChange={setEditDescriptionValue}
           onSaveDescription={handleSaveDescription}
           onCloseEditDescription={() => setEditDescriptionChannel(null)}
-          appearanceChannel={appearanceChannel}
-          onSaveAppearance={handleSaveAppearance}
-          onCloseAppearance={() => setAppearanceChannel(null)}
           bannerEditChannel={bannerEditChannel}
           onSaveBanner={handleSaveBannerUrl}
           onCloseBanner={() => setBannerEditChannel(null)}

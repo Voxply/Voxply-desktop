@@ -216,6 +216,8 @@ pub fn run() {
             local_store::save_ignored_users,
             local_store::load_dnd_settings,
             local_store::save_dnd_settings,
+            local_store::load_whisper_optout,
+            local_store::save_whisper_optout,
             local_store::get_profile,
             local_store::save_profile,
             local_store::get_notification_prefs,

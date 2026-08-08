@@ -438,6 +438,10 @@ pub(crate) fn active_dnd_settings_path() -> Result<PathBuf, String> {
     Ok(active_account_dir()?.join("dnd_settings.json"))
 }
 
+pub(crate) fn active_whisper_optout_path() -> Result<PathBuf, String> {
+    Ok(active_account_dir()?.join("whisper_optout.json"))
+}
+
 pub(crate) fn active_notif_prefs_path() -> Result<PathBuf, String> {
     Ok(active_account_dir()?.join("notification_prefs.json"))
 }

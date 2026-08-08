@@ -1121,6 +1121,32 @@ pub(crate) enum WsServerMessage {
     },
     #[serde(rename = "bot_app_close")]
     BotAppClose { bot_id: String, channel_id: String },
+    /// Hub branding/settings changed; re-fetch the hub info.
+    #[serde(rename = "hub_updated")]
+    HubUpdated,
+    /// The channel list changed; re-fetch /channels.
+    #[serde(rename = "channels_updated")]
+    ChannelsUpdated,
+    /// A member's profile changed. Only the fields mirrored elsewhere (member
+    /// list, message authors) ride along; richer profile fields are fetched
+    /// live when a card opens.
+    #[serde(rename = "member_updated")]
+    MemberUpdated {
+        public_key: String,
+        display_name: Option<String>,
+        avatar: Option<String>,
+        #[serde(default)]
+        name_color: Option<String>,
+    },
+    /// Soundboard clip-played attribution — drives the transient
+    /// "🔊 X played *name*" chip in the voice roster.
+    #[serde(rename = "soundboard_played")]
+    SoundboardPlayed {
+        channel_id: String,
+        clip_id: String,
+        clip_name: String,
+        public_key: String,
+    },
     #[serde(other)]
     Other,
 }

@@ -20,7 +20,7 @@ import type { useScreenShare } from "../../hooks/useScreenShare";
 import type { useChannelCrud } from "../../hooks/useChannelCrud";
 import type { useChannelMessages } from "../../hooks/useChannelMessages";
 import type { useHubAdmin } from "../../hooks/useHubAdmin";
-import type { SoundboardChip } from "../../hooks/useSoundboardChips";
+import type { SoundboardChip } from "@wavvon/ui";
 import type { AllianceSharedChannel, User } from "@shared/types";
 
 type VoiceState = ReturnType<typeof useVoice>;

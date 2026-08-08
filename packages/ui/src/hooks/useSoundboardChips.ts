@@ -1,16 +1,19 @@
 import { useState } from "react";
-import type { SoundboardPlayedEvent } from "../types";
+import type { SoundboardChip } from "../types";
 
-export interface SoundboardChip extends SoundboardPlayedEvent {
-  id: string;
+/** The `soundboard_played` WS payload (soundboard.md §1 Routes and events). */
+export interface SoundboardPlayedEvent {
+  channel_id: string;
+  clip_id: string;
+  clip_name: string;
+  public_key: string;
 }
 
 const CHIP_TTL_MS = 4000;
 
-/** Validates a raw WS payload against the `soundboard_played` shape
- *  (soundboard.md §1 Routes and events) before it's trusted as attribution
- *  UX -- a malformed or unrelated event should silently no-op, not throw or
- *  render garbage. */
+/** Validates a raw WS payload against the `soundboard_played` shape before
+ *  it's trusted as attribution UX -- a malformed or unrelated event should
+ *  silently no-op, not throw or render garbage. */
 export function parseSoundboardPlayedEvent(raw: unknown): SoundboardPlayedEvent | null {
   if (!raw || typeof raw !== "object") return null;
   const m = raw as Record<string, unknown>;
@@ -26,6 +29,10 @@ export function parseSoundboardPlayedEvent(raw: unknown): SoundboardPlayedEvent 
   return { channel_id, clip_id, clip_name, public_key };
 }
 
+/** Per-channel transient "🔊 X played *name*" chips, self-expiring after
+ *  `CHIP_TTL_MS`. Network-free — both apps feed it raw WS payloads from
+ *  whatever transport they use (web: the hub WebSocket; desktop: the
+ *  `soundboard-played` Tauri event). */
 export function useSoundboardChips() {
   const [chipsByChannel, setChipsByChannel] = useState<Record<string, SoundboardChip[]>>({});
 
@@ -33,7 +40,7 @@ export function useSoundboardChips() {
     const ev = parseSoundboardPlayedEvent(raw);
     if (!ev) return;
     const id = `${ev.channel_id}:${ev.clip_id}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
-    const chip: SoundboardChip = { ...ev, id };
+    const chip: SoundboardChip = { id, public_key: ev.public_key, clip_name: ev.clip_name };
     setChipsByChannel((prev) => ({
       ...prev,
       [ev.channel_id]: [...(prev[ev.channel_id] ?? []), chip],
