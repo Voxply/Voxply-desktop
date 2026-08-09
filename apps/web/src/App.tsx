@@ -50,6 +50,7 @@ import {
 } from "@platform";
 import type { UserContextMenuActions, WhisperTarget, WhisperReplyBind } from "@wavvon/ui";
 import { getCurrentSurvey, isLobbyScopeConfined, connectHubWebSocket, fetchAllUsers } from "@platform";
+import { fetchMemberHistory } from "@platform";
 import { SurveyModal } from "@components/polls/SurveyModal";
 import { HubStreamsPanel } from "@wavvon/ui";
 import { AddHubModal } from "@wavvon/ui";
@@ -1035,6 +1036,7 @@ export default function App({ initialView }: AppProps = {}) {
     },
     toggleBlock: toggleBlockUser,
     toggleIgnore: toggleIgnoreUser,
+    fetchMemberHistory,
   };
 
   const knownDisplayNames = useMemo(

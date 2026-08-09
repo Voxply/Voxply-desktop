@@ -1,4 +1,5 @@
 import { hubFetch } from "../http";
+import type { MemberHistoryEntry } from "@wavvon/ui";
 import type {
   Report,
   ModerationSettings,
@@ -157,4 +158,17 @@ export async function voiceUnmuteMember(targetPublicKey: string): Promise<void> 
 export async function listVoiceMutes(): Promise<VoiceMuteInfo[]> {
   const r = await hubFetch("/moderation/voice-mutes");
   return r.json() as Promise<VoiceMuteInfo[]>;
+}
+
+/**
+ * What other hubs have said about a member.
+ *
+ * The read side of `soft-flag`: a subscribed hub banned this person, this hub
+ * let them in, and a moderator deciding what to do gets to know. Requires the
+ * ban permission, same as the actions it informs.
+ */
+export async function fetchMemberHistory(pubkey: string): Promise<MemberHistoryEntry[]> {
+  const res = await hubFetch(`/moderation/history/${encodeURIComponent(pubkey)}`);
+  const body = (await res.json()) as { entries?: MemberHistoryEntry[] };
+  return body.entries ?? [];
 }

@@ -840,6 +840,8 @@
   "user.ctx.blocked_feedback": "Bloccato — i loro messaggi e menzioni saranno nascosti.",
   "user.ctx.unblocked_feedback": "Sbloccato",
   "user.ctx.loading_profile": "Caricamento profilo…",
+  "user.ctx.history_header": "Segnalato altrove ({{count}})",
+  "user.ctx.history_no_reason": "Nessuna motivazione",
   "dm.group_warning_title": "I messaggi di gruppo non sono cifrati",
   "message.ignored_placeholder": "Messaggio da utente ignorato — clicca per mostrare",
   "challenge.unavailable": "Verifica non disponibile",

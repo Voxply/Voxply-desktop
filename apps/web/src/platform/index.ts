@@ -210,6 +210,7 @@ export {
 } from "./commands/soundboard";
 
 export {
+  fetchMemberHistory,
   reportMessage,
   listReports,
   reviewReport,

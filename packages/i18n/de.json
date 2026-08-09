@@ -840,6 +840,8 @@
   "user.ctx.blocked_feedback": "Blockiert — Nachrichten und Erwähnungen werden ausgeblendet.",
   "user.ctx.unblocked_feedback": "Entsperrt",
   "user.ctx.loading_profile": "Profil wird geladen…",
+  "user.ctx.history_header": "Anderswo aufgefallen ({{count}})",
+  "user.ctx.history_no_reason": "Kein Grund angegeben",
   "dm.group_warning_title": "Gruppennachrichten sind nicht verschlüsselt",
   "message.ignored_placeholder": "Nachricht von ignoriertem Benutzer — zum Anzeigen klicken",
   "challenge.unavailable": "Verifizierung nicht verfügbar",

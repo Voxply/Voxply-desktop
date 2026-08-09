@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { RoleInfo, User, PublicHubProfile } from "../../types";
+import type { RoleInfo, User, PublicHubProfile, MemberHistoryEntry } from "../../types";
 import { formatPubkey } from "@wavvon/core";
 import { safeRoleColor } from "../../utils/roleAppearance";
 
@@ -22,6 +22,10 @@ export interface UserContextMenuActions {
   toggleBlock?: (pubkey: string) => void;
   toggleIgnore?: (pubkey: string) => void;
   fetchPublicProfile?: (pubkey: string) => Promise<PublicHubProfile | null>;
+  /** What other hubs have said about this member (soft-flag ban entries and
+   *  hard ones alike). Optional: a client that omits it simply shows nothing,
+   *  which is what desktop does today. */
+  fetchMemberHistory?: (pubkey: string) => Promise<MemberHistoryEntry[]>;
   joinHub?: (hubUrl: string, inviteCode: string) => void;
 }
 
@@ -55,6 +59,7 @@ export function UserContextMenu({
   const [assigned, setAssigned] = useState<Set<string>>(new Set());
   const [busyRole, setBusyRole] = useState<string | null>(null);
   const [profile, setProfile] = useState<PublicHubProfile | null | "loading">(actions.fetchPublicProfile ? "loading" : null);
+  const [history, setHistory] = useState<MemberHistoryEntry[]>([]);
   const isSelf = pubkey === publicKey;
 
   useEffect(() => {
@@ -92,6 +97,25 @@ export function UserContextMenu({
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pubkey]);
+
+  // What other hubs have said about this member. Only fetched for someone who
+  // could act on it — the endpoint is gated on ban permission anyway, and a
+  // 403 per context-menu open would be noise. A failure leaves the list empty:
+  // a moderator seeing nothing is the same as today, whereas an error banner
+  // over a context menu would be worse than the information is valuable.
+  useEffect(() => {
+    if (!actions.fetchMemberHistory || !isAdmin || isSelf) {
+      setHistory([]);
+      return;
+    }
+    let cancelled = false;
+    actions
+      .fetchMemberHistory(pubkey)
+      .then((entries) => { if (!cancelled) setHistory(entries); })
+      .catch(() => { if (!cancelled) setHistory([]); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pubkey, isAdmin, isSelf]);
 
   // Clamp menu to viewport after render (re-run once roles arrive and grow it).
   useEffect(() => {
@@ -254,6 +278,34 @@ export function UserContextMenu({
                 );
               })
             )}
+          </>
+        )}
+
+        {isAdmin && !isSelf && history.length > 0 && (
+          <>
+            <div className="context-menu-separator" />
+            {/* Shown immediately above the moderation actions on purpose:
+                this is the moment the information is worth having, and
+                somewhere else in the admin panel is somewhere nobody looks
+                while deciding whether to ban someone. */}
+            <div className="context-menu-label">
+              {t("user.ctx.history_header", { count: history.length })}
+            </div>
+            {history.map((h) => (
+              <div
+                key={`${h.source_hub_pubkey}-${h.added_at}`}
+                className={
+                  h.policy === "hard-reject"
+                    ? "context-menu-item muted danger"
+                    : "context-menu-item muted"
+                }
+                title={`${h.source_hub_pubkey}\n${new Date(h.added_at * 1000).toLocaleString()}`}
+              >
+                {h.reason?.trim()
+                  ? h.reason
+                  : t("user.ctx.history_no_reason")}
+              </div>
+            ))}
           </>
         )}
 

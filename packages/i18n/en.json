@@ -982,6 +982,8 @@
   "user.ctx.blocked_feedback": "Blocked — their messages and mentions will be hidden.",
   "user.ctx.unblocked_feedback": "Unblocked",
   "user.ctx.loading_profile": "Loading profile…",
+  "user.ctx.history_header": "Seen elsewhere ({{count}})",
+  "user.ctx.history_no_reason": "No reason given",
   "dm.group_warning_title": "Group messages are not encrypted",
   "message.ignored_placeholder": "Message from ignored user — click to reveal",
   "challenge.unavailable": "Verification unavailable",

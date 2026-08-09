@@ -229,6 +229,7 @@ export type {
   UserProfile,
   PublicHubEntry,
   PublicHubProfile,
+  MemberHistoryEntry,
 } from "./types";
 export type {
   ChannelRoleOverwrites,

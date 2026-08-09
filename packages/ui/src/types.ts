@@ -1024,3 +1024,24 @@ export interface RecoveryRequestBundle {
   attestation_count: number;
   threshold: number;
 }
+
+/**
+ * What another hub has said about a member, from the federated ban lists this
+ * hub subscribes to.
+ *
+ * `policy` is the half that makes it readable: `hard-reject` means the entry
+ * would have refused admission, `soft-flag` that it did not and is here to be
+ * read. Without it the two are indistinguishable and mean opposite things.
+ * `unknown` is an entry whose source is no longer subscribed — inert, kept
+ * visible rather than hidden.
+ *
+ * Deliberately not a verdict. Another hub's ban is another hub's decision,
+ * made for reasons this one cannot see; a moderator gets the source, the
+ * reason and the date, and makes their own.
+ */
+export interface MemberHistoryEntry {
+  source_hub_pubkey: string;
+  policy: "hard-reject" | "soft-flag" | "unknown";
+  reason?: string | null;
+  added_at: number;
+}
