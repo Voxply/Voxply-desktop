@@ -127,7 +127,7 @@ All notable changes to Wavvon Desktop are documented here.
 - Networked voice Phase 1 client — VXRG/VXRA UDP registration
 
 ### Refactoring
-- Replace local util modules with shared @voxply/utils package
+- Replace local util modules with shared @wavvon/utils package
 - Split 9,844-line lib.rs into 28 domain modules
 - Extract DM cluster into useDms hook
 

@@ -55,7 +55,7 @@ describe("identity backup envelope", () => {
     );
   });
 
-  it("rejects an unrecognized envelope shape (old web PBKDF2 file / desktop .voxback)", { timeout: KDF_TIMEOUT }, async () => {
+  it("rejects an unrecognized envelope shape (old web PBKDF2 file / desktop's retired format)", { timeout: KDF_TIMEOUT }, async () => {
     const legacy = JSON.stringify({
       format: "wavvon-backup",
       version: 2,

@@ -94,7 +94,7 @@ fn encrypt_backup_random(account: &BackupAccount, passphrase: &str) -> Result<St
 }
 
 /// Throws "unsupported_backup_format" for anything that isn't this envelope
-/// (old web PBKDF2 `.wavvon-backup` files, this crate's retired `.voxback`) —
+/// (old web PBKDF2 `.wavvon-backup` files, this crate's own retired format) —
 /// alpha rules: no legacy importer. Throws "decrypt_failed" for a wrong
 /// passphrase or corrupted ciphertext — mirrors backup.ts's decryptBackup.
 fn decrypt_backup(envelope_json: &str, passphrase: &str) -> Result<BackupAccount, String> {
