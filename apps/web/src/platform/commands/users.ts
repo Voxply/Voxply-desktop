@@ -1,4 +1,5 @@
 import { hubFetch } from "../http";
+import { activeHubSupports } from "../session";
 import type { User } from "@wavvon/ui";
 
 /** The hub's `USERS_MAX_LIMIT`. Asking for more is clamped server-side. */
@@ -22,6 +23,16 @@ const MAX_PAGES = 40;
  * higher number.
  */
 export async function fetchAllUsers(): Promise<User[]> {
+  // Version skew, handled the decided way — by capability, not by version
+  // (decisions.md). A hub that predates keyset pagination ignores both `limit`
+  // and `cursor` and answers with the whole unbounded roster, so one plain
+  // request there is not a truncation, it is the complete list. Walking pages
+  // against it would re-fetch that same response MAX_PAGES times and hand back
+  // 40 copies of every member.
+  if (!activeHubSupports("list.cursor")) {
+    return (await (await hubFetch("/users")).json()) as User[];
+  }
+
   const all: User[] = [];
   let cursor: string | undefined;
 

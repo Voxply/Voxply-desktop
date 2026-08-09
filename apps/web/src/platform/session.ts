@@ -1,3 +1,4 @@
+import { loadSavedHubs } from "./storage";
 import type { HubWebSocket } from "./ws";
 
 export interface HubSession {
@@ -15,6 +16,10 @@ export interface HubSession {
    * Defaults to "member" for every pre-lobby code path.
    */
   scope?: "member" | "lobby";
+  /** `capabilities` from this hub's `/info` — see hubSupports() below. */
+  capabilities?: string[];
+  /** This hub's version string. Display only; gate on `capabilities`. */
+  hub_version?: string;
 }
 
 const sessions = new Map<string, HubSession>();
@@ -64,6 +69,32 @@ export function activeSession(): HubSession {
   const s = sessions.get(activeHubId);
   if (!s) throw new Error("Active hub has no session");
   return s;
+}
+
+/**
+ * Does this hub advertise `capability`?
+ *
+ * THE way to decide whether to offer a feature against a given hub — never
+ * compare version strings. This client is multi-hub and the copy the user
+ * loaded was served by whichever hub they happened to open, so it routinely
+ * talks to hubs older and newer than itself; a version comparison would also
+ * break on forks, backports and custom builds. See decisions.md, "Hub
+ * capabilities are advertised, not inferred from a version number".
+ *
+ * Live session first, then the persisted last-known list so the answer is
+ * right on the first frame after a reload. Unknown → false: a hub that never
+ * said it can do something is treated as unable to, which is the safe
+ * direction (the feature is absent rather than erroring on a missing route).
+ */
+export function hubSupports(hubId: string, capability: string): boolean {
+  const live = sessions.get(hubId)?.capabilities;
+  if (live) return live.includes(capability);
+  return loadSavedHubs().find((h) => h.hub_id === hubId)?.capabilities?.includes(capability) ?? false;
+}
+
+/** Same question about the active hub. False when there is no active hub. */
+export function activeHubSupports(capability: string): boolean {
+  return activeHubId ? hubSupports(activeHubId, capability) : false;
 }
 
 // Returns hub_url + token for the active session (screen-share uses this).

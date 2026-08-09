@@ -13,6 +13,19 @@ export interface SavedHub {
   hub_url: string;
   hub_icon: string | null;
   remember_token: boolean;
+  /**
+   * Last known `capabilities` from this hub's `/info` — what it can do, as
+   * strings the client tests membership in. Persisted for the same reason
+   * hub_name and hub_icon are: so the UI is right on the first frame after a
+   * reload, before refreshHubInfo has answered. Refreshed every time /info is
+   * fetched. `undefined` means "never asked" (a hub saved by an older build);
+   * an empty array means the hub genuinely advertised nothing, i.e. it
+   * predates capability advertising.
+   */
+  capabilities?: string[];
+  /** Last known hub version. For display and "this hub is very old" only —
+   * never gate a feature on it, that's what `capabilities` is for. */
+  hub_version?: string;
 }
 
 export function loadSavedHubs(): SavedHub[] {
@@ -62,6 +75,22 @@ export function updateSavedHub(hubId: string, name: string, icon: string | null)
   hub.hub_icon = icon;
   saveSavedHubs(list);
   return true;
+}
+
+/** Record what a hub advertised on its last `/info`. Separate from
+ * updateSavedHub for the same reason that one exists: callers of each hold
+ * different subsets and must not clobber the fields they don't carry. */
+export function saveHubCapabilities(
+  hubId: string,
+  capabilities: string[],
+  version: string | undefined,
+): void {
+  const list = loadSavedHubs();
+  const hub = list.find((h) => h.hub_id === hubId);
+  if (!hub) return;
+  hub.capabilities = capabilities;
+  hub.hub_version = version;
+  saveSavedHubs(list);
 }
 
 export function loadActiveHubId(): string | null {
