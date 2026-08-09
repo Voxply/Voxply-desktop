@@ -118,4 +118,36 @@ describe("fetchAllUsers against a hub without list.cursor", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0][0])).toContain("limit=500");
   });
+
+  // "We never asked" is not "the hub said no". A hub saved by a build older
+  // than capability advertising reports unknown, and guessing "old" about a
+  // modern hub would silently keep only its first page of members.
+  it("pages when capabilities are unknown, rather than guessing old", async () => {
+    connect(undefined);
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify([{ public_key: "a" }]), { status: 200 }));
+
+    await fetchAllUsers();
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain("limit=500");
+  });
+
+  // ...and if that unknown hub does turn out to be old, it ignores the cursor
+  // and answers with the same full page forever. The keyset uses a strict `>`,
+  // so a page ending on the key we just sent can only mean that.
+  it("stops when the hub is not advancing the cursor", async () => {
+    connect(undefined);
+    const page = Array.from({ length: 500 }, (_, i) => ({ public_key: `k${i}` }));
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => new Response(JSON.stringify(page), { status: 200 }));
+
+    const users = await fetchAllUsers();
+
+    // Two requests: the first page, then the one that proves the cursor is
+    // being ignored. Not 40, and not 40 × 500 duplicated members.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(users).toHaveLength(500);
+  });
 });

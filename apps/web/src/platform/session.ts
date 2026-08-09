@@ -72,6 +72,22 @@ export function activeSession(): HubSession {
 }
 
 /**
+ * What a hub advertises, or `null` when we have not asked it yet.
+ *
+ * The null is load-bearing and not the same as `[]`. An empty array is a hub
+ * that answered and advertised nothing — it predates capability advertising,
+ * which is a fact about the hub. `null` is a hub saved before this client
+ * recorded the field at all, which is a fact about *us*. Anything choosing a
+ * request strategy has to tell those apart: guessing "old hub" about a modern
+ * one silently gets a worse answer.
+ */
+export function hubCapabilities(hubId: string): string[] | null {
+  const live = sessions.get(hubId)?.capabilities;
+  if (live) return live;
+  return loadSavedHubs().find((h) => h.hub_id === hubId)?.capabilities ?? null;
+}
+
+/**
  * Does this hub advertise `capability`?
  *
  * THE way to decide whether to offer a feature against a given hub — never
@@ -82,19 +98,23 @@ export function activeSession(): HubSession {
  * capabilities are advertised, not inferred from a version number".
  *
  * Live session first, then the persisted last-known list so the answer is
- * right on the first frame after a reload. Unknown → false: a hub that never
- * said it can do something is treated as unable to, which is the safe
- * direction (the feature is absent rather than erroring on a missing route).
+ * right on the first frame after a reload. Unknown → false, which is the safe
+ * direction *for rendering*: the feature is absent rather than erroring on a
+ * route that is not there. Code choosing between two request strategies wants
+ * `hubCapabilities` instead — for that question "unknown" and "no" differ.
  */
 export function hubSupports(hubId: string, capability: string): boolean {
-  const live = sessions.get(hubId)?.capabilities;
-  if (live) return live.includes(capability);
-  return loadSavedHubs().find((h) => h.hub_id === hubId)?.capabilities?.includes(capability) ?? false;
+  return hubCapabilities(hubId)?.includes(capability) ?? false;
 }
 
 /** Same question about the active hub. False when there is no active hub. */
 export function activeHubSupports(capability: string): boolean {
   return activeHubId ? hubSupports(activeHubId, capability) : false;
+}
+
+/** `hubCapabilities` for the active hub; null when there is no active hub. */
+export function activeHubCapabilities(): string[] | null {
+  return activeHubId ? hubCapabilities(activeHubId) : null;
 }
 
 // Returns hub_url + token for the active session (screen-share uses this).
