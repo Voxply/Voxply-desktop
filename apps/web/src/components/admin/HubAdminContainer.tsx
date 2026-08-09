@@ -96,7 +96,6 @@ export function HubAdminContainer({
         onUnban={(pk) => hubFetch(`/moderation/bans/${pk}`, { method: "DELETE" }).catch(() => {})}
         invites={hubAdmin.hubAdminInvites}
         activeHubUrl={activeHubUrl}
-        hubSerial={activeHubId}
         myPubkey={publicKey ?? ""}
         isAdmin={isAdmin}
         canManageSoundboard={canManageSoundboard}

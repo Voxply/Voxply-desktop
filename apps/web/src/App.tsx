@@ -1515,7 +1515,6 @@ export default function App({ initialView }: AppProps = {}) {
       {showQuickInvite && activeHubId && (
         <QuickInviteModal
           activeHubUrl={hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? ""}
-          hubSerial={activeHubId}
           myMaxPriority={myMaxPriority}
           onClose={() => setShowQuickInvite(false)}
           actions={{ listRoles, createInvite }}

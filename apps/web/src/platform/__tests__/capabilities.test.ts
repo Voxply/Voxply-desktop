@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { setSession, setActiveHubId, resetHubSessions, hubSupports, activeHubSupports } from "../session";
-import { saveSavedHubs } from "../storage";
+import { saveSavedHubs, loadSavedHubs } from "../storage";
 import { fetchAllUsers } from "../commands/users";
+import { refreshHubInfo, listHubs } from "../commands/hubs";
 
 // Capability advertising (decisions.md, "Hub capabilities are advertised, not
 // inferred from a version number"). This client is multi-hub and its own
@@ -84,6 +85,78 @@ describe("hubSupports", () => {
     connect(["list.cursor"]);
     setActiveHubId(null);
     expect(activeHubSupports("list.cursor")).toBe(false);
+  });
+});
+
+// A farm-hosted hub lives at an owner-chosen name that can change. It reports
+// the current one as `canonical_url`, and the client follows it — keyed on the
+// pubkey, which never changes. That is what makes following safe: we move
+// where we look, not who we think we are talking to.
+describe("refreshHubInfo following a renamed hub", () => {
+  const OLD_URL = "https://farm.example/hub/pippo";
+  const NEW_URL = "https://farm.example/hub/mangiadapippo";
+
+  function connectAt(url: string) {
+    setSession(HUB_ID, {
+      hub_id: HUB_ID,
+      hub_url: url,
+      hub_pubkey: HUB_ID,
+      hub_name: "Hub",
+      hub_icon: null,
+      token: "tok",
+      ws: null,
+      capabilities: [],
+    });
+    setActiveHubId(HUB_ID);
+    saveSavedHubs([
+      {
+        hub_id: HUB_ID,
+        hub_name: "Hub",
+        hub_url: url,
+        hub_icon: null,
+        remember_token: false,
+      },
+    ]);
+  }
+
+  function infoResponse(extra: Record<string, unknown>) {
+    return new Response(
+      JSON.stringify({ public_key: HUB_ID, name: "Hub", icon: null, ...extra }),
+      { status: 200 },
+    );
+  }
+
+  it("adopts the new address and keeps the same hub_id", async () => {
+    connectAt(OLD_URL);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      infoResponse({ canonical_url: NEW_URL }),
+    );
+
+    await refreshHubInfo(HUB_ID);
+
+    expect(loadSavedHubs()[0].hub_url).toBe(NEW_URL);
+    expect(loadSavedHubs()[0].hub_id).toBe(HUB_ID);
+    // Subsequent calls must go to the new address, or the follow was cosmetic.
+    expect(listHubs()[0].hub_url).toBe(NEW_URL);
+  });
+
+  it("leaves the address alone when the hub reports the same one", async () => {
+    connectAt(OLD_URL);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      infoResponse({ canonical_url: OLD_URL }),
+    );
+
+    await refreshHubInfo(HUB_ID);
+    expect(loadSavedHubs()[0].hub_url).toBe(OLD_URL);
+  });
+
+  // A hub that predates this field must not have its address blanked.
+  it("leaves the address alone when the hub reports none", async () => {
+    connectAt(OLD_URL);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(infoResponse({}));
+
+    await refreshHubInfo(HUB_ID);
+    expect(loadSavedHubs()[0].hub_url).toBe(OLD_URL);
   });
 });
 

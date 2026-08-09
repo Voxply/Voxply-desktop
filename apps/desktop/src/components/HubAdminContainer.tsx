@@ -25,7 +25,7 @@ type PassthroughProps = Omit<
   | "allianceActions" | "hubIconActions" | "submitToDirectory"
   | "webhookActions" | "externalBotActions" | "nativeBotActions"
   | "auditLogActions" | "certActions" | "onboardingActions" | "surveyActions"
-  | "activeHubUrl" | "hubSerial" | "myPubkey"
+  | "activeHubUrl" | "myPubkey"
   | "canManageRoles" | "myMaxPriority" | "canManageSoundboard"
 >;
 
@@ -71,7 +71,6 @@ export function HubAdminContainer({
       isAdmin={isAdmin}
       saveError={null}
       activeHubUrl={activeHubUrl}
-      hubSerial={activeHubId ?? ""}
       myPubkey={publicKey ?? ""}
       canManageRoles={canManageRoles}
       myMaxPriority={myMaxPriority}

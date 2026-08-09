@@ -115,7 +115,6 @@ export interface HubAdminPageProps {
   activeHubUrl: string;
   /** This hub's stable serial (its public key) — embedded in invite links so a
    *  farm can route the same domain to different hubs. */
-  hubSerial: string;
   onCreateInvite: (maxUses: number | null, expiresInSeconds: number | null, grantRoleId: string | null) => void;
   onRevokeInvite: (code: string) => void;
 
@@ -584,7 +583,6 @@ export function HubAdminPage(props: HubAdminPageProps) {
           <InviteManager
             invites={props.invites}
             activeHubUrl={props.activeHubUrl}
-            hubSerial={props.hubSerial}
             myMaxPriority={props.myMaxPriority}
             isAdmin={props.isAdmin}
             onCreateInvite={props.onCreateInvite}

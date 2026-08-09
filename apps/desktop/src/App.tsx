@@ -1846,7 +1846,6 @@ function App() {
         {showQuickInvite && activeHubId && (
           <QuickInviteModal
             activeHubUrl={hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? ""}
-            hubSerial={activeHubId}
             myMaxPriority={myRoles.reduce((m, r) => Math.max(m, r.priority), 0)}
             onClose={() => setShowQuickInvite(false)}
             actions={{

@@ -32,7 +32,7 @@ describe("parseHubInput — farm-ready invite links (hub serial)", () => {
   });
 
   it("buildInviteLink emits the plain /join form and round-trips through parseHubInput", () => {
-    const link = buildInviteLink("https://farm.example.com", "serial42", "welcome");
+    const link = buildInviteLink("https://farm.example.com", "welcome");
     expect(link).toBe("https://farm.example.com/join/welcome");
     const r = parseHubInput(link);
     expect(r?.hubUrl).toBe("https://farm.example.com");
@@ -40,7 +40,7 @@ describe("parseHubInput — farm-ready invite links (hub serial)", () => {
   });
 
   it("buildInviteLink uses http for localhost hubs", () => {
-    const link = buildInviteLink("http://localhost:3000", "s", "247ba780be0b");
+    const link = buildInviteLink("http://localhost:3000", "247ba780be0b");
     expect(link).toBe("http://localhost:3000/join/247ba780be0b");
     const r = parseHubInput(link);
     expect(r?.hubUrl).toBe("http://localhost:3000");
@@ -169,5 +169,53 @@ describe("parseHubInput — LAN fingerprint pinning (lan-mode.md §5)", () => {
     expect(
       parseHubInput(`https://hub.example.com?fp=${"z".repeat(64)}`)?.fingerprint,
     ).toBeUndefined();
+  });
+});
+
+describe("buildInviteLink on a farm-hosted hub", () => {
+  // The hub's address already carries its slug (from /info.canonical_url), so
+  // appending /join/<code> is the whole job — no separate serial argument, and
+  // no way for the two to disagree.
+  it("keeps the /hub/<slug> path so the link reaches the right hub", () => {
+    const link = buildInviteLink("https://farm.example.com/hub/mangiadapippo", "code9");
+    expect(link).toBe("https://farm.example.com/hub/mangiadapippo/join/code9");
+
+    const parsed = parseHubInput(link);
+    expect(parsed?.hubUrl).toBe("https://farm.example.com/hub/mangiadapippo");
+    expect(parsed?.inviteCode).toBe("code9");
+  });
+});
+
+describe("parseHubInput — farm-hosted hub base URLs", () => {
+  // The bug this covers: without splitting the /hub/<slug> prefix out of the
+  // path, a farm invite link parsed to the farm's root with no invite code —
+  // so pasting it into Add-hub reached nothing, or the wrong hub.
+  it("keeps the hub prefix in hubUrl and still finds the invite code", () => {
+    expect(parseHubInput("https://farm.example.com/hub/pippo/join/abc123")).toEqual({
+      hubUrl: "https://farm.example.com/hub/pippo",
+      inviteCode: "abc123",
+    });
+  });
+
+  it("keeps the prefix for a bare hub address with no invite", () => {
+    expect(parseHubInput("https://farm.example.com/hub/pippo")).toEqual({
+      hubUrl: "https://farm.example.com/hub/pippo",
+      inviteCode: "",
+    });
+  });
+
+  it("carries a ?invite= query alongside the prefix", () => {
+    expect(parseHubInput("https://farm.example.com/hub/pippo?invite=xyz")).toEqual({
+      hubUrl: "https://farm.example.com/hub/pippo",
+      inviteCode: "xyz",
+    });
+  });
+
+  // A standalone hub has no prefix, and must be untouched by any of this.
+  it("leaves a non-farm hub exactly as before", () => {
+    expect(parseHubInput("https://hub.example.com/join/abc123")).toEqual({
+      hubUrl: "https://hub.example.com",
+      inviteCode: "abc123",
+    });
   });
 });

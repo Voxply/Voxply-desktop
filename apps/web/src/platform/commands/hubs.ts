@@ -13,6 +13,7 @@ import {
   upsertSavedHub,
   removeSavedHub,
   updateSavedHub,
+  updateSavedHubUrl,
   saveHubCapabilities,
   saveActiveHubId,
   saveToken,
@@ -35,6 +36,9 @@ interface InfoResponse {
   capabilities?: string[];
   /** Display and "very old hub" warnings only. Not a feature gate. */
   version?: string;
+  /** The address this hub says to use for it. Changes when a farm-hosted hub
+   * is renamed; the client follows it, keyed on the pubkey that doesn't. */
+  canonical_url?: string | null;
   farm_url?: string | null;
   welcome_label?: string | null;
   welcome_invite_url?: string | null;
@@ -182,8 +186,25 @@ export async function refreshHubInfo(
       (r) => r.json() as Promise<InfoResponse & { timezone?: string | null }>,
     );
     const capabilities = info.capabilities ?? [];
+
+    // Follow the hub if it has moved. A farm-hosted hub lives at an
+    // owner-chosen name that can change, and `canonical_url` is how it tells
+    // us the current one — so a rename costs nobody their session.
+    //
+    // Safe precisely because we are keyed on the pubkey: we only change *where*
+    // we look, never who we believe we are talking to. And we only accept this
+    // from a hub whose key we have already verified, so a farm handing out a
+    // bogus address gets caught on the first /info at the new one.
+    const movedTo =
+      info.canonical_url && info.canonical_url !== s.hub_url ? info.canonical_url : null;
+    if (movedTo) {
+      console.info(`[hubs] ${hub_id.slice(0, 8)} moved to ${movedTo}`);
+      updateSavedHubUrl(hub_id, movedTo);
+    }
+
     setSession(hub_id, {
       ...s,
+      hub_url: movedTo ?? s.hub_url,
       hub_name: info.name,
       hub_icon: info.icon,
       capabilities,

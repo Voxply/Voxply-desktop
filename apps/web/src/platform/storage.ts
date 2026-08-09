@@ -77,6 +77,27 @@ export function updateSavedHub(hubId: string, name: string, icon: string | null)
   return true;
 }
 
+/**
+ * Follow a hub that has changed address.
+ *
+ * A farm-hosted hub lives at an owner-chosen name (`/hub/MangiaDaPippo`), and
+ * that name can change. The hub reports its current one as `canonical_url` on
+ * `/info`, so a rename reaches every client that reconnects — no broken
+ * sessions, no re-adding the hub by hand.
+ *
+ * Keyed on `hub_id`, which is the hub's **pubkey** and never changes. That is
+ * what makes following an address change safe: we move where we look, not who
+ * we think we are talking to. Returns true if the stored URL changed.
+ */
+export function updateSavedHubUrl(hubId: string, hubUrl: string): boolean {
+  const list = loadSavedHubs();
+  const hub = list.find((h) => h.hub_id === hubId);
+  if (!hub || hub.hub_url === hubUrl) return false;
+  hub.hub_url = hubUrl;
+  saveSavedHubs(list);
+  return true;
+}
+
 /** Record what a hub advertised on its last `/info`. Separate from
  * updateSavedHub for the same reason that one exists: callers of each hold
  * different subsets and must not clobber the fields they don't carry. */

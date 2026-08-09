@@ -35,9 +35,6 @@ export interface InviteManagerActions {
 interface Props {
   invites: InviteInfo[];
   activeHubUrl: string;
-  /** This hub's stable serial (its public key) — embedded in invite links so a
-   *  farm can route the same domain to different hubs. */
-  hubSerial: string;
   /** Highest priority among the viewer's own roles; only lower-priority roles can be granted. */
   myMaxPriority: number;
   /** Gates the "Default role for new members" section — mirrors the Overview
@@ -177,7 +174,7 @@ export function InviteManager(props: Props) {
         )}
       </div>
       {props.invites.map((inv) => {
-        const link = buildInviteLink(props.activeHubUrl, props.hubSerial, inv.code);
+        const link = buildInviteLink(props.activeHubUrl, inv.code);
         const grantedRole = inv.grant_role_id ? rolesById.get(inv.grant_role_id) : undefined;
         const grantedRoleColor = grantedRole ? safeRoleColor(grantedRole.color) : null;
         return (
