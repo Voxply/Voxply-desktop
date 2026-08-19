@@ -30,6 +30,8 @@ export interface Channel {
   spawner_name_template?: string | null;
   /** Set only on auto-spawned squad rooms (events.md §7.5): the event this room was created for. */
   event_id?: string | null;
+  /** Forum channels only (forum.md §10.1): require at least one tag on new posts. */
+  forum_require_tag?: boolean;
 }
 
 export interface Attachment {
@@ -47,16 +49,7 @@ export interface RemoteAttachment {
   mime_type: string;
 }
 
-export interface PinnedMessage {
-  id: string;
-  channel_id: string;
-  sender: string;
-  sender_name: string | null;
-  content: string;
-  created_at: number;
-  pinned_at: number;
-  pinned_by: string;
-}
+export type { PinnedMessageEntry as PinnedMessage } from "@wavvon/ui";
 
 import type { BadgeSummary, FavoriteHub, UserProfile, RoleInfo, RoleCategory } from "@wavvon/ui";
 export type { BadgeSummary, FavoriteHub, UserProfile, RoleInfo, RoleCategory };
@@ -108,11 +101,13 @@ export interface MeInfo {
   status_message: string | null;
   activities: string | null;
   accent_color: string | null;
+  name_color: string | null;
   cover: string | null;
   favorite_hubs: FavoriteHub[];
   show_hubs: boolean;
   approval_status: "approved" | "pending";
   roles: RoleInfo[];
+  birthday: string | null;
 }
 
 export interface MemberAdminInfo {
@@ -146,13 +141,6 @@ export interface SoundboardClip {
   size_bytes: number;
   duration_ms: number;
   created_at: number;
-}
-
-export interface SoundboardPlayedEvent {
-  channel_id: string;
-  clip_id: string;
-  clip_name: string;
-  public_key: string;
 }
 
 export interface InviteInfo {
@@ -546,6 +534,8 @@ export interface OutgoingWebhookDelivery {
 export type {
   ReactionCount,
   ForumAttachment,
+  TagRef,
+  ForumTagDef,
   PostSummary,
   ReplyView,
   PostDetail,

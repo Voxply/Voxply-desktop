@@ -8,7 +8,7 @@ import type {
   InviteInfo,
   PendingUser,
 } from "../types";
-import type { HubAdminTab } from "@wavvon/ui";
+import type { HubAdminTab, NameColorMode } from "@wavvon/ui";
 
 interface UseHubAdminParams {
   activeHubId: string | null;
@@ -42,6 +42,11 @@ export function useHubAdmin({
   const [requireApproval, setRequireApproval] = useState(false);
   const [minSecurityLevel, setMinSecurityLevel] = useState(0);
   const [maxChannelDepth, setMaxChannelDepth] = useState(0);
+  const [hubTimezone, setHubTimezone] = useState("");
+  const [birthdaysEnabled, setBirthdaysEnabled] = useState(true);
+  const [nameColorMode, setNameColorMode] = useState<NameColorMode>("role_over_user");
+  const [afkChannelId, setAfkChannelId] = useState("");
+  const [afkTimeoutSecs, setAfkTimeoutSecs] = useState(300);
   const [pendingMembers, setPendingMembers] = useState<PendingUser[]>([]);
   const [hubListed, setHubListedState] = useState(false);
 
@@ -73,10 +78,20 @@ export function useHubAdmin({
         invite_only: boolean;
         min_security_level: number;
         max_channel_depth: number;
+        timezone?: string | null;
+        birthdays_enabled?: boolean;
+        afk_channel_id?: string | null;
+        afk_timeout_secs?: number;
+        name_color_mode?: NameColorMode;
       }>("get_hub_settings");
       setRequireApproval(settings.require_approval);
       setMinSecurityLevel(settings.min_security_level ?? 0);
       setMaxChannelDepth(settings.max_channel_depth ?? 0);
+      setHubTimezone(settings.timezone ?? "");
+      setBirthdaysEnabled(settings.birthdays_enabled ?? true);
+      setAfkChannelId(settings.afk_channel_id ?? "");
+      setAfkTimeoutSecs(settings.afk_timeout_secs ?? 300);
+      setNameColorMode(settings.name_color_mode ?? "role_over_user");
     } catch (e) {
       setError(String(e));
     }
@@ -106,6 +121,11 @@ export function useHubAdmin({
         maxChannelDepth,
         welcomeLabel: adminWelcomeLabel,
         welcomeInviteUrl: adminWelcomeInviteUrl,
+        timezone: hubTimezone,
+        birthdaysEnabled,
+        afkChannelId,
+        afkTimeoutSecs,
+        nameColorMode,
       });
       const refreshed = await invoke<Hub[]>("list_hubs");
       setHubs(() => refreshed);
@@ -312,6 +332,16 @@ export function useHubAdmin({
     setMinSecurityLevel,
     maxChannelDepth,
     setMaxChannelDepth,
+    hubTimezone,
+    setHubTimezone,
+    birthdaysEnabled,
+    setBirthdaysEnabled,
+    nameColorMode,
+    setNameColorMode,
+    afkChannelId,
+    setAfkChannelId,
+    afkTimeoutSecs,
+    setAfkTimeoutSecs,
     pendingMembers,
     hubListed,
     onHubListedChange: handleHubListedChange,

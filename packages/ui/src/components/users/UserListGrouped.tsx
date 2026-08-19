@@ -1,14 +1,16 @@
 import React, { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { User } from "../../types";
-import { formatPubkey } from "@wavvon/core";
+import { formatPubkey, isBirthdayToday } from "@wavvon/core";
 import { Avatar } from "../Avatar";
+import { nameColorStyle, safeRoleColor } from "../../utils/roleAppearance";
 
 export function UserListGrouped({
   users,
   inVoice,
   myPubkey,
   selfInvisible,
+  hideBirthdays,
   onUserClick,
   onContextMenu,
   onBotClick,
@@ -21,6 +23,9 @@ export function UserListGrouped({
    * here (same as everyone else sees them) but with a hollow-ring dot rather
    * than plain offline gray, so it doesn't look like a connection problem. */
   selfInvisible?: boolean;
+  /** Viewer opt-out from the 🎂 badge (the third of three independent
+   *  opt-ins — see decisions.md). */
+  hideBirthdays?: boolean;
   onUserClick?: (pubkey: string) => void;
   onContextMenu?: (e: React.MouseEvent, user: User) => void;
   onBotClick?: (pubkey: string, e: React.MouseEvent) => void;
@@ -155,8 +160,15 @@ export function UserListGrouped({
                     className={`status-dot ${u.status === "away" ? "away" : u.status === "dnd" ? "dnd" : "online"}`}
                     title={u.status === "away" ? "Away" : u.status === "dnd" ? "Do Not Disturb" : "Online"}
                   />
-                  <span className="user-name" title={u.status_custom ?? undefined}>
+                  <span
+                    className={`user-name${safeRoleColor(u.name_color) ? " name-colored" : ""}`}
+                    style={nameColorStyle(u.name_color)}
+                    title={u.status_custom ?? undefined}
+                  >
                     {u.display_name || u.public_key.slice(0, 16)}
+                    {!hideBirthdays && isBirthdayToday(u.birthday) && (
+                      <span title="Birthday today" aria-label="Birthday today"> 🎂</span>
+                    )}
                     {u.status_custom && (
                       <span className="user-custom-status"> — {u.status_custom}</span>
                     )}
@@ -197,8 +209,14 @@ export function UserListGrouped({
                     className={`status-dot ${isSelfInvisible ? "invisible" : "offline"}`}
                     title={isSelfInvisible ? t("presence.invisible_self_tooltip") : undefined}
                   />
-                  <span className="user-name">
+                  <span
+                    className={`user-name${safeRoleColor(u.name_color) ? " name-colored" : ""}`}
+                    style={nameColorStyle(u.name_color)}
+                  >
                     {u.display_name || u.public_key.slice(0, 16)}
+                    {!hideBirthdays && isBirthdayToday(u.birthday) && (
+                      <span title="Birthday today" aria-label="Birthday today"> 🎂</span>
+                    )}
                     {isSelfInvisible && (
                       <span className="user-custom-status"> — {t("presence.invisible")}</span>
                     )}
@@ -230,7 +248,12 @@ export function UserListGrouped({
               onClick={onBotClick ? (e) => onBotClick(bot.public_key, e) : undefined}
             >
               <Avatar src={bot.avatar} name={bot.display_name ?? bot.public_key} pubkey={bot.public_key} size={22} />
-              <span className="member-name">{bot.display_name ?? formatPubkey(bot.public_key)}</span>
+              <span
+                className={`member-name${safeRoleColor(bot.name_color) ? " name-colored" : ""}`}
+                style={nameColorStyle(bot.name_color)}
+              >
+                {bot.display_name ?? formatPubkey(bot.public_key)}
+              </span>
               <span className="bot-badge">BOT</span>
             </div>
           ))}

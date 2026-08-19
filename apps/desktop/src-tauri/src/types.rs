@@ -83,6 +83,14 @@ pub(crate) struct InfoResponse {
     pub welcome_label: Option<String>,
     #[serde(default)]
     pub welcome_invite_url: Option<String>,
+    #[serde(default)]
+    pub timezone: Option<String>,
+    #[serde(default = "default_birthdays_enabled")]
+    pub birthdays_enabled: bool,
+}
+
+pub(crate) fn default_birthdays_enabled() -> bool {
+    true
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -122,6 +130,8 @@ pub(crate) struct MeInfo {
     #[serde(default = "default_approval_status")]
     pub approval_status: String,
     pub roles: Vec<RoleInfo>,
+    #[serde(default)]
+    pub birthday: Option<String>,
 }
 
 pub(crate) fn default_approval_status() -> String {
@@ -137,6 +147,10 @@ pub(crate) struct HubBranding {
     pub welcome_label: Option<String>,
     #[serde(default)]
     pub welcome_invite_url: Option<String>,
+    /// Member-facing (unlike the rest of this admin-overview struct): read by
+    /// every joined member for the ambient hub-local clock, not just admins.
+    #[serde(default)]
+    pub timezone: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -147,6 +161,24 @@ pub(crate) struct HubSettings {
     pub max_channel_depth: u32,
     #[serde(default)]
     pub default_invite_role_id: Option<String>,
+    #[serde(default)]
+    pub timezone: Option<String>,
+    #[serde(default = "default_birthdays_enabled")]
+    pub birthdays_enabled: bool,
+    #[serde(default)]
+    pub afk_channel_id: Option<String>,
+    #[serde(default = "default_afk_timeout_secs")]
+    pub afk_timeout_secs: u32,
+    #[serde(default = "default_name_color_mode")]
+    pub name_color_mode: String,
+}
+
+pub(crate) fn default_afk_timeout_secs() -> u32 {
+    300
+}
+
+pub(crate) fn default_name_color_mode() -> String {
+    "role_over_user".to_string()
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -174,6 +206,9 @@ pub(crate) struct ChannelInfo {
     pub banner_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub banner_file_id: Option<String>,
+    /// Per-channel NSFW flag (distinct from the hub-wide discovery `nsfw` tag).
+    #[serde(default)]
+    pub nsfw: bool,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -200,6 +235,12 @@ pub(crate) struct UserInfo {
     pub group_role: Option<String>,
     #[serde(default)]
     pub is_bot: bool,
+    #[serde(default)]
+    pub birthday: Option<String>,
+    /// Final, server-resolved name color per the hub's `name_color_mode` —
+    /// rendered as-is, no client-side priority logic.
+    #[serde(default)]
+    pub name_color: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -369,6 +410,16 @@ pub(crate) struct VoiceRosterEntryInfo {
     pub public_key: String,
     #[serde(default)]
     pub display_name: Option<String>,
+}
+
+/// One encrypted voice sender-key bundle destined for a single recipient
+/// (voice-transport-v2.md). Carried inside the outbound `voice_key_offer`
+/// and forwarded verbatim by the hub as `voice_key_received`.
+#[derive(Serialize, Deserialize, Clone)]
+pub(crate) struct VoiceKeyBundleInfo {
+    pub recipient_pubkey: String,
+    pub ciphertext_hex: String,
+    pub nonce_hex: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -915,10 +966,17 @@ pub(crate) enum WsServerMessage {
     #[serde(rename = "voice_joined")]
     VoiceJoined {
         channel_id: String,
-        hub_udp_port: u16,
         participants: Vec<VoiceParticipantInfo>,
+        /// Single-use token presented when opening the WebTransport session
+        /// (`voice_wt_url?token=<hex>`); renamed from `udp_register_token`
+        /// (voice-transport-v2.md, alpha -- no compat).
+        voice_token: String,
+        /// Absolute `https://host:port/voice` WebTransport voice endpoint.
+        voice_wt_url: String,
+        /// Hex SHA-256 digest of the WT endpoint's certificate, when the
+        /// hub is on the self-signed tier; `None` for a CA-issued cert.
         #[serde(default)]
-        udp_register_token: Option<String>,
+        voice_cert_hash: Option<String>,
     },
     #[serde(rename = "voice_participant_joined")]
     VoiceParticipantJoined {
@@ -1026,6 +1084,27 @@ pub(crate) enum WsServerMessage {
     VoiceWhisperStarted { sender_pubkey: String },
     #[serde(rename = "voice_whisper_stopped")]
     VoiceWhisperStopped { sender_pubkey: String },
+    /// Targeted delivery of another participant's encrypted sender-key
+    /// bundle (voice-transport-v2.md). Forwarded by the hub verbatim from
+    /// that participant's `voice_key_offer`.
+    #[serde(rename = "voice_key_received")]
+    VoiceKeyReceived {
+        channel_id: String,
+        #[serde(default)]
+        from_sender_id: u16,
+        from_pubkey: String,
+        ciphertext_hex: String,
+        nonce_hex: String,
+    },
+    /// Broadcast to existing voice participants: a new sender joined and
+    /// needs each participant to send it their current sender key.
+    #[serde(rename = "voice_key_request")]
+    VoiceKeyRequest {
+        channel_id: String,
+        #[serde(default)]
+        new_sender_id: u16,
+        new_pubkey: String,
+    },
     #[serde(rename = "bot_app_launch")]
     BotAppLaunch {
         bot_id: String,
@@ -1042,6 +1121,32 @@ pub(crate) enum WsServerMessage {
     },
     #[serde(rename = "bot_app_close")]
     BotAppClose { bot_id: String, channel_id: String },
+    /// Hub branding/settings changed; re-fetch the hub info.
+    #[serde(rename = "hub_updated")]
+    HubUpdated,
+    /// The channel list changed; re-fetch /channels.
+    #[serde(rename = "channels_updated")]
+    ChannelsUpdated,
+    /// A member's profile changed. Only the fields mirrored elsewhere (member
+    /// list, message authors) ride along; richer profile fields are fetched
+    /// live when a card opens.
+    #[serde(rename = "member_updated")]
+    MemberUpdated {
+        public_key: String,
+        display_name: Option<String>,
+        avatar: Option<String>,
+        #[serde(default)]
+        name_color: Option<String>,
+    },
+    /// Soundboard clip-played attribution — drives the transient
+    /// "🔊 X played *name*" chip in the voice roster.
+    #[serde(rename = "soundboard_played")]
+    SoundboardPlayed {
+        channel_id: String,
+        clip_id: String,
+        clip_name: String,
+        public_key: String,
+    },
     #[serde(other)]
     Other,
 }

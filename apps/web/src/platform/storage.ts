@@ -13,6 +13,19 @@ export interface SavedHub {
   hub_url: string;
   hub_icon: string | null;
   remember_token: boolean;
+  /**
+   * Last known `capabilities` from this hub's `/info` — what it can do, as
+   * strings the client tests membership in. Persisted for the same reason
+   * hub_name and hub_icon are: so the UI is right on the first frame after a
+   * reload, before refreshHubInfo has answered. Refreshed every time /info is
+   * fetched. `undefined` means "never asked" (a hub saved by an older build);
+   * an empty array means the hub genuinely advertised nothing, i.e. it
+   * predates capability advertising.
+   */
+  capabilities?: string[];
+  /** Last known hub version. For display and "this hub is very old" only —
+   * never gate a feature on it, that's what `capabilities` is for. */
+  hub_version?: string;
 }
 
 export function loadSavedHubs(): SavedHub[] {
@@ -50,6 +63,55 @@ export function renameSavedHub(hubId: string, name: string): boolean {
   hub.hub_name = name;
   saveSavedHubs(list);
   return true;
+}
+
+/** Update the stored name AND icon of a hub (see renameSavedHub for why this
+ * isn't upsertSavedHub). Returns true if either field changed. */
+export function updateSavedHub(hubId: string, name: string, icon: string | null): boolean {
+  const list = loadSavedHubs();
+  const hub = list.find((h) => h.hub_id === hubId);
+  if (!hub || (hub.hub_name === name && hub.hub_icon === icon)) return false;
+  hub.hub_name = name;
+  hub.hub_icon = icon;
+  saveSavedHubs(list);
+  return true;
+}
+
+/**
+ * Follow a hub that has changed address.
+ *
+ * A farm-hosted hub lives at an owner-chosen name (`/hub/MangiaDaPippo`), and
+ * that name can change. The hub reports its current one as `canonical_url` on
+ * `/info`, so a rename reaches every client that reconnects — no broken
+ * sessions, no re-adding the hub by hand.
+ *
+ * Keyed on `hub_id`, which is the hub's **pubkey** and never changes. That is
+ * what makes following an address change safe: we move where we look, not who
+ * we think we are talking to. Returns true if the stored URL changed.
+ */
+export function updateSavedHubUrl(hubId: string, hubUrl: string): boolean {
+  const list = loadSavedHubs();
+  const hub = list.find((h) => h.hub_id === hubId);
+  if (!hub || hub.hub_url === hubUrl) return false;
+  hub.hub_url = hubUrl;
+  saveSavedHubs(list);
+  return true;
+}
+
+/** Record what a hub advertised on its last `/info`. Separate from
+ * updateSavedHub for the same reason that one exists: callers of each hold
+ * different subsets and must not clobber the fields they don't carry. */
+export function saveHubCapabilities(
+  hubId: string,
+  capabilities: string[],
+  version: string | undefined,
+): void {
+  const list = loadSavedHubs();
+  const hub = list.find((h) => h.hub_id === hubId);
+  if (!hub) return;
+  hub.capabilities = capabilities;
+  hub.hub_version = version;
+  saveSavedHubs(list);
 }
 
 export function loadActiveHubId(): string | null {

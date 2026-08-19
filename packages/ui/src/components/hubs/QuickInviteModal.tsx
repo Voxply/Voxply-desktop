@@ -29,9 +29,6 @@ export interface QuickInviteModalActions {
 
 interface Props {
   activeHubUrl: string;
-  /** This hub's stable serial (its public key) — embedded in invite links so a
-   *  farm can route the same domain to different hubs. */
-  hubSerial: string;
   /** Highest priority among the viewer's own roles; only lower-priority roles can be granted. */
   myMaxPriority: number;
   onClose: () => void;
@@ -42,7 +39,7 @@ interface Props {
  *  (manage_channels) but aren't full admins — no access to the full admin
  *  panel. Mints a plain invite by default; offers a role picker only when
  *  the viewer actually has grantable roles below their own priority. */
-export function QuickInviteModal({ activeHubUrl, hubSerial, myMaxPriority, onClose, actions }: Props) {
+export function QuickInviteModal({ activeHubUrl, myMaxPriority, onClose, actions }: Props) {
   const { t } = useTranslation();
   const [roles, setRoles] = useState<RoleInfo[]>([]);
   const [grantRoleId, setGrantRoleId] = useState("");
@@ -71,7 +68,7 @@ export function QuickInviteModal({ activeHubUrl, hubSerial, myMaxPriority, onClo
         forcesSingleUse ? ADMIN_GRANT_DEFAULT_EXPIRY_SECS : null,
         grantRoleId || null,
       );
-      setLink(buildInviteLink(activeHubUrl, hubSerial, inv.code));
+      setLink(buildInviteLink(activeHubUrl, inv.code));
     } catch (e) {
       setError(String(e));
     } finally {

@@ -19,6 +19,8 @@ export type {
   CreatedFarmHub,
   ReactionCount,
   ForumAttachment,
+  TagRef,
+  ForumTagDef,
   PostSummary,
   ReplyView,
   PostDetail,
@@ -36,6 +38,7 @@ export type {
   DmMessage,
   WhisperTarget,
   WhisperList,
+  WhisperReplyBind,
   SoundboardChip,
 } from "./types";
 export { AudioProfileSection } from "./components/AudioProfileSection";
@@ -57,6 +60,7 @@ export { FocusTrap } from "./components/FocusTrap";
 export { GameCard } from "./components/GameCard";
 export { GameModal } from "./components/GameModal";
 export { HoverSubmenu } from "./components/HoverSubmenu";
+export { HubClock } from "./components/HubClock";
 export { ImagePicker } from "./components/ImagePicker";
 export { KeyboardShortcuts } from "./components/KeyboardShortcuts";
 export { MessageContent } from "./components/MessageContent";
@@ -73,6 +77,10 @@ export { ReconnectBanner } from "./components/content/ReconnectBanner";
 export { EMOJI_CATALOG, QUICK_REACTIONS } from "./emojiCatalog";
 export { ForumView } from "./components/forum/ForumView";
 export type { ForumActions, ForumAllianceContext } from "./components/forum/ForumView";
+export { ForumTagPicker } from "./components/forum/ForumTagPicker";
+export { ForumTagManager } from "./components/forum/ForumTagManager";
+export type { ForumTagManagerActions } from "./components/forum/ForumTagManager";
+export { toggleTagSelection } from "./utils/forumTags";
 export { EventCard } from "./components/events/EventCard";
 export type { EventStagingCapability } from "./components/events/EventCard";
 export { EventComposer } from "./components/events/EventComposer";
@@ -111,6 +119,8 @@ export { SearchBar } from "./components/layout/SearchBar";
 export type { GlobalSearchResult } from "./types";
 export { DiscoverPage } from "./components/hubs/DiscoverPage";
 export type { HubListing } from "./types";
+export { HubSetupWizard } from "./components/hubs/HubSetupWizard";
+export type { HubSetupWizardActions, HubSetupWizardCreateChannelFields } from "./components/hubs/HubSetupWizard";
 export { Lobby } from "./components/layout/Lobby";
 export type { LobbyActions } from "./components/layout/Lobby";
 export { HubSidebar } from "./components/layout/HubSidebar";
@@ -147,6 +157,8 @@ export { ChannelMessageList } from "./components/content/ChannelMessageList";
 export { DmView } from "./components/content/DmView";
 export { WelcomeInviteBanner } from "./components/content/WelcomeInviteBanner";
 export { ContentArea } from "./components/content/ContentArea";
+export { PinnedMessagesModal } from "./components/content/PinnedMessagesModal";
+export type { PinnedMessageEntry } from "./components/content/PinnedMessagesModal";
 export { ErrorBoundary } from "./components/ErrorBoundary";
 export { SortableHubIcon, SortableChannelItem, SortableCategoryItem } from "./components/SortableItems";
 export {
@@ -185,8 +197,6 @@ export { SkinEditor, makeSeed } from "./components/SkinEditor";
 export { SkinsGallery } from "./components/SkinsGallery";
 export { AddHubModal } from "./components/hubs/AddHubModal";
 export { QuickInviteModal, type QuickInviteModalActions } from "./components/hubs/QuickInviteModal";
-export { CreateChannelModal, BANNER_MAX_BYTES, BANNER_MIME_TYPES } from "./components/channels/CreateChannelModal";
-export type { BannerSource } from "./components/channels/CreateChannelModal";
 export { WelcomeScreen } from "./components/layout/WelcomeScreen";
 export { UserContextMenu } from "./components/users/UserContextMenu";
 export type { UserContextMenuActions } from "./components/users/UserContextMenu";
@@ -204,8 +214,10 @@ export {
   distinguishingRoles,
   groupRolesByCategory,
   roleTintStyle,
+  nameColorStyle,
 } from "./utils/roleAppearance";
 export type { RoleCategoryGroup } from "./utils/roleAppearance";
+export type { NameColorMode } from "./types";
 export { identityGradient, profileBannerStyle } from "./utils/identityColor";
 export { insertAtLineStart } from "./utils/activityEmoji";
 export type {
@@ -217,6 +229,7 @@ export type {
   UserProfile,
   PublicHubEntry,
   PublicHubProfile,
+  MemberHistoryEntry,
 } from "./types";
 export type {
   ChannelRoleOverwrites,
@@ -231,14 +244,15 @@ export {
 } from "./utils/channelPermissions";
 export type { TriState } from "./utils/channelPermissions";
 export { ChannelIconPicker } from "./components/channels/ChannelIconPicker";
+export { EditDescriptionModal } from "./components/channels/EditDescriptionModal";
 export { ChannelPermissionsTab } from "./components/channels/ChannelPermissionsTab";
 export type { ChannelPermissionsTabActions } from "./components/channels/ChannelPermissionsTab";
 export { ChannelBansTab } from "./components/channels/ChannelBansTab";
 export type { ChannelBansTabActions, ChannelBanRow, ChannelBansTabUser } from "./components/channels/ChannelBansTab";
 export { ChannelTalkPowerTab } from "./components/channels/ChannelTalkPowerTab";
 export type { ChannelTalkPowerTabActions } from "./components/channels/ChannelTalkPowerTab";
-export { ChannelSettingsModal } from "./components/channels/ChannelSettingsModal";
-export type { ChannelSettingsModalChannel } from "./components/channels/ChannelSettingsModal";
+export { ChannelSettingsModal, BANNER_MAX_BYTES, BANNER_MIME_TYPES } from "./components/channels/ChannelSettingsModal";
+export type { ChannelSettingsModalChannel, ChannelSettingsSaveFields, BannerSource } from "./components/channels/ChannelSettingsModal";
 
 // ---------------------------------------------------------------------------
 // ChannelSidebar (parity hoist, 2026-07-20)
@@ -252,9 +266,12 @@ export {
   resolveDrillInScope,
   flattenAllianceChannels,
   allianceChannelIcon,
+  computeDragIntent,
 } from "./components/layout/channelSidebarLayout";
-export type { IndentInfo, DrillInScope, AllianceFlatNode } from "./components/layout/channelSidebarLayout";
+export type { IndentInfo, DrillInScope, AllianceFlatNode, DragIntent, DragRect } from "./components/layout/channelSidebarLayout";
 export { WhisperPanel } from "./components/voice/WhisperPanel";
+export { WhisperInbox } from "./components/voice/WhisperInbox";
+export type { WhisperInboxEntry } from "./components/voice/WhisperInbox";
 export { SoundboardPopover } from "./components/voice/SoundboardPopover";
 export {
   isSpawnerChannel,
@@ -339,3 +356,16 @@ export type {
 } from "./types";
 export { RecoveryContactsSection } from "./components/settings/RecoveryContactsSection";
 export type { RecoveryContactsSectionActions } from "./components/settings/RecoveryContactsSection";
+
+// Shared app-orchestration hooks (used by both web and desktop App.tsx).
+export { useVoiceMoveUx } from "./hooks/useVoiceMoveUx";
+export type { VoiceMoveMenuState } from "./hooks/useVoiceMoveUx";
+export { usePresenceStatus } from "./hooks/usePresenceStatus";
+export { useHubSetupWizardGate } from "./hooks/useHubSetupWizardGate";
+export { useSoundboardChips, parseSoundboardPlayedEvent } from "./hooks/useSoundboardChips";
+export type { SoundboardPlayedEvent } from "./hooks/useSoundboardChips";
+export { useWhisperKeybinds } from "./hooks/useWhisperKeybinds";
+export { applyWhisperLogEvent, pickReplyPubkey } from "./utils/whisperInbox";
+export type { InboundWhisperEntry } from "./utils/whisperInbox";
+export { ChannelContextMenu } from "./components/channels/ChannelContextMenu";
+export type { ChannelContextMenuProps } from "./components/channels/ChannelContextMenu";

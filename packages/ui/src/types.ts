@@ -98,6 +98,13 @@ export interface User {
   group_role: string | null;
   is_bot?: boolean;
   is_webhook?: boolean;
+  /** MM-DD (never a year) — null/absent when unset or the hub has birthdays
+   *  disabled (the server omits it entirely in that case). */
+  birthday?: string | null;
+  /** Final, server-resolved name color (`#rrggbb`) per the hub's
+   *  `name_color_mode` — clients render it as-is, no priority logic. Null
+   *  when nothing resolved (mode "none", or neither role nor user color set). */
+  name_color: string | null;
 }
 
 export interface LinkPreview {
@@ -316,11 +323,21 @@ export interface WhisperTarget {
   label: string;
 }
 
+/** The dedicated whisper-reply key: press to whisper straight back at the
+ *  most recent inbound whisperer. Distinct from any per-list keybind. */
+export interface WhisperReplyBind {
+  key?: string;
+  mode: "hold" | "toggle";
+}
+
 export interface WhisperList {
   id: string;
   name: string;
   targets: WhisperTarget[];
   keybind?: string;
+  /** Hold-to-whisper vs. toggle-on-keydown while `keybind` is set. Defaults
+   *  to "hold" when absent (lists saved before this shipped). */
+  keybindMode?: "hold" | "toggle";
 }
 
 /** Ephemeral "X played Y" attribution chip shown near the soundboard trigger. */
@@ -413,6 +430,27 @@ export interface ForumAttachment {
   size: number;
 }
 
+/** Tag assignment as it rides along a post (forum.md §10.2) — just enough
+ * to render a chip; the full definition (position, created_at) lives in
+ * ForumTagDef and is only needed by the admin tag editor. */
+export interface TagRef {
+  id: string;
+  label: string;
+  color?: string | null;
+}
+
+/** A channel's tag vocabulary entry (forum.md §10.1), admin-curated via
+ * `manage_posts`. `channel_id`/`position`/`created_at` matter to the admin
+ * editor and list ordering; post-facing chips only need `TagRef`. */
+export interface ForumTagDef {
+  id: string;
+  channel_id: string;
+  label: string;
+  color: string | null;
+  position: number;
+  created_at: number;
+}
+
 export interface PostSummary {
   id: string;
   channel_id: string;
@@ -431,6 +469,8 @@ export interface PostSummary {
   /** Origin hub public key hex when authored through the alliance forum
    * write-proxy (forum federation phase 2); absent for locally-authored posts. */
   author_hub?: string | null;
+  /** Absent on older hubs that haven't shipped tags yet — default to []. */
+  tags?: TagRef[];
 }
 
 export interface ReplyView {
@@ -696,9 +736,15 @@ export interface ProfileDraftFields {
   status_message: string | null;
   activities: string | null;
   accent_color: string | null;
+  /** The member's raw name-color choice (hex `#rrggbb`, or null/unset). The
+   *  hub resolves this against `name_color_mode` into `User.name_color`/
+   *  `UserProfile.name_color` for rendering — this is only the write side. */
+  name_color: string | null;
   cover: string | null;
   favorite_hubs: FavoriteHub[];
   show_hubs: boolean;
+  /** MM-DD, never a year. null = unset/cleared. */
+  birthday: string | null;
 }
 
 export interface HubProfileSnapshot extends Omit<ProfileDraftFields, "display_name"> {
@@ -764,6 +810,9 @@ export interface UserProfile {
   joined_at: number;
   roles: RoleInfo[];
   badges: BadgeSummary[];
+  birthday: string | null;
+  /** Final, server-resolved name color — see User.name_color. */
+  name_color: string | null;
 }
 
 export interface PublicHubEntry {
@@ -829,6 +878,10 @@ export interface PendingUser {
   display_name: string | null;
   first_seen_at: number;
 }
+
+/** Hub-wide policy for resolving a member's name color when both a role
+ *  color and a user-chosen name_color are present. Default "role_over_user". */
+export type NameColorMode = "user_over_role" | "role_over_user" | "role_only" | "user_only" | "none";
 
 export interface MemberAdminInfo {
   public_key: string;
@@ -970,4 +1023,25 @@ export interface RecoveryRequestBundle {
   status: string;
   attestation_count: number;
   threshold: number;
+}
+
+/**
+ * What another hub has said about a member, from the federated ban lists this
+ * hub subscribes to.
+ *
+ * `policy` is the half that makes it readable: `hard-reject` means the entry
+ * would have refused admission, `soft-flag` that it did not and is here to be
+ * read. Without it the two are indistinguishable and mean opposite things.
+ * `unknown` is an entry whose source is no longer subscribed — inert, kept
+ * visible rather than hidden.
+ *
+ * Deliberately not a verdict. Another hub's ban is another hub's decision,
+ * made for reasons this one cannot see; a moderator gets the source, the
+ * reason and the date, and makes their own.
+ */
+export interface MemberHistoryEntry {
+  source_hub_pubkey: string;
+  policy: "hard-reject" | "soft-flag" | "unknown";
+  reason?: string | null;
+  added_at: number;
 }

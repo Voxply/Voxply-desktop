@@ -68,6 +68,40 @@ export function flattenAllianceChannels(entries: AllianceSharedChannel[]): Allia
   return result;
 }
 
+export type DragIntent = "before" | "after" | "nest";
+
+/** Edge-zone ratio (nested-channels-ux.md drag&drop fix): dropping in the
+ * top/bottom EDGE_ZONE_RATIO of an item reorders as a sibling; only the
+ * middle band on a category nests — a non-category item never nests. */
+const EDGE_ZONE_RATIO = 0.3;
+
+export interface DragRect {
+  top: number;
+  height: number;
+}
+
+/**
+ * Resolves what a drop over `overRect` means, given the dragged item's
+ * current rect. Shared by the sidebar's nest-highlight (handleDragOver) and
+ * the drag-end reparent/reorder decision so both use the same rule — fixes
+ * the root-level reorder bug where dropping anywhere on a category always
+ * nested, with no way to reorder siblings around it.
+ */
+export function computeDragIntent(
+  activeRect: DragRect | null,
+  overRect: DragRect,
+  overIsCategory: boolean,
+): DragIntent {
+  if (!activeRect || overRect.height <= 0) return "before";
+  const activeCenter = activeRect.top + activeRect.height / 2;
+  const relative = (activeCenter - overRect.top) / overRect.height;
+
+  if (!overIsCategory) return relative < 0.5 ? "before" : "after";
+  if (relative < EDGE_ZONE_RATIO) return "before";
+  if (relative > 1 - EDGE_ZONE_RATIO) return "after";
+  return "nest";
+}
+
 export function allianceChannelIcon(c: AllianceSharedChannel): string {
   if (c.is_category) return "📁";
   switch (c.channel_type) {

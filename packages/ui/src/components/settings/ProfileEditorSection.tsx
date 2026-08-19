@@ -40,6 +40,23 @@ const PRONOUNS_MAX = 40;
 const STATUS_MAX = 140;
 const ACTIVITIES_MAX = 500;
 
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+// No year is ever stored, so Feb always offers 29 — rejecting Feb 29 for a
+// birthday's own year is meaningless.
+const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+function parseBirthday(v: string): { month: string; day: string } {
+  const m = /^(\d{2})-(\d{2})$/.exec(v);
+  return m ? { month: m[1], day: m[2] } : { month: "", day: "" };
+}
+
+function composeBirthday(month: string, day: string): string {
+  return month && day ? `${month}-${day}` : "";
+}
+
 type CardTab = "bio" | "activities" | "hubs";
 
 // Internal working-copy shape: text fields are always strings (never null)
@@ -55,9 +72,12 @@ interface Draft {
   status_message: string;
   activities: string;
   accent_color: string | null;
+  name_color: string | null;
   cover: string | null;
   favorite_hubs: FavoriteHub[];
   show_hubs: boolean;
+  /** MM-DD, or "" for unset. Never a year. */
+  birthday: string;
 }
 
 function fromExternal(p: Omit<ProfileDraftFields, "display_name"> & { display_name: string | null }): Draft {
@@ -69,9 +89,11 @@ function fromExternal(p: Omit<ProfileDraftFields, "display_name"> & { display_na
     status_message: p.status_message ?? "",
     activities: p.activities ?? "",
     accent_color: p.accent_color,
+    name_color: p.name_color,
     cover: p.cover,
     favorite_hubs: p.favorite_hubs,
     show_hubs: p.show_hubs,
+    birthday: p.birthday ?? "",
   };
 }
 
@@ -83,8 +105,10 @@ const sameDraft = (a: Draft, b: Draft) =>
   a.status_message === b.status_message &&
   a.activities === b.activities &&
   a.accent_color === b.accent_color &&
+  a.name_color === b.name_color &&
   a.cover === b.cover &&
   a.show_hubs === b.show_hubs &&
+  a.birthday === b.birthday &&
   JSON.stringify(a.favorite_hubs) === JSON.stringify(b.favorite_hubs);
 
 const trimToNull = (s: string) => {
@@ -208,8 +232,13 @@ export function ProfileEditorSection({ hubs, account, isActive, publicKey, accou
 
   // Load a context's baseline the first time it's opened. Already-loaded
   // contexts keep their draft — that's what lets edits survive switching.
+  // A month alone can't live in the draft (composeBirthday collapses a
+  // month-without-day to ""), so it parks here until a day completes it.
+  const [pendingMonth, setPendingMonth] = useState("");
+
   useEffect(() => {
     setChoosingAvatar(false);
+    setPendingMonth("");
     if (error === "no_session" || (error && error !== "name_required")) setError(null);
     if (baselines[context]) return;
     if (context === DEFAULT_CONTEXT) {
@@ -300,6 +329,21 @@ export function ProfileEditorSection({ hubs, account, isActive, publicKey, accou
   // the default draft from now on — including edits made to the default
   // afterwards — until a field here is edited (detach) or settings closes.
   // Still nothing persisted until "Save changes".
+  const parsedBirthday = parseBirthday(draft?.birthday ?? "");
+  const birthdayMonth = parsedBirthday.month || pendingMonth;
+  const birthdayDay = parsedBirthday.day;
+
+  function updateBirthdayMonth(month: string) {
+    setPendingMonth(month);
+    const maxDay = DAYS_IN_MONTH[Number(month) - 1] ?? 31;
+    const day = birthdayDay && Number(birthdayDay) <= maxDay ? birthdayDay : "";
+    update({ birthday: composeBirthday(month, day) });
+  }
+
+  function updateBirthdayDay(day: string) {
+    update({ birthday: composeBirthday(birthdayMonth, day) });
+  }
+
   function applyDefault() {
     setFollowing((s) => new Set(s).add(context));
     setChoosingAvatar(false);
@@ -324,9 +368,11 @@ export function ProfileEditorSection({ hubs, account, isActive, publicKey, accou
           status_message: trimToNull(d.status_message),
           activities: trimToNull(d.activities),
           accent_color: d.accent_color,
+          name_color: d.name_color,
           cover: d.cover,
           favorite_hubs: d.favorite_hubs,
           show_hubs: d.show_hubs,
+          birthday: d.birthday || null,
         };
         if (c === DEFAULT_CONTEXT) {
           actions.saveDefaultProfile(profile, account.id);
@@ -515,6 +561,48 @@ export function ProfileEditorSection({ hubs, account, isActive, publicKey, accou
                   aria-label={t("settings.profile.fields.pronouns_label")}
                   style={{ fontSize: "var(--text-sm)", color: "var(--text-muted)" }}
                 />
+              </div>
+              <div style={{ marginTop: 4 }}>
+                <label className="settings-label" style={{ fontSize: "var(--text-sm)" }}>
+                  {t("settings.profile.fields.birthday_label", "Birthday (visible to everyone on this hub)")}
+                </label>
+                <div className="settings-row" style={{ gap: "var(--space-2)" }}>
+                  <select
+                    aria-label={t("settings.profile.fields.birthday_month_label", "Birthday month")}
+                    value={birthdayMonth}
+                    onChange={(e) => updateBirthdayMonth(e.target.value)}
+                  >
+                    <option value="">{t("settings.profile.fields.birthday_month_placeholder", "Month")}</option>
+                    {MONTH_NAMES.map((name, i) => {
+                      const mm = String(i + 1).padStart(2, "0");
+                      return <option key={mm} value={mm}>{name}</option>;
+                    })}
+                  </select>
+                  <select
+                    aria-label={t("settings.profile.fields.birthday_day_label", "Birthday day")}
+                    value={birthdayDay}
+                    onChange={(e) => updateBirthdayDay(e.target.value)}
+                    disabled={!birthdayMonth}
+                  >
+                    <option value="">{t("settings.profile.fields.birthday_day_placeholder", "Day")}</option>
+                    {birthdayMonth &&
+                      Array.from({ length: DAYS_IN_MONTH[Number(birthdayMonth) - 1] }, (_, i) => String(i + 1).padStart(2, "0")).map((d) => (
+                        <option key={d} value={d}>{Number(d)}</option>
+                      ))}
+                  </select>
+                  {draft.birthday && (
+                    <button
+                      type="button"
+                      className="btn-small btn-secondary"
+                      onClick={() => {
+                        setPendingMonth("");
+                        update({ birthday: "" });
+                      }}
+                    >
+                      {t("settings.profile.fields.birthday_clear", "Clear")}
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="profile-card-idline">
                 {account.id.slice(0, 16)}…{account.id.slice(-8)}
@@ -714,6 +802,30 @@ export function ProfileEditorSection({ hubs, account, isActive, publicKey, accou
                     {t("settings.profile.banner.reset_hint")}
                   </span>
                 </div>
+
+                <div className="settings-label" style={{ fontSize: "var(--text-sm)", margin: "var(--space-3) 0 4px" }}>
+                  {t("settings.profile.banner.name_color_label")}
+                </div>
+                <p className="muted" style={{ fontSize: "var(--text-xs)", marginTop: 0 }}>
+                  {t("settings.profile.banner.name_color_hint")}
+                </p>
+                <div className="settings-row" style={{ gap: "var(--space-2)", alignItems: "center" }}>
+                  <input
+                    type="color"
+                    value={draft.name_color ?? "#7c5cff"}
+                    onChange={(e) => update({ name_color: e.target.value })}
+                    aria-label={t("settings.profile.banner.name_color_label")}
+                    style={{ width: 44, height: 32, padding: 0, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "none", cursor: "pointer" }}
+                  />
+                  <button
+                    type="button"
+                    className="btn-small btn-secondary"
+                    onClick={() => update({ name_color: null })}
+                    disabled={!draft.name_color}
+                  >
+                    {t("settings.profile.banner.reset")}
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -742,8 +854,10 @@ function blankDraft(): Draft {
     status_message: "",
     activities: "",
     accent_color: null,
+    name_color: null,
     cover: null,
     favorite_hubs: [],
     show_hubs: false,
+    birthday: "",
   };
 }

@@ -447,6 +447,8 @@ export type ChannelType = "text" | "forum" | "banner";
 export type {
   ReactionCount,
   ForumAttachment,
+  TagRef,
+  ForumTagDef,
   PostSummary,
   ReplyView,
   PostDetail,
@@ -603,14 +605,7 @@ export interface UploadedAttachment {
   mime_type: string;
 }
 
-// ---- Message pinning ----
-
-export interface PinnedMessage {
-  message_id: string;
-  pinned_by: string;
-  pinned_at: number;
-  message: Message;
-}
+// ---- Message pinning: shared PinnedMessageEntry in @wavvon/ui ----
 
 // ---- User profile card ----
 

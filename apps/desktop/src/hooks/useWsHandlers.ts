@@ -12,6 +12,8 @@ export interface WsHandlersParams {
   users: User[];
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
   myPresenceRef: RefObject<{ status: PresenceStatus }>;
+  /// Current whisper receive opt-out, re-pushed on every (re)connect.
+  whisperOptoutRef: RefObject<boolean>;
   onVoiceMove: (raw: unknown) => void;
   setHubConnected: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   setAssertiveAnnouncement: (msg: string) => void;
@@ -43,6 +45,12 @@ export interface WsHandlersParams {
   onBotAppLaunch: (event: BotAppLaunchEvent) => void;
   onBotAppOpen: (event: BotAppOpenEvent, hubUrl: string) => void;
   onBotAppClose: (event: BotAppCloseEvent) => void;
+  /// The hub's channel list changed (`channels_updated`).
+  onChannelsChanged: () => void;
+  /// Hub branding/settings changed (`hub_updated`) — name, icon, timezone.
+  onHubBrandingChanged: () => void;
+  /// A `soundboard_played` payload, forwarded raw to the shared chip hook.
+  onSoundboardPlayed: (raw: unknown) => void;
 }
 
 export function useWsHandlers({
@@ -53,6 +61,7 @@ export function useWsHandlers({
   users,
   setUsers,
   myPresenceRef,
+  whisperOptoutRef,
   setHubConnected,
   setAssertiveAnnouncement,
   setToast,
@@ -79,6 +88,9 @@ export function useWsHandlers({
   onBotAppOpen,
   onBotAppClose,
   onVoiceMove,
+  onChannelsChanged,
+  onHubBrandingChanged,
+  onSoundboardPlayed,
 }: WsHandlersParams) {
   useEffect(() => {
     const unlistens: (() => void)[] = [];
@@ -114,12 +126,73 @@ export function useWsHandlers({
                   payload: JSON.stringify({ type: "set_status", status: p.status, custom: null }),
                 }).catch(() => { /* session raced away */ });
               }
+              // Whisper opt-out is held per-connection by the hub, so a
+              // reconnect silently re-opts us in unless it is re-sent — same
+              // reasoning as the presence push above.
+              if (whisperOptoutRef.current) {
+                invoke("send_hub_ws_raw_to", {
+                  hubId: hub_id,
+                  payload: JSON.stringify({ type: "voice_whisper_optout", enabled: true }),
+                }).catch(() => { /* session raced away */ });
+              }
               onHubReconnected(hub_id);
             } else {
               scheduleReconnect(hub_id);
             }
           }
         )
+      );
+
+      // Four hub events desktop modelled nowhere until 2026-08-08 — they were
+      // swallowed by the WS enum's catch-all arm, so desktop showed a stale
+      // hub name, a stale channel list, stale member names/avatars and no
+      // soundboard attribution while web handled all four.
+      unlistens.push(
+        await listen<{ hub_id: string }>("hub-updated", (event) => {
+          if (event.payload.hub_id !== activeHubIdRef.current) return;
+          onHubBrandingChanged();
+        })
+      );
+
+      unlistens.push(
+        await listen<{ hub_id: string }>("channels-updated", (event) => {
+          if (event.payload.hub_id !== activeHubIdRef.current) return;
+          onChannelsChanged();
+        })
+      );
+
+      unlistens.push(
+        await listen<{
+          hub_id: string;
+          public_key: string;
+          display_name: string | null;
+          avatar: string | null;
+          name_color: string | null;
+        }>("member-updated", (event) => {
+          const p = event.payload;
+          if (p.hub_id !== activeHubIdRef.current) return;
+          // Patch in place so the member list and every message author (names
+          // resolve from this map) refresh live. A member we've never seen
+          // means our roster predates them — refetch so they appear.
+          setUsers((prev) => {
+            if (!prev.some((u) => u.public_key === p.public_key)) {
+              invoke<User[]>("list_users").then(setUsers).catch(() => {});
+              return prev;
+            }
+            return prev.map((u) =>
+              u.public_key === p.public_key
+                ? { ...u, display_name: p.display_name, avatar: p.avatar, name_color: p.name_color }
+                : u,
+            );
+          });
+        })
+      );
+
+      unlistens.push(
+        await listen<{ hub_id: string }>("soundboard-played", (event) => {
+          if (event.payload.hub_id !== activeHubIdRef.current) return;
+          onSoundboardPlayed(event.payload);
+        })
       );
 
       unlistens.push(
@@ -207,7 +280,6 @@ export function useWsHandlers({
         await listen<{
           hub_id: string;
           channel_id: string;
-          hub_udp_port: number;
           participants: VoiceParticipant[];
         }>("voice-joined", (event) => {
           if (event.payload.hub_id !== activeHubIdRef.current) return;

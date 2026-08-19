@@ -32,6 +32,7 @@ mod state;
 mod types;
 mod updater;
 mod voice_cmd;
+mod voice_keys;
 mod ws;
 
 use tauri::Manager;
@@ -123,6 +124,8 @@ pub fn run() {
             channels::rename_channel,
             channels::move_channel,
             channels::update_channel_appearance,
+            channels::set_forum_require_tag,
+            channels::set_channel_nsfw,
             channels::delete_channel,
             channels::reorder_channels,
             channels::subscribe_channel,
@@ -156,6 +159,10 @@ pub fn run() {
             messages::forum_remove_post_reaction,
             messages::forum_add_reply_reaction,
             messages::forum_remove_reply_reaction,
+            messages::forum_list_tags,
+            messages::forum_create_tag,
+            messages::forum_edit_tag,
+            messages::forum_delete_tag,
             messages::mark_post_read,
             messages::upload_file,
             messages::upload_file_bytes,
@@ -209,6 +216,8 @@ pub fn run() {
             local_store::save_ignored_users,
             local_store::load_dnd_settings,
             local_store::save_dnd_settings,
+            local_store::load_whisper_optout,
+            local_store::save_whisper_optout,
             local_store::get_profile,
             local_store::save_profile,
             local_store::get_notification_prefs,
@@ -311,7 +320,6 @@ pub fn run() {
             dm::update_dm_blocks,
             dm::publish_dh_key,
             dm::fetch_dh_key,
-            dm::encrypt_dm,
             dm::decrypt_dm,
             dm::push_group_sender_key,
             dm::rotate_group_sender_key,

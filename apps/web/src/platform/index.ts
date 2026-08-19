@@ -1,4 +1,4 @@
-export { get_hub_ws_info, activeSession, getActiveHubId, setActiveHubId, resetHubSessions } from "./session";
+export { get_hub_ws_info, activeSession, getActiveHubId, setActiveHubId, resetHubSessions, getSession, allSessions } from "./session";
 export { hubFetch, rawFetch, HubApiError, fetchWithTimeout, isNotMemberError } from "./http";
 export { hubFetchAs } from "./hubFetchAs";
 export { HubWebSocket } from "./ws";
@@ -26,6 +26,7 @@ export {
   reauthorizeHub,
   upgradeActiveHubIdentity,
   getHubInfo,
+  refreshHubInfo,
   previewHubInfo,
   verifyLanFingerprint,
   reorderHubs,
@@ -154,6 +155,10 @@ export {
   forumRemovePostReaction,
   forumAddReplyReaction,
   forumRemoveReplyReaction,
+  forumListTags,
+  forumCreateTag,
+  forumEditTag,
+  forumDeleteTag,
   getAllianceChannelPosts,
   getAllianceChannelPost,
   createAllianceChannelPost,
@@ -205,6 +210,7 @@ export {
 } from "./commands/soundboard";
 
 export {
+  fetchMemberHistory,
   reportMessage,
   listReports,
   reviewReport,
@@ -235,6 +241,7 @@ export {
 } from "./commands/channelPermissions";
 export type { MyChannelPermissions } from "./commands/channelPermissions";
 
+export { fetchAllUsers, searchUsers } from "./commands/users";
 export { listRoles, createRole, updateRole, deleteRole, listUserRoles, assignRoleToUser, removeRoleFromUser } from "./commands/roles";
 export type { RoleCreateInput, RoleUpdateInput } from "./commands/roles";
 

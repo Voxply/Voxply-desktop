@@ -387,6 +387,10 @@ pub(crate) fn active_group_sender_keys_path() -> Result<PathBuf, String> {
     Ok(active_account_dir()?.join("group_sender_keys.json"))
 }
 
+pub(crate) fn active_own_dm_plaintexts_path() -> Result<PathBuf, String> {
+    Ok(active_account_dir()?.join("own_dm_plaintexts.json"))
+}
+
 // local_store.rs's per-user files (settings-ia.md §7 fix): everything below
 // backs a local_store.rs path helper of the same data. Voice device/profile
 // settings and the theme *slot* deliberately stay out of this list — they
@@ -432,6 +436,10 @@ pub(crate) fn active_unread_state_path() -> Result<PathBuf, String> {
 
 pub(crate) fn active_dnd_settings_path() -> Result<PathBuf, String> {
     Ok(active_account_dir()?.join("dnd_settings.json"))
+}
+
+pub(crate) fn active_whisper_optout_path() -> Result<PathBuf, String> {
+    Ok(active_account_dir()?.join("whisper_optout.json"))
 }
 
 pub(crate) fn active_notif_prefs_path() -> Result<PathBuf, String> {

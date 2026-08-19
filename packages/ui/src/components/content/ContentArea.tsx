@@ -83,6 +83,8 @@ interface Props {
   memberSidebarHidden: boolean;
   voiceActiveUsers: Set<string>;
   selfInvisible?: boolean;
+  /** Viewer opt-out from the 🎂 badge (member list + message author rows). */
+  hideBirthdays?: boolean;
   inputText: string;
   typingByKey: Record<string, TypingEntry>;
   dmTypingByKey: Record<string, TypingEntry>;
@@ -173,6 +175,7 @@ export function ContentArea({
   pendingAttachments, stickToBottom, newWhileScrolledUp,
   hubConnected, reconnectingHubs, memberSidebarHidden, voiceActiveUsers,
   selfInvisible,
+  hideBirthdays,
   inputText, typingByKey, dmTypingByKey,
   messagesEndRef, messagesEndChannelRef, messagesContainerRef, messageInputRef,
   onReconnect, onToggleReaction, onSetReplyTarget,
@@ -333,6 +336,7 @@ export function ContentArea({
       avatar: null,
       online: false,
       group_role: null,
+      name_color: null,
     };
     onSetUserContextMenu({ x: e.clientX, y: e.clientY, user });
   }
@@ -511,6 +515,8 @@ export function ContentArea({
             myPubkey={publicKey}
             isAdmin={isAdmin}
             actions={forumActions}
+            forumRequireTag={selectedChannel.forum_require_tag ?? false}
+            users={users}
           />
         ) : selectedChannel ? (
           <div className="chat-column">
@@ -589,6 +595,7 @@ export function ContentArea({
               isAdmin={isAdmin}
               pinnedMessageIds={pinnedMessageIds}
               sessionHubUrl={activeHub?.hub_url ?? null}
+              hideBirthdays={hideBirthdays}
               hubEmojiMap={hubEmojiMap}
               hubBaseUrl={activeHub?.hub_url}
               actions={messageRowActions}
@@ -658,6 +665,7 @@ export function ContentArea({
             myPubkey={publicKey}
             isAdmin={isAdmin}
             actions={forumActions}
+            users={users}
             allianceContext={{
               allianceId: selectedAllianceChannel.alliance_id,
               allianceName: selectedAllianceChannel.alliance_name,
@@ -688,6 +696,7 @@ export function ContentArea({
             inVoice={voiceActiveUsers}
             myPubkey={publicKey}
             selfInvisible={selfInvisible}
+            hideBirthdays={hideBirthdays}
             onUserClick={(pubkey) => handleAuthorClick(pubkey)}
             onContextMenu={(e, u) => {
               e.preventDefault();

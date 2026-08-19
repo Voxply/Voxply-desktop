@@ -1,9 +1,22 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import type { PostDetail, ReplyView, ReactionCount, ForumAttachment } from "../../types";
+import type { PostDetail, ReplyView, ReactionCount, ForumAttachment, ForumTagDef, User } from "../../types";
 import { formatRelative, formatPubkey } from "@wavvon/core";
 import { describeForumWriteError } from "./forumErrors";
+import { ForumTagPicker } from "./ForumTagPicker";
+import { toggleTagSelection } from "../../utils/forumTags";
+import { MessageContent } from "../MessageContent";
+import { AutoGrowTextarea } from "../profile/AutoGrowTextarea";
+import { EmojiPicker } from "../content/EmojiPicker";
 import type { ForumActions } from "./ForumView";
+
+const NO_MENTIONS = new Set<string>();
+// 5 text rows at the --leading-normal line-height (1.5 * 14px).
+const COMPOSER_MIN_HEIGHT = 5 * 21;
+
+function authorLabel(users: User[], pubkey: string): string {
+  return users.find((u) => u.public_key === pubkey)?.display_name || formatPubkey(pubkey);
+}
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
 
@@ -26,6 +39,11 @@ interface Props {
    * context (forum_remote_write !== "none"). Ignored when `allianceId` is
    * unset -- local channels are always writable per the caller's roles. */
   canWrite?: boolean;
+  /** Channel setting (forum.md §10.1) -- block a retag-to-zero edit. */
+  forumRequireTag?: boolean;
+  /** Local hub roster, used to resolve `author_pubkey` to a display name
+   * the same way MessageRow resolves message senders. */
+  users: User[];
 }
 
 interface ReactionBarProps {
@@ -92,6 +110,11 @@ function ReactionBar({ reactions, onToggle, readOnly }: ReactionBarProps) {
   );
 }
 
+interface PendingFile {
+  file: File;
+  objectUrl: string;
+}
+
 function AttachmentList({ attachments }: { attachments: ForumAttachment[] }) {
   if (!attachments.length) return null;
   return (
@@ -116,6 +139,7 @@ function AttachmentList({ attachments }: { attachments: ForumAttachment[] }) {
 
 export function ForumPostDetail({
   postId, channelId, publicKey, isAdmin, canManagePosts, actions, onBack, allianceId, readOnly, canWrite = true,
+  forumRequireTag, users,
 }: Props) {
   const { t } = useTranslation();
   const [post, setPost] = useState<PostDetail | null>(null);
@@ -124,9 +148,20 @@ export function ForumPostDetail({
   const [replyBody, setReplyBody] = useState("");
   const [replyTo, setReplyTo] = useState<string | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [editingPostBody, setEditingPostBody] = useState<string | null>(null);
   const [editingReplyId, setEditingReplyId] = useState<string | null>(null);
   const [editingReplyBody, setEditingReplyBody] = useState("");
+  const [channelTags, setChannelTags] = useState<ForumTagDef[]>([]);
+  // undefined = untouched -> editPost omits tagIds (unchanged, forum.md §10.2).
+  const [editingTagIds, setEditingTagIds] = useState<string[] | undefined>(undefined);
+
+  useEffect(() => {
+    if (allianceId || !actions.listTags) return;
+    actions.listTags(channelId).then(setChannelTags).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channelId, allianceId, actions.listTags]);
 
   async function reload() {
     try {
@@ -150,6 +185,22 @@ export function ForumPostDetail({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [postId, channelId, allianceId]);
 
+  function handleReplyFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files ?? []);
+    if (!picked.length) return;
+    const next = picked.map((f) => ({ file: f, objectUrl: URL.createObjectURL(f) }));
+    setPendingFiles((prev) => [...prev, ...next]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function removeReplyFile(objectUrl: string) {
+    setPendingFiles((prev) => {
+      const removed = prev.find((f) => f.objectUrl === objectUrl);
+      if (removed) URL.revokeObjectURL(removed.objectUrl);
+      return prev.filter((f) => f.objectUrl !== objectUrl);
+    });
+  }
+
   async function handleSendReply() {
     if (!post || !replyBody.trim()) return;
     setSubmitting(true);
@@ -157,8 +208,15 @@ export function ForumPostDetail({
       if (allianceId) {
         await actions.createAllianceReply!(allianceId, channelId, post.id, replyBody.trim(), replyTo);
       } else {
-        await actions.createReply(channelId, post.id, replyBody.trim(), replyTo);
+        // Upload every pending file before creating the reply -- a partial
+        // upload failure must not leave a reply with some attachments missing.
+        const attachments = actions.uploadAttachment && pendingFiles.length > 0
+          ? await Promise.all(pendingFiles.map((f) => actions.uploadAttachment!(channelId, f.file)))
+          : undefined;
+        await actions.createReply(channelId, post.id, replyBody.trim(), replyTo, attachments);
       }
+      pendingFiles.forEach((f) => URL.revokeObjectURL(f.objectUrl));
+      setPendingFiles([]);
       setReplyBody("");
       setReplyTo(undefined);
       await reload();
@@ -171,9 +229,14 @@ export function ForumPostDetail({
 
   async function handleSavePostEdit() {
     if (!post || editingPostBody === null) return;
+    if (editingTagIds !== undefined && forumRequireTag && editingTagIds.length === 0) {
+      setError("Pick at least one tag before saving.");
+      return;
+    }
     try {
-      await actions.editPost(channelId, post.id, post.title ?? undefined, editingPostBody);
+      await actions.editPost(channelId, post.id, post.title ?? undefined, editingPostBody, editingTagIds);
       setEditingPostBody(null);
+      setEditingTagIds(undefined);
       await reload();
     } catch (e) {
       setError(String(e));
@@ -287,49 +350,77 @@ export function ForumPostDetail({
           {post.is_locked && <span className="forum-badge lock" title="Locked"> 🔒</span>}
         </h1>
         <div className="forum-post-submeta muted">
+          {!post.is_deleted && <span className="forum-post-author">{authorLabel(users, post.author_pubkey)} · </span>}
           {formatRelative(post.created_at)}
           {post.edited_at && ` · edited ${formatRelative(post.edited_at)}`}
           {post.author_hub && <span title={post.author_hub}> · via {formatPubkey(post.author_hub)}</span>}
         </div>
-        {canModerate && !post.is_deleted && (
-          <div className="forum-mod-actions">
-            <button className="btn-secondary" onClick={handlePin}>
-              {post.is_pinned ? "Unpin" : "Pin"}
-            </button>
-            <button className="btn-secondary" onClick={handleLock}>
-              {post.is_locked ? "Unlock" : "Lock"}
-            </button>
-          </div>
-        )}
-        {!readOnly && (canModerate || post.author_pubkey === publicKey) && !post.is_deleted && (
-          <div className="forum-author-actions">
-            <button
-              className="btn-secondary"
-              onClick={() => setEditingPostBody(editingPostBody === null ? (post.body ?? "") : null)}
-            >
-              Edit
-            </button>
-            <button className="btn-secondary danger" onClick={handleDeletePost}>Delete</button>
+        {!post.is_deleted && (canModerate || (!readOnly && post.author_pubkey === publicKey)) && (
+          <div className="forum-post-actions">
+            {canModerate && (
+              <>
+                <button className="btn-secondary" onClick={handlePin}>
+                  {post.is_pinned ? "Unpin" : "Pin"}
+                </button>
+                <button className="btn-secondary" onClick={handleLock}>
+                  {post.is_locked ? "Unlock" : "Lock"}
+                </button>
+              </>
+            )}
+            {!readOnly && (canModerate || post.author_pubkey === publicKey) && (
+              <>
+                <button
+                  className="btn-secondary"
+                  onClick={() => {
+                    if (editingPostBody === null) {
+                      setEditingPostBody(post.body ?? "");
+                      setEditingTagIds(undefined);
+                    } else {
+                      setEditingPostBody(null);
+                      setEditingTagIds(undefined);
+                    }
+                  }}
+                >
+                  Edit
+                </button>
+                <button className="btn-secondary danger" onClick={handleDeletePost}>Delete</button>
+              </>
+            )}
           </div>
         )}
       </div>
 
       {editingPostBody !== null ? (
         <div className="forum-edit-post">
-          <textarea
-            rows={6}
+          <AutoGrowTextarea
+            className="forum-composer-textarea"
             value={editingPostBody}
-            onChange={(e) => setEditingPostBody(e.target.value)}
-            style={{ width: "100%" }}
+            onChange={setEditingPostBody}
+            minHeight={COMPOSER_MIN_HEIGHT}
           />
+          {!allianceId && channelTags.length > 0 && (
+            <ForumTagPicker
+              tags={channelTags}
+              selected={editingTagIds ?? (post.tags?.map((t) => t.id) ?? [])}
+              onToggle={(id) =>
+                setEditingTagIds((prev) =>
+                  toggleTagSelection(prev ?? post.tags?.map((t) => t.id) ?? [], id),
+                )
+              }
+            />
+          )}
           <div className="forum-edit-actions">
             <button onClick={handleSavePostEdit}>Save</button>
-            <button className="btn-secondary" onClick={() => setEditingPostBody(null)}>Cancel</button>
+            <button className="btn-secondary" onClick={() => { setEditingPostBody(null); setEditingTagIds(undefined); }}>Cancel</button>
           </div>
         </div>
       ) : (
         <div className="forum-post-body">
-          {post.is_deleted ? <p className="muted">[Content removed]</p> : <p>{post.body}</p>}
+          {post.is_deleted ? (
+            <p className="muted">[Content removed]</p>
+          ) : (
+            <MessageContent content={post.body ?? ""} knownNames={NO_MENTIONS} myName={null} />
+          )}
         </div>
       )}
 
@@ -365,6 +456,7 @@ export function ForumPostDetail({
             onReaction={(emoji, me) => void handleReplyReaction(reply.id, emoji, me)}
             readOnly={readOnly}
             canWrite={canWrite}
+            users={users}
           />
         ))}
       </div>
@@ -385,13 +477,51 @@ export function ForumPostDetail({
               <button className="btn-ghost" onClick={() => setReplyTo(undefined)} aria-label="Clear reply" title="Clear reply">×</button>
             </div>
           )}
-          <textarea
-            rows={3}
+          <AutoGrowTextarea
+            className="forum-composer-textarea"
             placeholder="Write a reply…"
             value={replyBody}
-            onChange={(e) => setReplyBody(e.target.value)}
-            style={{ width: "100%" }}
+            onChange={setReplyBody}
+            minHeight={3 * 21}
           />
+          <div className="settings-row" style={{ marginTop: 4 }}>
+            <EmojiPicker buttonClassName="composer-btn" onPick={(emoji) => setReplyBody((prev) => prev + emoji)} />
+          </div>
+          {!allianceId && actions.uploadAttachment && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                style={{ display: "none" }}
+                onChange={handleReplyFileChange}
+              />
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Attach file
+              </button>
+              {pendingFiles.length > 0 && (
+                <ul className="forum-pending-attachments">
+                  {pendingFiles.map((f) => (
+                    <li key={f.objectUrl} className="forum-pending-attachment-row">
+                      <span>{f.file.name}</span>
+                      <button
+                        type="button"
+                        className="btn-ghost danger"
+                        onClick={() => removeReplyFile(f.objectUrl)}
+                        aria-label={`Remove ${f.file.name}`}
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
           <button
             className="btn-primary"
             onClick={handleSendReply}
@@ -422,13 +552,14 @@ interface ReplyRowProps {
   onReaction: (emoji: string, me: boolean) => void;
   readOnly?: boolean;
   canWrite?: boolean;
+  users: User[];
 }
 
 function ForumReplyRow({
   reply, replies, publicKey, canModerate,
   editingId, editingBody, replyingTo,
   onEditStart, onEditSave, onEditCancel, onEditBodyChange, onDelete, onReplyTo, onReaction,
-  readOnly, canWrite = true,
+  readOnly, canWrite = true, users,
 }: ReplyRowProps) {
   const quotedReply = reply.reply_to_id ? replies.find((r) => r.id === reply.reply_to_id) : null;
   const isEditing = editingId === reply.id;
@@ -441,17 +572,18 @@ function ForumReplyRow({
         </div>
       )}
       <div className="forum-reply-meta muted">
+        {!reply.is_deleted && <span className="forum-post-author">{authorLabel(users, reply.author_pubkey)} · </span>}
         {formatRelative(reply.created_at)}
         {reply.edited_at && " · edited"}
         {reply.author_hub && <span title={reply.author_hub}> · via {formatPubkey(reply.author_hub)}</span>}
       </div>
       {isEditing ? (
         <div className="forum-edit-reply">
-          <textarea
-            rows={3}
+          <AutoGrowTextarea
+            className="forum-composer-textarea"
             value={editingBody}
-            onChange={(e) => onEditBodyChange(e.target.value)}
-            style={{ width: "100%" }}
+            onChange={onEditBodyChange}
+            minHeight={3 * 21}
           />
           <div className="forum-edit-actions">
             <button onClick={onEditSave}>Save</button>
@@ -460,7 +592,11 @@ function ForumReplyRow({
         </div>
       ) : (
         <div className="forum-reply-body">
-          {reply.is_deleted ? <p className="muted">[deleted]</p> : <p>{reply.body}</p>}
+          {reply.is_deleted ? (
+            <p className="muted">[deleted]</p>
+          ) : (
+            <MessageContent content={reply.body ?? ""} knownNames={NO_MENTIONS} myName={null} />
+          )}
         </div>
       )}
       {!reply.is_deleted && !isEditing && (

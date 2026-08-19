@@ -10,14 +10,14 @@ import type {
   PendingUser,
   RoleInfo,
 } from "@shared/types";
-import type { HubAdminTab } from "@wavvon/ui";
+import type { HubAdminTab, NameColorMode } from "@wavvon/ui";
 
 interface UseHubAdminParams {
   activeHubId: string | null;
-  /** Called after settings save on the hub succeeds, with the saved name —
-   * the caller owns the locally-stored hub list (whose hub_name is written
-   * at add-time and otherwise never refreshed) and must sync it. */
-  onSaved?: (name: string) => void;
+  /** Called after settings save on the hub succeeds — the caller owns the
+   * locally-stored hub list (whose hub_name/hub_icon are written at add-time
+   * and otherwise never refreshed) and must sync it. */
+  onSaved?: () => void;
 }
 
 export function useHubAdmin({ activeHubId, onSaved }: UseHubAdminParams) {
@@ -30,6 +30,11 @@ export function useHubAdmin({ activeHubId, onSaved }: UseHubAdminParams) {
   const [hubAdminMinLevel, setHubAdminMinLevel] = useState(0);
   const [hubAdminWelcomeLabel, setHubAdminWelcomeLabel] = useState("");
   const [hubAdminWelcomeInviteUrl, setHubAdminWelcomeInviteUrl] = useState("");
+  const [hubAdminTimezone, setHubAdminTimezone] = useState("");
+  const [hubAdminBirthdaysEnabled, setHubAdminBirthdaysEnabled] = useState(true);
+  const [hubAdminNameColorMode, setHubAdminNameColorMode] = useState<NameColorMode>("role_over_user");
+  const [hubAdminAfkChannelId, setHubAdminAfkChannelId] = useState("");
+  const [hubAdminAfkTimeoutSecs, setHubAdminAfkTimeoutSecs] = useState(300);
   const [hubAdminSaveError, setHubAdminSaveError] = useState<string | null>(null);
   const [hubAdminMembers, setHubAdminMembers] = useState<MemberAdminInfo[]>([]);
   const [hubAdminBans, setHubAdminBans] = useState<BanInfo[]>([]);
@@ -53,6 +58,11 @@ export function useHubAdmin({ activeHubId, onSaved }: UseHubAdminParams) {
       setMaxChannelDepth(s.max_channel_depth ?? 0);
       setHubAdminWelcomeLabel(s.welcome_label ?? "");
       setHubAdminWelcomeInviteUrl(s.welcome_invite_url ?? "");
+      setHubAdminTimezone(s.timezone ?? "");
+      setHubAdminBirthdaysEnabled(s.birthdays_enabled ?? true);
+      setHubAdminNameColorMode(s.name_color_mode ?? "role_over_user");
+      setHubAdminAfkChannelId(s.afk_channel_id ?? "");
+      setHubAdminAfkTimeoutSecs(s.afk_timeout_secs ?? 300);
     } catch { /* prefill skipped */ }
     try {
       const [members, bans, invites, pending] = await Promise.allSettled([
@@ -132,8 +142,13 @@ export function useHubAdmin({ activeHubId, onSaved }: UseHubAdminParams) {
         max_channel_depth: maxChannelDepth,
         welcome_label: hubAdminWelcomeLabel,
         welcome_invite_url: hubAdminWelcomeInviteUrl,
+        timezone: hubAdminTimezone,
+        birthdays_enabled: hubAdminBirthdaysEnabled,
+        afk_channel_id: hubAdminAfkChannelId,
+        afk_timeout_secs: hubAdminAfkTimeoutSecs,
+        name_color_mode: hubAdminNameColorMode,
       });
-      onSaved?.(hubAdminName);
+      onSaved?.();
     } catch (e) {
       setHubAdminSaveError(e instanceof HubApiError ? e.message : String(e));
     }
@@ -170,6 +185,16 @@ export function useHubAdmin({ activeHubId, onSaved }: UseHubAdminParams) {
     setHubAdminWelcomeLabel,
     hubAdminWelcomeInviteUrl,
     setHubAdminWelcomeInviteUrl,
+    hubAdminTimezone,
+    setHubAdminTimezone,
+    hubAdminBirthdaysEnabled,
+    setHubAdminBirthdaysEnabled,
+    hubAdminNameColorMode,
+    setHubAdminNameColorMode,
+    hubAdminAfkChannelId,
+    setHubAdminAfkChannelId,
+    hubAdminAfkTimeoutSecs,
+    setHubAdminAfkTimeoutSecs,
     hubAdminSaveError,
     hubAdminMembers,
     hubAdminBans,

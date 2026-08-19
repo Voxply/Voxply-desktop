@@ -1,16 +1,29 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { ForumTagDef } from "../../types";
 import { describeForumWriteError } from "./forumErrors";
+import { ForumTagPicker } from "./ForumTagPicker";
+import { toggleTagSelection } from "../../utils/forumTags";
+import { AutoGrowTextarea } from "../profile/AutoGrowTextarea";
+import { EmojiPicker } from "../content/EmojiPicker";
 import type { ForumActions } from "./ForumView";
+
+// 5 text rows at the --leading-normal line-height (1.5 * 14px).
+const COMPOSER_MIN_HEIGHT = 5 * 21;
 
 interface Props {
   channelId: string;
-  actions: Pick<ForumActions, "createPost" | "createAlliancePost">;
+  actions: Pick<ForumActions, "createPost" | "createAlliancePost" | "listTags" | "uploadAttachment">;
   onCreated: (postId: string) => void;
   onCancel: () => void;
   /** Set when posting into an alliance-shared forum channel -- routes the
    * create through the alliance write-proxy instead of the local endpoint. */
   allianceId?: string;
+  /** Channel setting (forum.md §10.1) -- block submit with no tags chosen. */
+  forumRequireTag?: boolean;
+  /** Admin-only discoverability hint: the tag picker renders nothing when the
+   * forum has no tag definitions, which reads as "tagging doesn't exist". */
+  showNoTagsHint?: boolean;
 }
 
 interface PendingFile {
@@ -18,7 +31,7 @@ interface PendingFile {
   objectUrl: string;
 }
 
-export function ForumComposer({ channelId, actions, onCreated, onCancel, allianceId }: Props) {
+export function ForumComposer({ channelId, actions, onCreated, onCancel, allianceId, forumRequireTag, showNoTagsHint }: Props) {
   const { t } = useTranslation();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -26,6 +39,16 @@ export function ForumComposer({ channelId, actions, onCreated, onCancel, allianc
   const [error, setError] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [tags, setTags] = useState<ForumTagDef[]>([]);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    // Alliance composers never carry tags (forum.md §10.4 -- remote writes
+    // don't assign the owner's tags in v1).
+    if (allianceId || !actions.listTags) return;
+    actions.listTags(channelId).then(setTags).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channelId, allianceId, actions.listTags]);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(e.target.files ?? []);
@@ -45,13 +68,21 @@ export function ForumComposer({ channelId, actions, onCreated, onCancel, allianc
 
   async function handleSubmit() {
     if (!title.trim() || !body.trim()) return;
+    if (!allianceId && forumRequireTag && selectedTagIds.length === 0) {
+      setError("Pick at least one tag before posting.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
-      // TODO: upload before submit
+      // Upload every pending file before creating the post -- a partial
+      // upload failure must not leave a post with some attachments missing.
+      const attachments = actions.uploadAttachment && pendingFiles.length > 0
+        ? await Promise.all(pendingFiles.map((f) => actions.uploadAttachment!(channelId, f.file)))
+        : undefined;
       const result = allianceId
         ? await actions.createAlliancePost!(allianceId, channelId, title.trim(), body.trim())
-        : await actions.createPost(channelId, title.trim(), body.trim());
+        : await actions.createPost(channelId, title.trim(), body.trim(), selectedTagIds, attachments);
       pendingFiles.forEach((f) => URL.revokeObjectURL(f.objectUrl));
       onCreated(result.id);
     } catch (e) {
@@ -78,49 +109,64 @@ export function ForumComposer({ channelId, actions, onCreated, onCancel, allianc
       </div>
       <div className="settings-section">
         <label className="settings-label" htmlFor="forum-body">Body</label>
-        <textarea
+        <AutoGrowTextarea
           id="forum-body"
-          rows={8}
+          className="forum-composer-textarea"
           value={body}
-          onChange={(e) => setBody(e.target.value)}
+          onChange={setBody}
           placeholder="Write your post…"
-          style={{ width: "100%" }}
+          minHeight={COMPOSER_MIN_HEIGHT}
         />
+        <div className="settings-row" style={{ marginTop: 4 }}>
+          <EmojiPicker buttonClassName="composer-btn" onPick={(emoji) => setBody((prev) => prev + emoji)} />
+        </div>
       </div>
-      <div className="settings-section">
-        <label className="settings-label">Attachments</label>
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          style={{ display: "none" }}
-          onChange={handleFileChange}
+      {!allianceId && (
+        <ForumTagPicker
+          tags={tags}
+          selected={selectedTagIds}
+          onToggle={(id) => setSelectedTagIds((prev) => toggleTagSelection(prev, id))}
         />
-        <button
-          type="button"
-          className="btn-secondary"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          Attach file
-        </button>
-        {pendingFiles.length > 0 && (
-          <ul className="forum-pending-attachments">
-            {pendingFiles.map((f) => (
-              <li key={f.objectUrl} className="forum-pending-attachment-row">
-                <span>{f.file.name}</span>
-                <button
-                  type="button"
-                  className="btn-ghost danger"
-                  onClick={() => removeFile(f.objectUrl)}
-                  aria-label={`Remove ${f.file.name}`}
-                >
-                  ×
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      )}
+      {!allianceId && showNoTagsHint && tags.length === 0 && (
+        <p className="muted">{t("forum.no_tags_hint")}</p>
+      )}
+      {actions.uploadAttachment && !allianceId && (
+        <div className="settings-section">
+          <label className="settings-label">Attachments</label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            style={{ display: "none" }}
+            onChange={handleFileChange}
+          />
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            Attach file
+          </button>
+          {pendingFiles.length > 0 && (
+            <ul className="forum-pending-attachments">
+              {pendingFiles.map((f) => (
+                <li key={f.objectUrl} className="forum-pending-attachment-row">
+                  <span>{f.file.name}</span>
+                  <button
+                    type="button"
+                    className="btn-ghost danger"
+                    onClick={() => removeFile(f.objectUrl)}
+                    aria-label={`Remove ${f.file.name}`}
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
       {error && <p className="error-text">{error}</p>}
       <div className="settings-row" style={{ gap: 8 }}>
         <button

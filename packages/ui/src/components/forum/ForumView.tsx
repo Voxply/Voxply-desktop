@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { PostDetail, PostListResponse, ReplyView } from "../../types";
+import type { PostDetail, PostListResponse, ReplyView, ForumTagDef, ForumAttachment, User } from "../../types";
 import { ForumComposer } from "./ForumComposer";
 import { ForumPostDetail } from "./ForumPostDetail";
 import { ForumPostList } from "./ForumPostList";
@@ -25,13 +25,30 @@ export interface ForumAllianceContext {
  * both platforms. Alliance variants are optional -- desktop doesn't wire
  * alliance forum access. */
 export interface ForumActions {
-  listPosts: (channelId: string, cursor?: string) => Promise<PostListResponse>;
-  listAlliancePosts?: (allianceId: string, channelId: string, cursor?: string) => Promise<PostListResponse>;
+  listPosts: (channelId: string, cursor?: string, tagId?: string) => Promise<PostListResponse>;
+  listAlliancePosts?: (allianceId: string, channelId: string, cursor?: string, tagId?: string) => Promise<PostListResponse>;
   getPost: (channelId: string, postId: string) => Promise<PostDetail>;
   getAlliancePost?: (allianceId: string, channelId: string, postId: string) => Promise<PostDetail>;
-  createPost: (channelId: string, title: string, body: string) => Promise<{ id: string }>;
+  createPost: (
+    channelId: string,
+    title: string,
+    body: string,
+    tagIds?: string[],
+    attachments?: ForumAttachment[],
+  ) => Promise<{ id: string }>;
   createAlliancePost?: (allianceId: string, channelId: string, title: string, body: string) => Promise<{ id: string }>;
-  createReply: (channelId: string, postId: string, body: string, replyToId?: string) => Promise<{ id: string }>;
+  createReply: (
+    channelId: string,
+    postId: string,
+    body: string,
+    replyToId?: string,
+    attachments?: ForumAttachment[],
+  ) => Promise<{ id: string }>;
+  /** Uploads a single file to the channel's attachment storage before post
+   * creation; unset on platforms/contexts with no upload endpoint wired
+   * (desktop, and the alliance write-proxy) -- ForumComposer hides the
+   * attach UI entirely when this is absent. */
+  uploadAttachment?: (channelId: string, file: File) => Promise<ForumAttachment>;
   createAllianceReply?: (
     allianceId: string,
     channelId: string,
@@ -39,8 +56,25 @@ export interface ForumActions {
     body: string,
     replyToId?: string,
   ) => Promise<ReplyView>;
-  editPost: (channelId: string, postId: string, title: string | undefined, body: string) => Promise<void>;
+  /** `tagIds` omitted means "unchanged" (the omitted-vs-null trap, CLAUDE.md)
+   * -- only pass it when the user actually touched the tag picker. */
+  editPost: (
+    channelId: string,
+    postId: string,
+    title: string | undefined,
+    body: string,
+    tagIds?: string[],
+  ) => Promise<void>;
   deletePost: (channelId: string, postId: string) => Promise<void>;
+  /** Tag definitions for the channel (forum.md §10.2); unset for alliance
+   * read-through forums, which have no tag-definitions proxy in v1. */
+  listTags?: (channelId: string) => Promise<ForumTagDef[]>;
+  createTag?: (channelId: string, label: string, color?: string | null, position?: number) => Promise<ForumTagDef>;
+  editTag?: (
+    tagId: string,
+    updates: { label?: string; color?: string | null; position?: number },
+  ) => Promise<ForumTagDef>;
+  deleteTag?: (tagId: string) => Promise<void>;
   editReply: (channelId: string, postId: string, replyId: string, body: string) => Promise<void>;
   deleteReply: (channelId: string, postId: string, replyId: string) => Promise<void>;
   pinPost: (channelId: string, postId: string, pin: boolean) => Promise<void>;
@@ -60,9 +94,18 @@ interface Props {
   isAdmin: boolean;
   actions: ForumActions;
   allianceContext?: ForumAllianceContext;
+  /** Forum channel setting (forum.md §10.1) -- block a post/edit with no
+   * tags when true. Alliance-proxied channels never set this (§10.4: remote
+   * writes don't carry tags). */
+  forumRequireTag?: boolean;
+  /** Local hub roster, used to resolve post/reply `author_pubkey` to a
+   * display name the same way MessageRow resolves message senders. Alliance
+   * post authors live on another hub and won't be found here -- falls back
+   * to the formatted pubkey, same as an unknown local user would. */
+  users: User[];
 }
 
-export function ForumView({ channelId, myRoles, myPubkey, isAdmin, actions, allianceContext }: Props) {
+export function ForumView({ channelId, myRoles, myPubkey, isAdmin, actions, allianceContext, forumRequireTag, users }: Props) {
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [composing, setComposing] = useState(false);
   // `alliance` gates moderation/edit/delete, which never have a write-proxy.
@@ -87,6 +130,8 @@ export function ForumView({ channelId, myRoles, myPubkey, isAdmin, actions, alli
         <ForumComposer
           channelId={channelId}
           allianceId={allianceContext?.allianceId}
+          forumRequireTag={forumRequireTag}
+          showNoTagsHint={isAdmin}
           actions={actions}
           onCreated={(postId) => { setComposing(false); setSelectedPostId(postId); }}
           onCancel={() => setComposing(false)}
@@ -101,7 +146,9 @@ export function ForumView({ channelId, myRoles, myPubkey, isAdmin, actions, alli
           allianceId={allianceContext?.allianceId}
           readOnly={alliance}
           canWrite={canWrite}
+          forumRequireTag={forumRequireTag}
           actions={actions}
+          users={users}
           onBack={() => setSelectedPostId(null)}
         />
       ) : (
@@ -111,6 +158,7 @@ export function ForumView({ channelId, myRoles, myPubkey, isAdmin, actions, alli
           publicKey={myPubkey}
           allianceId={allianceContext?.allianceId}
           actions={actions}
+          users={users}
           onOpenPost={(post) => setSelectedPostId(post.id)}
           onNewPost={() => setComposing(true)}
         />

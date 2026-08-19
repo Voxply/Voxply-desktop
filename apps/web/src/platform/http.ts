@@ -56,11 +56,30 @@ export async function fetchWithTimeout(
   }
 }
 
+// Safety net for version skew, the backstop behind capability advertising
+// (decisions.md). Capabilities are the primary mechanism — this catches the
+// feature whose author forgot to gate it, so the user reads "this hub is
+// older" instead of a bare "Not Found".
+//
+// The signal is precise, not a guess about 404 in general: the hub answers an
+// unrouted path with exactly this body (web_client.rs, the non-HTML branch of
+// the SPA fallback), while every handler's own 404 carries a real message
+// ("Channel not found", …). Matching the body rather than the status is what
+// keeps "this endpoint does not exist here" distinct from "this thing does not
+// exist here" — including for isNotMemberError, which reads 404 as the latter.
+const UNROUTED_404_BODY = "Not Found";
+
 async function checkResponse(res: Response): Promise<Response> {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     if (import.meta.env.DEV && res.status >= 400 && res.status < 500) {
       console.warn(`[hubFetch] ${res.status} ${res.url} — ${text || res.statusText}`);
+    }
+    if (res.status === 404 && (text === UNROUTED_404_BODY || text === "")) {
+      throw new HubApiError(
+        404,
+        "This hub doesn't support that yet — it's running an older version.",
+      );
     }
     throw new HubApiError(res.status, text || res.statusText);
   }

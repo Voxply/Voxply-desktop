@@ -109,6 +109,21 @@ function emptyDrSession(): DRSession {
   };
 }
 
+// A ratchet can't decrypt its own outbound envelopes (the message keys are
+// consumed at encrypt time and the receiving chain belongs to the peer), so
+// the sender's plaintext is stashed locally at send time and read back when
+// rendering history. Desktop keeps DM history in its per-account local
+// store; this is web's minimal equivalent.
+// ponytail: one localStorage key per sent encrypted DM, never pruned —
+// move into a bounded per-conversation blob if it ever matters.
+function saveOwnPlaintext(messageId: string, content: string): void {
+  try { setScoped(`wavvon_dm_own_${messageId}`, content); } catch {}
+}
+
+function loadOwnPlaintext(messageId: string): string | null {
+  return getScoped(`wavvon_dm_own_${messageId}`);
+}
+
 export async function getDmMessages(
   conversation_id: string,
   before?: string,
@@ -126,7 +141,10 @@ export async function getDmMessages(
   const results: DmMessageFull[] = [];
   for (const m of raw) {
     let content = m.content ?? "";
-    if (m.is_encrypted && m.encrypted_envelope) {
+    const ownPlaintext = m.is_encrypted ? loadOwnPlaintext(m.id) : null;
+    if (ownPlaintext !== null) {
+      content = ownPlaintext;
+    } else if (m.is_encrypted && m.encrypted_envelope) {
       const env = m.encrypted_envelope;
       // Cert-chained attribution (decisions.md "Paired-device DMs attribute
       // to canonical via cert-chained envelopes"): no signer_cert is
@@ -227,10 +245,16 @@ export async function sendDm(
   );
   saveDrSession(conversation_id, updatedSession);
 
-  await hubFetch(`/conversations/${conversation_id}/messages`, {
+  const res = await hubFetch(`/conversations/${conversation_id}/messages`, {
     method: "POST",
     body: JSON.stringify({ encrypted_envelope: drEnvelope, attachments: attachments ?? [] }),
   });
+  // Stash own plaintext for history rendering — a ratchet can't decrypt
+  // its own outbound envelopes (see saveOwnPlaintext).
+  try {
+    const created = (await res.json()) as { id?: string };
+    if (created.id) saveOwnPlaintext(created.id, content);
+  } catch {}
 }
 
 async function getConversationMembers(conversation_id: string): Promise<string[]> {

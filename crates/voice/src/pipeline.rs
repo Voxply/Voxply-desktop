@@ -1,6 +1,5 @@
 use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::RwLock as TokioRwLock;
@@ -15,9 +14,9 @@ use crate::capture::AudioCapture;
 use crate::codec::{self, EffectiveVoiceConfig, VoiceDecoder, VoiceEncoder};
 use crate::denoise::Denoiser;
 use crate::playback::AudioPlayback;
-use crate::protocol::{VoicePacket, RING_BUFFER_SIZE};
+use crate::protocol::{ReceivedVoicePacket, RING_BUFFER_SIZE};
 use crate::soundboard::ActiveClip;
-use crate::transport::VoiceSocket;
+use crate::transport::VoiceTransport;
 
 /// Default threshold for the RMS voice activity detector. Values in [0, 1].
 /// 0.02 picks up normal speech at typical mic gain while ignoring fan/room noise.
@@ -26,6 +25,11 @@ pub const DEFAULT_VAD_THRESHOLD: f32 = 0.02;
 /// How long we must stay below threshold before declaring "stopped speaking".
 /// Prevents flickering on consonant gaps.
 const VAD_RELEASE_MS: u64 = 250;
+
+/// How long the receive task sleeps between polls while waiting for the
+/// WebTransport session to come up (set once `voice_joined` delivers the
+/// URL/token and the connect task finishes its QUIC handshake).
+const TRANSPORT_POLL_MS: u64 = 100;
 
 /// Audio quality profile selection.
 #[derive(Clone, Debug, Default)]
@@ -103,11 +107,128 @@ impl VoiceSettings {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Voice-transport v2 key state (docs/docs/voice-transport-v2.md)
+// ---------------------------------------------------------------------------
+
+/// One sender-key generation: the 32-byte AES key, its 4-byte nonce salt,
+/// and its `key_id` generation counter. `Copy` -- this is small and passed
+/// around by value between the WS layer (which owns key distribution) and
+/// the pipeline (which only seals/opens packets with it).
+#[derive(Clone, Copy, Debug)]
+pub struct SenderKeyGen {
+    pub sender_key: [u8; 32],
+    pub nonce_salt: [u8; 4],
+    pub key_id: u32,
+}
+
+/// Shared voice-key state for a running voice session. Keyed by pubkey (not
+/// `sender_id` -- a roster slot is per-join, pubkey is the stable identity
+/// the key belongs to); the send task only ever needs `own`, the receive
+/// task resolves `sender_id -> pubkey` via the existing roster map before
+/// looking a remote key up here.
+///
+/// Owned behind a single `Arc<RwLock<VoiceKeys>>` shared between the pipeline
+/// and the desktop shell's WS/key-distribution code
+/// (`apps/desktop/src-tauri/src/voice_keys.rs`), which populates `own` on
+/// join/rotate and `remote` on `voice_key_received`.
+pub struct VoiceKeys {
+    /// My own current sending key. `None` until the WS layer generates one
+    /// (voice-transport-v2.md: joiner generates key_id=1 on join).
+    pub own: Option<SenderKeyGen>,
+    /// My own per-key monotonic packet counter. An atomic so the hot send
+    /// path only needs a *read* lock on the outer `RwLock<VoiceKeys>`.
+    own_ctr: AtomicU64,
+    /// pubkey -> up to 2 known generations (spec: "keep the last 2
+    /// generations per sender to ride out rotation races").
+    remote: HashMap<String, Vec<SenderKeyGen>>,
+    /// Replay guard: `(sender_id, key_id) -> highest ctr seen`.
+    watermarks: HashMap<(u16, u32), u64>,
+}
+
+impl Default for VoiceKeys {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl VoiceKeys {
+    pub fn new() -> Self {
+        Self {
+            own: None,
+            own_ctr: AtomicU64::new(0),
+            remote: HashMap::new(),
+            watermarks: HashMap::new(),
+        }
+    }
+
+    /// Sets/rotates our own sending key, resetting the packet counter for
+    /// the new generation.
+    pub fn set_own(&mut self, gen: SenderKeyGen) {
+        self.own = Some(gen);
+        self.own_ctr.store(0, Ordering::Relaxed);
+    }
+
+    /// Allocates the next packet counter for our own key. Interior
+    /// mutability (atomic) so the send task only needs a read lock.
+    pub fn next_ctr(&self) -> u64 {
+        self.own_ctr.fetch_add(1, Ordering::Relaxed)
+    }
+
+    /// Records a remote sender's key generation, keeping at most the last 2
+    /// per sender.
+    pub fn insert_remote(&mut self, pubkey: &str, gen: SenderKeyGen) {
+        let gens = self.remote.entry(pubkey.to_string()).or_default();
+        gens.retain(|g| g.key_id != gen.key_id);
+        gens.push(gen);
+        if gens.len() > 2 {
+            gens.remove(0);
+        }
+    }
+
+    /// Looks up a remote sender's key generation by `key_id`. `None` means
+    /// "unknown (sender, key_id)" -- the caller drops the packet (spec).
+    pub fn find_remote(&self, pubkey: &str, key_id: u32) -> Option<SenderKeyGen> {
+        self.remote
+            .get(pubkey)?
+            .iter()
+            .find(|g| g.key_id == key_id)
+            .copied()
+    }
+
+    /// Replay guard: per-`(sender_id, key_id)` highest-`ctr` watermark.
+    /// Returns `true` (and advances the watermark) when `ctr` is newer than
+    /// anything seen for this key; `false` for at-or-below (drop).
+    ///
+    /// ponytail: a single watermark, not a sliding-window bitmap -- the spec
+    /// explicitly accepts this ("small reorder window allowed"); upgrade to
+    /// a bitmap if real-network reordering turns out to matter in practice.
+    pub fn check_replay(&mut self, sender_id: u16, key_id: u32, ctr: u64) -> bool {
+        let key = (sender_id, key_id);
+        match self.watermarks.get(&key) {
+            Some(&max_seen) if ctr <= max_seen => false,
+            _ => {
+                self.watermarks.insert(key, ctr);
+                true
+            }
+        }
+    }
+}
+
+fn resolve_opus_rate(device_rate: u32) -> u32 {
+    match device_rate {
+        8000 | 12000 | 16000 | 24000 | 48000 => device_rate,
+        _ => {
+            tracing::warn!("Device rate {device_rate} Hz not supported by Opus, using 48000 Hz");
+            48000
+        }
+    }
+}
+
 pub struct AudioPipeline {
     _capture: AudioCapture,
     _playback: AudioPlayback,
     tasks: Vec<JoinHandle<()>>,
-    pub local_udp_port: u16,
     /// Receives `true` when voice activity starts, `false` when it ends.
     /// Available on pipelines started with `start_p2p` / `start_loopback_*`.
     pub speaking_rx: Option<mpsc::UnboundedReceiver<bool>>,
@@ -122,21 +243,23 @@ pub struct AudioPipeline {
     /// socket. Capture and VAD continue so the user still sees their level.
     pub muted: Arc<AtomicBool>,
     /// When set, the receive task drops decoded frames instead of pushing
-    /// them into playback. We don't stop reading the socket -- the OS UDP
-    /// buffer would fill and packets would be dropped at the kernel layer
-    /// either way; doing it explicitly keeps the rest of the pipeline calm.
+    /// them into playback. We don't stop reading the transport -- packets
+    /// would otherwise just accumulate in kernel/QUIC buffers either way;
+    /// doing it explicitly keeps the rest of the pipeline calm.
     pub deafened: Arc<AtomicBool>,
     /// Per-sender gain map: sender_id → gain multiplier [0.0, 2.0], default 1.0.
     /// Shared with the pipeline's receive task; update to control each speaker's volume.
     pub gain_map: Arc<TokioRwLock<HashMap<u16, f32>>>,
     /// Roster map: sender_id → pubkey. Updated by the Tauri WS handler on voice_roster_update.
     pub roster_map: Arc<TokioRwLock<HashMap<u16, String>>>,
-    /// UDP registration token (64 hex chars). When set, a registration loop
-    /// sends b"VXRG" + token every 500 ms until the hub acks with b"VXRA".
-    /// None means no registration required (older hub that does not send the field).
-    pub udp_reg_token: Arc<Mutex<Option<String>>>,
-    /// Set to true by the receive task when the hub replies with b"VXRA".
-    pub udp_reg_acked: Arc<AtomicBool>,
+    /// The WebTransport voice session. `None` until the WS layer's
+    /// `voice_joined` handler connects it (voice-transport-v2.md) -- mirrors
+    /// the old `udp_reg_token` hand-off point, but here the value itself is
+    /// the live, already-connected session rather than a token to poll with.
+    pub transport: Arc<TokioRwLock<Option<Arc<VoiceTransport>>>>,
+    /// E2E voice-key state (own sending key + known remote keys + replay
+    /// watermarks). Populated by the desktop shell's key-distribution code.
+    pub voice_keys: Arc<TokioRwLock<VoiceKeys>>,
     /// Soundboard clip currently being mixed into the outbound stream, if
     /// any (soundboard.md §1). `None` = nothing playing. Set this to `Some`
     /// with samples already resampled to `opus_rate` -- the send task mixes
@@ -148,16 +271,6 @@ pub struct AudioPipeline {
     /// Callers must resample a decoded clip (always 48 kHz PCM) to this
     /// rate before storing it in `active_clip`.
     pub opus_rate: u32,
-}
-
-fn resolve_opus_rate(device_rate: u32) -> u32 {
-    match device_rate {
-        8000 | 12000 | 16000 | 24000 | 48000 => device_rate,
-        _ => {
-            tracing::warn!("Device rate {device_rate} Hz not supported by Opus, using 48000 Hz");
-            48000
-        }
-    }
 }
 
 impl AudioPipeline {
@@ -238,7 +351,6 @@ impl AudioPipeline {
             _capture: capture,
             _playback: playback,
             tasks: vec![task],
-            local_udp_port: 0,
             speaking_rx: None,
             level_rx: Some(level_rx),
             whisper_rx: None,
@@ -246,24 +358,22 @@ impl AudioPipeline {
             deafened: Arc::new(AtomicBool::new(false)),
             gain_map: Arc::new(TokioRwLock::new(HashMap::new())),
             roster_map: Arc::new(TokioRwLock::new(HashMap::new())),
-            udp_reg_token: Arc::new(Mutex::new(None)),
-            udp_reg_acked: Arc::new(AtomicBool::new(false)),
+            transport: Arc::new(TokioRwLock::new(None)),
+            voice_keys: Arc::new(TokioRwLock::new(VoiceKeys::new())),
             active_clip: Arc::new(Mutex::new(None)),
             opus_rate,
         })
     }
 
-    /// P2P mode: capture → encode → UDP send to remote,
-    /// UDP recv from remote → decode → playback.
-    pub async fn start_p2p(local_port: u16, remote_addr: SocketAddr) -> Result<Self> {
-        Self::start_p2p_with_settings(local_port, remote_addr, VoiceSettings::default()).await
+    /// Voice-channel mode: capture → encode → seal → WebTransport datagram
+    /// to the hub relay; hub relay datagram → open → decode → playback.
+    /// The transport itself connects later, once the WS layer's
+    /// `voice_joined` reply delivers the URL/token (see `Self::transport`).
+    pub async fn start_p2p() -> Result<Self> {
+        Self::start_p2p_with_settings(VoiceSettings::default()).await
     }
 
-    pub async fn start_p2p_with_settings(
-        local_port: u16,
-        remote_addr: SocketAddr,
-        settings: VoiceSettings,
-    ) -> Result<Self> {
+    pub async fn start_p2p_with_settings(settings: VoiceSettings) -> Result<Self> {
         let capture_rb = HeapRb::<f32>::new(RING_BUFFER_SIZE);
         let (capture_prod, mut capture_cons) = capture_rb.split();
 
@@ -283,10 +393,8 @@ impl AudioPipeline {
         let opus_rate = resolve_opus_rate(capture.actual_sample_rate);
         let frame_size = codec::frame_size_for_rate_and_ms(opus_rate, cfg.frame_duration_ms);
 
-        let mut socket = VoiceSocket::bind(local_port).await?;
-        let actual_local_port = socket.local_addr()?.port();
-        socket.set_remote(remote_addr);
-        let socket = Arc::new(socket);
+        let transport: Arc<TokioRwLock<Option<Arc<VoiceTransport>>>> =
+            Arc::new(TokioRwLock::new(None));
 
         let (speaking_tx, speaking_rx) = mpsc::unbounded_channel::<bool>();
         let (whisper_tx, whisper_rx) = mpsc::unbounded_channel::<(u16, bool)>();
@@ -296,14 +404,13 @@ impl AudioPipeline {
 
         let gain_map = Arc::new(TokioRwLock::new(HashMap::<u16, f32>::new()));
         let roster_map = Arc::new(TokioRwLock::new(HashMap::<u16, String>::new()));
-
-        let udp_reg_token: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
-        let udp_reg_acked = Arc::new(AtomicBool::new(false));
+        let voice_keys = Arc::new(TokioRwLock::new(VoiceKeys::new()));
 
         let active_clip: Arc<Mutex<Option<ActiveClip>>> = Arc::new(Mutex::new(None));
 
-        // Send task: capture → encode → UDP, plus RMS-based VAD + level meter
-        let send_socket = socket.clone();
+        // Send task: capture → encode → seal → WebTransport, plus RMS-based VAD + level meter.
+        let send_transport = transport.clone();
+        let send_voice_keys = voice_keys.clone();
         let send_muted = muted.clone();
         let send_active_clip = active_clip.clone();
         let vad_enabled = cfg.vad_enabled;
@@ -312,7 +419,7 @@ impl AudioPipeline {
             let mut encoder = match VoiceEncoder::new(opus_rate, &cfg) {
                 Ok(e) => e,
                 Err(err) => {
-                    tracing::error!(error = %err, "P2P send: failed to create encoder, task exiting");
+                    tracing::error!(error = %err, "Voice send: failed to create encoder, task exiting");
                     return;
                 }
             };
@@ -320,7 +427,6 @@ impl AudioPipeline {
             denoiser.bypass = !cfg.noise_suppress;
             let mut read_buf = vec![0.0f32; frame_size];
             let mut interval = tokio::time::interval(Duration::from_millis(10));
-            let mut sequence: u16 = 0;
             let mut timestamp: u32 = 0;
 
             let mut is_speaking = false;
@@ -397,34 +503,50 @@ impl AudioPipeline {
                 let packets = encoder.encode(&denoised);
 
                 // While muted: keep the encoder in sync (so unmuting doesn't
-                // pop) but drop the bytes before the socket. VAD + level
+                // pop) but drop the bytes before sealing/sending. VAD + level
                 // already fired above so the local meter still pulses.
                 let suppress = send_muted.load(Ordering::Relaxed);
 
                 for opus_data in packets {
                     if !suppress {
-                        let packet = VoicePacket {
-                            sequence,
-                            timestamp,
-                            opus_data,
-                        };
-                        if let Err(e) = send_socket.send(&packet).await {
-                            tracing::warn!("UDP send error: {e}");
+                        let own_gen = send_voice_keys.read().await.own;
+                        if let Some(gen) = own_gen {
+                            let ctr = send_voice_keys.read().await.next_ctr();
+                            let sealed = crate::crypto::voice_packet_seal(
+                                &gen.sender_key,
+                                &gen.nonce_salt,
+                                gen.key_id,
+                                ctr,
+                                timestamp,
+                                &opus_data,
+                            );
+                            let conn = send_transport.read().await.clone();
+                            if let Some(conn) = conn {
+                                if let Err(e) = conn.send_datagram(&sealed) {
+                                    tracing::warn!("Voice WT send error: {e}");
+                                }
+                            }
+                            // Else: no session yet (still connecting) --
+                            // drop, same as muted. No queue: voice is
+                            // unreliable/unordered by design.
                         }
+                        // Else: no sender key yet (still joining) -- drop.
                     }
-                    sequence = sequence.wrapping_add(1);
                     timestamp = timestamp.wrapping_add(frame_size as u32);
                 }
             }
         });
 
-        // Receive task: UDP → decode → playback (per-sender decoder + gain + whisper state).
-        // Raw bytes are inspected first so the 4-byte VXRA registration ack is
-        // recognised before handing data to the audio deserialiser.
-        let recv_socket = socket.clone();
+        // Receive task: WebTransport → deserialize relay prefix → resolve
+        // sender's current key by key_id → open → decode → playback
+        // (per-sender decoder + gain + whisper state). Unknown senders,
+        // unknown (sender, key_id) pairs, and replayed counters are dropped
+        // (voice-transport-v2.md).
+        let recv_transport = transport.clone();
+        let recv_voice_keys = voice_keys.clone();
+        let recv_roster = roster_map.clone();
         let recv_deafened = deafened.clone();
         let recv_gain_map = gain_map.clone();
-        let recv_acked = udp_reg_acked.clone();
         let recv_task = tokio::spawn(async move {
             // Per-sender decoder map: sender_id → VoiceDecoder
             let mut decoders: HashMap<u16, VoiceDecoder> = HashMap::new();
@@ -432,147 +554,140 @@ impl AudioPipeline {
             let mut whisper_state: HashMap<u16, bool> = HashMap::new();
 
             loop {
-                match recv_socket.recv_raw().await {
-                    Ok((raw, _from)) => {
-                        // 4-byte VXRA: registration ack from the hub.
-                        if raw == b"VXRA" {
-                            recv_acked.store(true, Ordering::Release);
-                            tracing::info!("UDP registration ack (VXRA) received");
-                            continue;
-                        }
+                let conn = recv_transport.read().await.clone();
+                let Some(conn) = conn else {
+                    // Not connected yet (voice_joined hasn't landed, or the
+                    // QUIC handshake is still in flight) -- poll.
+                    tokio::time::sleep(Duration::from_millis(TRANSPORT_POLL_MS)).await;
+                    continue;
+                };
 
-                        // Parse as an audio packet; packets shorter than 8 bytes
-                        // are silently ignored (no log spam for stray datagrams).
-                        let packet = match crate::protocol::ReceivedVoicePacket::deserialize(&raw) {
-                            Ok(p) => p,
-                            Err(_) => continue,
-                        };
+                let raw = match conn.recv_datagram().await {
+                    Ok(raw) => raw,
+                    Err(e) => {
+                        tracing::warn!("Voice WT recv error: {e}");
+                        tokio::time::sleep(Duration::from_millis(TRANSPORT_POLL_MS)).await;
+                        continue;
+                    }
+                };
 
-                        // Track whisper state transitions before checking deafened,
-                        // so indicators update even when deafened.
-                        let is_whisper = packet.is_whisper();
-                        let was_whispering = whisper_state
-                            .get(&packet.sender_id)
-                            .copied()
-                            .unwrap_or(false);
-                        if is_whisper != was_whispering {
-                            whisper_state.insert(packet.sender_id, is_whisper);
-                            let _ = whisper_tx.send((packet.sender_id, is_whisper));
-                        }
+                let packet = match ReceivedVoicePacket::deserialize(&raw) {
+                    Ok(p) => p,
+                    Err(_) => continue,
+                };
 
-                        if recv_deafened.load(Ordering::Relaxed) {
-                            continue;
-                        }
-                        // Get or create a decoder for this sender. If decoder
-                        // construction fails (e.g. bad opus_rate), skip this packet
-                        // rather than panicking inside the receive task.
-                        let decoder = match decoders.entry(packet.sender_id) {
-                            std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
-                            std::collections::hash_map::Entry::Vacant(e) => {
-                                match VoiceDecoder::new(opus_rate) {
-                                    Ok(d) => e.insert(d),
-                                    Err(err) => {
-                                        tracing::warn!(
-                                            sender_id = packet.sender_id,
-                                            error = %err,
-                                            "Failed to create decoder for sender, dropping packet"
-                                        );
-                                        continue;
-                                    }
-                                }
-                            }
-                        };
+                // Track whisper state transitions before checking deafened,
+                // so indicators update even when deafened.
+                let is_whisper = packet.is_whisper();
+                let was_whispering = whisper_state
+                    .get(&packet.sender_id)
+                    .copied()
+                    .unwrap_or(false);
+                if is_whisper != was_whispering {
+                    whisper_state.insert(packet.sender_id, is_whisper);
+                    let _ = whisper_tx.send((packet.sender_id, is_whisper));
+                }
 
-                        match decoder.decode(&packet.opus_data) {
-                            Ok(samples) => {
-                                // Apply per-sender gain
-                                let gain = {
-                                    let gm = recv_gain_map.read().await;
-                                    *gm.get(&packet.sender_id).unwrap_or(&1.0f32)
-                                };
-                                if gain == 0.0 {
-                                    // Fully muted: skip
-                                } else if (gain - 1.0f32).abs() < 0.001 {
-                                    // Unity gain: push as-is
-                                    let _ = playback_prod.push_slice(samples);
-                                } else {
-                                    // Apply gain
-                                    let gained: Vec<f32> = samples
-                                        .iter()
-                                        .map(|s| (s * gain).clamp(-1.0, 1.0))
-                                        .collect();
-                                    let _ = playback_prod.push_slice(&gained);
-                                }
-                            }
-                            Err(e) => {
+                if recv_deafened.load(Ordering::Relaxed) {
+                    continue;
+                }
+
+                let Some((key_id, ctr, _ts)) = crate::crypto::peek_header(&packet.sealed) else {
+                    continue;
+                };
+
+                let pubkey = {
+                    let rm = recv_roster.read().await;
+                    rm.get(&packet.sender_id).cloned()
+                };
+                let Some(pubkey) = pubkey else {
+                    // Unknown sender_id: no roster entry yet. Drop.
+                    continue;
+                };
+
+                let gen = {
+                    let mut vk = recv_voice_keys.write().await;
+                    if !vk.check_replay(packet.sender_id, key_id, ctr) {
+                        None
+                    } else {
+                        vk.find_remote(&pubkey, key_id)
+                    }
+                };
+                let Some(gen) = gen else {
+                    // Replayed, or unknown (sender, key_id) -- drop per spec.
+                    continue;
+                };
+
+                let opus_data = match crate::crypto::voice_packet_open(
+                    &gen.sender_key,
+                    &gen.nonce_salt,
+                    &packet.sealed,
+                ) {
+                    Ok((_, _, _, opus)) => opus,
+                    Err(e) => {
+                        tracing::warn!(
+                            sender_id = packet.sender_id,
+                            error = %e,
+                            "Voice packet decrypt failed, dropping"
+                        );
+                        continue;
+                    }
+                };
+
+                // Get or create a decoder for this sender. If decoder
+                // construction fails (e.g. bad opus_rate), skip this packet
+                // rather than panicking inside the receive task.
+                let decoder = match decoders.entry(packet.sender_id) {
+                    std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
+                    std::collections::hash_map::Entry::Vacant(e) => {
+                        match VoiceDecoder::new(opus_rate) {
+                            Ok(d) => e.insert(d),
+                            Err(err) => {
                                 tracing::warn!(
-                                    "Decode error from sender {}: {e}",
-                                    packet.sender_id
+                                    sender_id = packet.sender_id,
+                                    error = %err,
+                                    "Failed to create decoder for sender, dropping packet"
                                 );
+                                continue;
                             }
+                        }
+                    }
+                };
+
+                match decoder.decode(&opus_data) {
+                    Ok(samples) => {
+                        // Apply per-sender gain
+                        let gain = {
+                            let gm = recv_gain_map.read().await;
+                            *gm.get(&packet.sender_id).unwrap_or(&1.0f32)
+                        };
+                        if gain == 0.0 {
+                            // Fully muted: skip
+                        } else if (gain - 1.0f32).abs() < 0.001 {
+                            // Unity gain: push as-is
+                            let _ = playback_prod.push_slice(samples);
+                        } else {
+                            // Apply gain
+                            let gained: Vec<f32> = samples
+                                .iter()
+                                .map(|s| (s * gain).clamp(-1.0, 1.0))
+                                .collect();
+                            let _ = playback_prod.push_slice(&gained);
                         }
                     }
                     Err(e) => {
-                        tracing::warn!("UDP recv error: {e}");
+                        tracing::warn!("Decode error from sender {}: {e}", packet.sender_id);
                     }
                 }
             }
         });
 
-        // Registration loop: watches udp_reg_token; when a token is present and
-        // not yet acked, sends b"VXRG" + token every 500 ms until acked or 30 s
-        // elapses (matching the server-side token TTL).
-        let reg_socket = socket.clone();
-        let reg_token = udp_reg_token.clone();
-        let reg_acked = udp_reg_acked.clone();
-        let reg_task = tokio::spawn(async move {
-            // Wait up to 30 s total; poll for a token first (it arrives shortly
-            // after the pipeline starts, via the WS voice_joined message).
-            let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
-            let mut interval = tokio::time::interval(Duration::from_millis(500));
-            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-
-            loop {
-                interval.tick().await;
-
-                if tokio::time::Instant::now() >= deadline {
-                    // Only warn if we actually had a token to register.
-                    let has_token = reg_token.lock().unwrap().is_some();
-                    if has_token && !reg_acked.load(Ordering::Acquire) {
-                        tracing::warn!("UDP registration timed out after 30 s (no VXRA received)");
-                    }
-                    return;
-                }
-
-                if reg_acked.load(Ordering::Acquire) {
-                    // Already acked — nothing more to do.
-                    return;
-                }
-
-                let token_opt = reg_token.lock().unwrap().clone();
-                let token = match token_opt {
-                    Some(t) => t,
-                    None => continue, // token not yet set, keep polling
-                };
-
-                // Build the 68-byte VXRG packet: b"VXRG" + 64 ASCII hex chars.
-                let mut pkt = Vec::with_capacity(68);
-                pkt.extend_from_slice(b"VXRG");
-                pkt.extend_from_slice(token.as_bytes());
-
-                if let Err(e) = reg_socket.send_raw(&pkt).await {
-                    tracing::warn!("UDP VXRG send error: {e}");
-                }
-            }
-        });
-
-        tracing::info!("P2P voice started → {remote_addr}");
+        tracing::info!("Voice pipeline started (WebTransport pending voice_joined)");
 
         Ok(Self {
             _capture: capture,
             _playback: playback,
-            tasks: vec![send_task, recv_task, reg_task],
-            local_udp_port: actual_local_port,
+            tasks: vec![send_task, recv_task],
             speaking_rx: Some(speaking_rx),
             level_rx: Some(level_rx),
             whisper_rx: Some(whisper_rx),
@@ -580,22 +695,11 @@ impl AudioPipeline {
             deafened,
             gain_map,
             roster_map,
-            udp_reg_token,
-            udp_reg_acked,
+            transport,
+            voice_keys,
             active_clip,
             opus_rate,
         })
-    }
-
-    /// Set the UDP registration token. The registration loop (already running)
-    /// will pick it up on its next 500 ms tick and start sending VXRG packets.
-    /// Call this immediately after the hub delivers the `voice_joined` message.
-    /// Does nothing if ack already received or if called on a loopback pipeline
-    /// (which has no real UDP hub).
-    pub fn register_udp(&self, token: String) {
-        if !self.udp_reg_acked.load(Ordering::Acquire) {
-            *self.udp_reg_token.lock().unwrap() = Some(token);
-        }
     }
 
     pub async fn stop(self) {
@@ -611,4 +715,58 @@ fn rms_of(samples: &[f32]) -> f32 {
     }
     let sum_sq: f32 = samples.iter().map(|s| s * s).sum();
     (sum_sq / samples.len() as f32).sqrt()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn replay_guard_accepts_first_packet_at_ctr_zero() {
+        let mut keys = VoiceKeys::new();
+        assert!(keys.check_replay(1, 99, 0));
+    }
+
+    #[test]
+    fn replay_guard_accepts_strictly_increasing_ctr() {
+        let mut keys = VoiceKeys::new();
+        assert!(keys.check_replay(1, 99, 0));
+        assert!(keys.check_replay(1, 99, 1));
+        assert!(keys.check_replay(1, 99, 5));
+    }
+
+    #[test]
+    fn replay_guard_rejects_at_or_below_watermark() {
+        let mut keys = VoiceKeys::new();
+        assert!(keys.check_replay(1, 99, 5));
+        assert!(!keys.check_replay(1, 99, 5)); // replay of the same ctr
+        assert!(!keys.check_replay(1, 99, 3)); // reorder past the window
+    }
+
+    #[test]
+    fn replay_guard_watermarks_are_independent_per_sender_and_key_id() {
+        let mut keys = VoiceKeys::new();
+        assert!(keys.check_replay(1, 99, 5));
+        // Different sender_id: independent watermark.
+        assert!(keys.check_replay(2, 99, 0));
+        // Same sender, rotated key_id: independent watermark (a rotation
+        // race must not lock the new generation out).
+        assert!(keys.check_replay(1, 100, 0));
+    }
+
+    #[test]
+    fn remote_keys_keep_only_last_two_generations() {
+        let mut keys = VoiceKeys::new();
+        let gen = |key_id| SenderKeyGen {
+            sender_key: [0u8; 32],
+            nonce_salt: [0u8; 4],
+            key_id,
+        };
+        keys.insert_remote("pk1", gen(1));
+        keys.insert_remote("pk1", gen(2));
+        keys.insert_remote("pk1", gen(3));
+        assert!(keys.find_remote("pk1", 1).is_none());
+        assert!(keys.find_remote("pk1", 2).is_some());
+        assert!(keys.find_remote("pk1", 3).is_some());
+    }
 }

@@ -65,7 +65,7 @@ export function isBackupEnvelope(json: unknown): json is BackupEnvelope {
 }
 
 /** Throws "unsupported_backup_format" for anything that isn't this envelope
- *  (old web PBKDF2 `.wavvon-backup` files, desktop's retired `.voxback`) —
+ *  (old web PBKDF2 `.wavvon-backup` files, desktop's own retired format) —
  *  alpha rules: no legacy importer. Throws "decrypt_failed" for a wrong
  *  passphrase or corrupted ciphertext. */
 export async function decryptBackup(fileText: string, passphrase: string): Promise<BackupAccount> {

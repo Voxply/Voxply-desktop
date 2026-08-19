@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import type { WhisperTarget, WhisperList } from "../../types";
+import React, { useEffect, useState } from "react";
+import type { WhisperTarget, WhisperList, WhisperReplyBind } from "../../types";
 
 interface Props {
   voiceParticipants: Array<{ public_key: string; display_name: string | null }>;
@@ -12,6 +12,26 @@ interface Props {
   onSaveList: (list: WhisperList) => void;
   onDeleteList: (id: string) => void;
   onClose: () => void;
+  /** "Don't receive whispers" checkbox, hidden entirely when the handler
+   *  is absent (desktop hasn't wired the hub opt-out command yet). */
+  whisperOptout?: boolean;
+  onSetWhisperOptout?: (enabled: boolean) => void;
+  /** Role targets ("whisper to everyone with @officer currently in voice").
+   *  Loaded lazily when the Roles tab is first opened; the tab is hidden
+   *  entirely when this prop is absent. */
+  onListWhisperRoles?: () => Promise<Array<{ id: string; name: string }>>;
+  /** Dedicated reply key ("whisper back at whoever whispered me last").
+   *  Row hidden entirely when the handler is absent. */
+  whisperReplyBind?: WhisperReplyBind;
+  onSetWhisperReplyBind?: (bind: WhisperReplyBind) => void;
+}
+
+// Human label for a KeyboardEvent.code — mirrors apps/web's PushToTalkSection.
+function keyLabel(code: string): string {
+  if (code === "Space") return "Space";
+  if (code.startsWith("Key")) return code.slice(3);
+  if (code.startsWith("Digit")) return code.slice(5);
+  return code;
 }
 
 /** Compact whisper control shown from the voice footer's "more controls"
@@ -20,12 +40,33 @@ interface Props {
 export function WhisperPanel({
   voiceParticipants, voiceChannels,
   isWhispering, whisperTargets, whisperLists,
-  onStartWhisper, onStopWhisper, onSaveList, onDeleteList, onClose
+  onStartWhisper, onStopWhisper, onSaveList, onDeleteList, onClose,
+  whisperOptout, onSetWhisperOptout, onListWhisperRoles,
+  whisperReplyBind, onSetWhisperReplyBind,
 }: Props) {
   const [selected, setSelected] = useState<WhisperTarget[]>(whisperTargets);
-  const [tab, setTab] = useState<"users" | "channels" | "lists">("users");
+  const [tab, setTab] = useState<"users" | "channels" | "roles" | "lists">("users");
   const [listName, setListName] = useState("");
   const [showSaveForm, setShowSaveForm] = useState(false);
+  const [bindingListId, setBindingListId] = useState<string | null>(null);
+  const [bindingReply, setBindingReply] = useState(false);
+  const [roles, setRoles] = useState<Array<{ id: string; name: string }> | null>(null);
+
+  useEffect(() => {
+    if (!bindingReply || !onSetWhisperReplyBind) return;
+    function onKey(e: KeyboardEvent) {
+      e.preventDefault();
+      onSetWhisperReplyBind!({ key: e.code, mode: whisperReplyBind?.mode ?? "hold" });
+      setBindingReply(false);
+    }
+    window.addEventListener("keydown", onKey, { once: true });
+    return () => window.removeEventListener("keydown", onKey);
+  }, [bindingReply, onSetWhisperReplyBind, whisperReplyBind]);
+
+  useEffect(() => {
+    if (tab !== "roles" || roles !== null || !onListWhisperRoles) return;
+    onListWhisperRoles().then(setRoles).catch(() => setRoles([]));
+  }, [tab, roles, onListWhisperRoles]);
 
   function toggleTarget(t: WhisperTarget) {
     setSelected(prev =>
@@ -38,6 +79,18 @@ export function WhisperPanel({
   function isSelected(t: WhisperTarget) {
     return selected.some(s => s.type === t.type && s.id === t.id);
   }
+
+  useEffect(() => {
+    if (!bindingListId) return;
+    function onKey(e: KeyboardEvent) {
+      e.preventDefault();
+      const list = whisperLists.find(l => l.id === bindingListId);
+      if (list) onSaveList({ ...list, keybind: e.code });
+      setBindingListId(null);
+    }
+    window.addEventListener("keydown", onKey, { once: true });
+    return () => window.removeEventListener("keydown", onKey);
+  }, [bindingListId, whisperLists, onSaveList]);
 
   return (
     <div className="whisper-panel">
@@ -54,11 +107,13 @@ export function WhisperPanel({
       )}
 
       <div className="whisper-tabs">
-        {(["users", "channels", "lists"] as const).map(t => (
-          <button key={t} className={`whisper-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
-            {t === "users" ? "Users" : t === "channels" ? "Channels" : "Saved Lists"}
-          </button>
-        ))}
+        {(["users", "channels", "roles", "lists"] as const)
+          .filter(t => t !== "roles" || onListWhisperRoles)
+          .map(t => (
+            <button key={t} className={`whisper-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
+              {t === "users" ? "Users" : t === "channels" ? "Channels" : t === "roles" ? "Roles" : "Saved Lists"}
+            </button>
+          ))}
       </div>
 
       <div className="whisper-target-list">
@@ -80,13 +135,48 @@ export function WhisperPanel({
             </label>
           );
         })}
+        {tab === "roles" && roles === null && (
+          <p className="muted" style={{ padding: "8px 10px", fontSize: 12 }}>Loading roles…</p>
+        )}
+        {tab === "roles" && roles?.map(r => {
+          const target: WhisperTarget = { type: "role", id: r.id, label: `@${r.name}` };
+          return (
+            <label key={r.id} className="whisper-target-item">
+              <input type="checkbox" checked={isSelected(target)} onChange={() => toggleTarget(target)} />
+              {target.label}
+            </label>
+          );
+        })}
+        {tab === "roles" && roles !== null && roles.length === 0 && (
+          <p className="muted" style={{ padding: "8px 10px", fontSize: 12 }}>No roles on this hub.</p>
+        )}
         {tab === "lists" && whisperLists.map(list => (
-          <div key={list.id} className="whisper-list-item">
-            <span>{list.name}</span>
-            <span className="whisper-list-targets">{list.targets.map(t => t.label).join(", ")}</span>
-            <div className="whisper-list-actions">
-              <button onClick={() => { onStartWhisper(list.targets); onClose(); }}>Whisper</button>
-              <button onClick={() => onDeleteList(list.id)} aria-label="Delete list" title="Delete list">✕</button>
+          <div key={list.id} className="whisper-list-item-wrap">
+            <div className="whisper-list-item">
+              <span>{list.name}</span>
+              <span className="whisper-list-targets">{list.targets.map(t => t.label).join(", ")}</span>
+              <div className="whisper-list-actions">
+                <button onClick={() => { onStartWhisper(list.targets); onClose(); }}>Whisper</button>
+                <button onClick={() => onDeleteList(list.id)} aria-label="Delete list" title="Delete list">✕</button>
+              </div>
+            </div>
+            <div className="whisper-list-keybind-row">
+              <span className="muted">Key: {list.keybind ? keyLabel(list.keybind) : "none"}</span>
+              <button onClick={() => setBindingListId(list.id)} disabled={bindingListId === list.id}>
+                {bindingListId === list.id ? "Press a key…" : "Bind key"}
+              </button>
+              {list.keybind && (
+                <>
+                  <button onClick={() => onSaveList({ ...list, keybind: undefined })}>Clear</button>
+                  <select
+                    value={list.keybindMode ?? "hold"}
+                    onChange={e => onSaveList({ ...list, keybindMode: e.target.value as "hold" | "toggle" })}
+                  >
+                    <option value="hold">Hold</option>
+                    <option value="toggle">Toggle</option>
+                  </select>
+                </>
+              )}
             </div>
           </div>
         ))}
@@ -118,6 +208,38 @@ export function WhisperPanel({
             </div>
           )}
         </div>
+      )}
+
+      {onSetWhisperReplyBind && (
+        <div className="whisper-list-keybind-row whisper-reply-row">
+          <span className="muted">Reply key: {whisperReplyBind?.key ? keyLabel(whisperReplyBind.key) : "none"}</span>
+          <button onClick={() => setBindingReply(true)} disabled={bindingReply}>
+            {bindingReply ? "Press a key…" : "Bind key"}
+          </button>
+          {whisperReplyBind?.key && (
+            <>
+              <button onClick={() => onSetWhisperReplyBind({ mode: whisperReplyBind?.mode ?? "hold" })}>Clear</button>
+              <select
+                value={whisperReplyBind?.mode ?? "hold"}
+                onChange={e => onSetWhisperReplyBind({ ...whisperReplyBind, mode: e.target.value as "hold" | "toggle" })}
+              >
+                <option value="hold">Hold</option>
+                <option value="toggle">Toggle</option>
+              </select>
+            </>
+          )}
+        </div>
+      )}
+
+      {onSetWhisperOptout && (
+        <label className="whisper-optout-row">
+          <input
+            type="checkbox"
+            checked={!!whisperOptout}
+            onChange={e => onSetWhisperOptout(e.target.checked)}
+          />
+          Don't receive whispers
+        </label>
       )}
     </div>
   );

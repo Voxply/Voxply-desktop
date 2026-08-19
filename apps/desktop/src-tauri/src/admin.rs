@@ -10,32 +10,57 @@ use tauri::{AppHandle, Emitter, State};
 // User list — with transparent reauth on 401
 // ---------------------------------------------------------------------------
 
+/// The hub's `USERS_MAX_LIMIT`; asking for more is clamped server-side.
+const USERS_PAGE_SIZE: usize = 500;
+// ponytail: bounded so a server that stopped advancing the cursor cannot spin
+// here. The keyset uses a strict `>`, so it cannot legitimately repeat a row.
+const USERS_MAX_PAGES: usize = 40;
+
+async fn fetch_users_page(
+    client: &reqwest::Client,
+    hub_url: &str,
+    token: &str,
+    cursor: Option<&str>,
+) -> Result<reqwest::Response, String> {
+    let mut req = client
+        .get(format!("{hub_url}/users"))
+        .bearer_auth(token)
+        .query(&[("limit", USERS_PAGE_SIZE.to_string())]);
+    if let Some(c) = cursor {
+        req = req.query(&[("cursor", c)]);
+    }
+    req.send().await.map_err(|e| format!("Failed: {e}"))
+}
+
+/// The full member roster. `GET /users` is paginated (keyset cursor on the
+/// previous page's last `public_key`), and the member list wants everyone —
+/// so this walks pages until a short one. Stopping at one page and saying
+/// nothing is the bug the endpoint's pagination was added to fix, just at a
+/// larger number.
 #[tauri::command]
 pub(crate) async fn list_users(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<Vec<UserInfo>, String> {
-    let (hub_url, token) = active_session(&state)?;
+    let (hub_url, mut token) = active_session(&state)?;
     let client = state.http_client.clone();
-    let resp = client
-        .get(format!("{hub_url}/users"))
-        .bearer_auth(&token)
-        .send()
-        .await
-        .map_err(|e| format!("Failed: {e}"))?;
 
-    if resp.status() == reqwest::StatusCode::UNAUTHORIZED {
-        let active_id = state.active_hub.lock().unwrap().clone();
-        if let Some(hub_id) = active_id {
+    let mut all: Vec<UserInfo> = Vec::new();
+    let mut cursor: Option<String> = None;
+
+    for _ in 0..USERS_MAX_PAGES {
+        let mut resp = fetch_users_page(&client, &hub_url, &token, cursor.as_deref()).await?;
+
+        if resp.status() == reqwest::StatusCode::UNAUTHORIZED {
+            let active_id = state.active_hub.lock().unwrap().clone();
+            let Some(hub_id) = active_id else {
+                return Err("Session lost".to_string());
+            };
             match crate::ws::reauth_session(&state, &app, &hub_id).await {
                 Ok(new_token) => {
-                    let retry = client
-                        .get(format!("{hub_url}/users"))
-                        .bearer_auth(&new_token)
-                        .send()
-                        .await
-                        .map_err(|e| format!("Failed: {e}"))?;
-                    return retry.json().await.map_err(|e| format!("Invalid: {e}"));
+                    resp =
+                        fetch_users_page(&client, &hub_url, &new_token, cursor.as_deref()).await?;
+                    token = new_token;
                 }
                 Err(e) => {
                     let hubs = state.hubs.lock().unwrap();
@@ -52,10 +77,21 @@ pub(crate) async fn list_users(
                 }
             }
         }
-        return Err("Session lost".to_string());
+
+        let page: Vec<UserInfo> = resp.json().await.map_err(|e| format!("Invalid: {e}"))?;
+        let short = page.len() < USERS_PAGE_SIZE;
+        cursor = page.last().map(|u| u.public_key.clone());
+        all.extend(page);
+        if short || cursor.is_none() {
+            return Ok(all);
+        }
     }
 
-    resp.json().await.map_err(|e| format!("Invalid: {e}"))
+    eprintln!(
+        "list_users: stopped at {USERS_MAX_PAGES} pages ({} members)",
+        all.len()
+    );
+    Ok(all)
 }
 
 // ---------------------------------------------------------------------------
@@ -139,6 +175,7 @@ pub(crate) async fn get_hub_branding(state: State<'_, AppState>) -> Result<HubBr
         icon: info.icon,
         welcome_label: info.welcome_label,
         welcome_invite_url: info.welcome_invite_url,
+        timezone: info.timezone,
     })
 }
 
@@ -154,6 +191,11 @@ pub(crate) async fn update_hub_branding(
     welcome_label: Option<String>,
     welcome_invite_url: Option<String>,
     default_invite_role_id: Option<String>,
+    timezone: Option<String>,
+    birthdays_enabled: Option<bool>,
+    afk_channel_id: Option<String>,
+    afk_timeout_secs: Option<u32>,
+    name_color_mode: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let (hub_url, token) = active_session(&state)?;
@@ -171,6 +213,11 @@ pub(crate) async fn update_hub_branding(
             "welcome_label": welcome_label,
             "welcome_invite_url": welcome_invite_url,
             "default_invite_role_id": default_invite_role_id,
+            "timezone": timezone,
+            "birthdays_enabled": birthdays_enabled,
+            "afk_channel_id": afk_channel_id,
+            "afk_timeout_secs": afk_timeout_secs,
+            "name_color_mode": name_color_mode,
         }))
         .send()
         .await
@@ -768,13 +815,17 @@ pub(crate) async fn timeout_user_cmd(
     .await
 }
 
+/// Mirrors the hub's `ChannelBanByPubkeyResponse`. Desktop used to call a
+/// second set of routes under `/moderation/channels/{id}/bans` that wrote the
+/// same table under different field names and a weaker permission gate; those
+/// were folded into `/channels/{id}/bans` on the hub (2026-08-08).
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub(crate) struct ChannelBanInfo {
     pub channel_id: String,
-    pub target_public_key: String,
+    pub pubkey: String,
     pub banned_by: String,
     pub reason: Option<String>,
-    pub created_at: i64,
+    pub banned_at: i64,
 }
 
 #[tauri::command]
@@ -787,10 +838,10 @@ pub(crate) async fn channel_ban_user(
     let (hub_url, token) = active_session(&state)?;
     let client = state.http_client.clone();
     let resp = client
-        .post(format!("{hub_url}/moderation/channels/{channel_id}/bans"))
+        .post(format!("{hub_url}/channels/{channel_id}/bans"))
         .bearer_auth(&token)
         .json(&serde_json::json!({
-            "target_public_key": target_public_key,
+            "pubkey": target_public_key,
             "reason": reason,
         }))
         .send()
@@ -812,7 +863,7 @@ pub(crate) async fn channel_unban_user(
     let client = state.http_client.clone();
     let resp = client
         .delete(format!(
-            "{hub_url}/moderation/channels/{channel_id}/bans/{target_public_key}"
+            "{hub_url}/channels/{channel_id}/bans/{target_public_key}"
         ))
         .bearer_auth(&token)
         .send()
@@ -832,7 +883,7 @@ pub(crate) async fn list_channel_bans(
     let (hub_url, token) = active_session(&state)?;
     let client = state.http_client.clone();
     let resp = client
-        .get(format!("{hub_url}/moderation/channels/{channel_id}/bans"))
+        .get(format!("{hub_url}/channels/{channel_id}/bans"))
         .bearer_auth(&token)
         .send()
         .await

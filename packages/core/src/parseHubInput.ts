@@ -50,6 +50,28 @@ function parseJoinPath(codePart: string): string | null {
 }
 
 /**
+ * Split a farm-hosted path into the hub's base and the rest.
+ *
+ * A hub on a farm lives *under* a path — `https://farm.example/hub/pippo` —
+ * so its base URL is the origin plus that prefix, and everything after it is
+ * the ordinary hub path. Without this, a link like
+ * `https://farm.example/hub/pippo/join/abc` parses to the farm's root with no
+ * invite code: the user gets added to nothing, or to the wrong thing.
+ *
+ * `/hub/<x>` is not guesswork — it is the farm's one and only proxy route.
+ */
+function splitFarmPath(pathname: string): { prefix: string; rest: string } {
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments[0] === "hub" && segments[1]) {
+    return {
+      prefix: `/hub/${segments[1]}`,
+      rest: segments.slice(2).join("/"),
+    };
+  }
+  return { prefix: "", rest: segments.join("/") };
+}
+
+/**
  * Parse a `channel/{id}` or `channel/{id}/message/{id}` path tail (the part
  * of a wavvon:// deep link after the host) into a permalink target.
  * Anything else — including an empty path — is not a permalink and is left
@@ -81,15 +103,23 @@ function parseDeepLinkTarget(codePart: string): HubInputResult["target"] {
  * Returns null for empty / unparseable input.
  */
 /**
- * Build a farm-ready invite link: `wavvon://<host>/i/<hubSerial>/<inviteCode>`.
- * The host is the connection target (a hub host today, a farm domain later),
- * the serial identifies which hub, and the code is the join credential.
+ * Build the invite link users copy/share: the plain browser form
+ * `http(s)://<base>/join/<inviteCode>` (UX decision 2026-07-25 — the
+ * wavvon://…/i/<serial>/<code> deep link is too long to hand around; it
+ * remains accepted by parseHubInput for old links).
  * Round-trips through parseHubInput.
+ *
+ * `hubUrl` is a base, not a bare host: a farm-hosted hub lives under
+ * `https://farm.example/hub/MangiaDaPippo`, and appending `/join/<code>` to
+ * that is already the right link. It used to take a separate `hubSerial` for
+ * a serial-routed form that this never built — the address the client holds
+ * carries the routing now, so the argument is gone rather than ignored.
  */
-export function buildInviteLink(hubUrl: string, hubSerial: string, inviteCode: string): string {
+export function buildInviteLink(hubUrl: string, inviteCode: string): string {
   let host = hubUrl.trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
   host = host.replace(/^wavvon:\/\//i, "");
-  return `wavvon://${host}/i/${hubSerial}/${inviteCode}`;
+  const isLocal = host.startsWith("localhost") || host.startsWith("127.");
+  return `${isLocal ? "http" : "https"}://${host}/join/${inviteCode}`;
 }
 
 export function parseHubInput(raw: string): HubInputResult | null {
@@ -128,10 +158,13 @@ export function parseHubInput(raw: string): HubInputResult | null {
   if (/^https?:\/\//i.test(trimmed)) {
     try {
       const url = new URL(trimmed);
-      const hubUrl = `${url.protocol}//${url.host}`;
+      // A farm-hosted hub's base URL includes its /hub/<slug> prefix; for a
+      // standalone hub the prefix is empty and this is just the origin.
+      const { prefix, rest } = splitFarmPath(url.pathname);
+      const hubUrl = `${url.protocol}//${url.host}${prefix}`;
       const fingerprint = extractFingerprint(url);
       // Farm-ready invite path: https://host/i/<hubSerial>/<inviteCode>
-      const invite = parseInvitePath(url.pathname.replace(/^\/+/, ""));
+      const invite = parseInvitePath(rest);
       if (invite) {
         return {
           hubUrl,
@@ -140,8 +173,8 @@ export function parseHubInput(raw: string): HubInputResult | null {
           ...(fingerprint ? { fingerprint } : {}),
         };
       }
-      // Browser-facing invite path: https://host/join/<inviteCode>
-      const joinCode = parseJoinPath(url.pathname.replace(/^\/+/, ""));
+      // Browser-facing invite path: https://host[/hub/<slug>]/join/<inviteCode>
+      const joinCode = parseJoinPath(rest);
       if (joinCode) {
         return { hubUrl, inviteCode: joinCode, ...(fingerprint ? { fingerprint } : {}) };
       }

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { formatPubkey, formatRelative, type Channel } from "@wavvon/core";
-import type { BanInfo, InviteInfo, MemberAdminInfo, PendingUser, RoleInfo } from "../../types";
+import type { BanInfo, InviteInfo, MemberAdminInfo, NameColorMode, PendingUser, RoleInfo } from "../../types";
 import { ImagePicker } from "../ImagePicker";
 import { AlliancesSection, type AlliancesSectionActions } from "./AlliancesSection";
 import { ExternalBotSection, type ExternalBotSectionActions } from "./ExternalBotSection";
@@ -16,6 +16,7 @@ import { AuditLogSection, type AuditLogSectionActions } from "./AuditLogSection"
 import { CertificationsSection, type CertificationsSectionActions } from "./CertificationsSection";
 import { SoundboardAdminSection, type SoundboardAdminSectionActions } from "./SoundboardAdminSection";
 import { OnboardingAdminSection, type OnboardingAdminSectionActions } from "./OnboardingAdminSection";
+import { moveChannelOptions } from "../../utils/voiceMove";
 
 export type HubAdminTab =
   | "overview"
@@ -59,6 +60,24 @@ export interface HubAdminPageProps {
   onWelcomeLabelChange: (v: string) => void;
   welcomeInviteUrl: string;
   onWelcomeInviteUrlChange: (v: string) => void;
+  /** IANA name, or "" for unset — matches the empty-string-clears convention
+   *  used across the rest of this page's PATCH-backed fields. */
+  timezone: string;
+  onTimezoneChange: (v: string) => void;
+  birthdaysEnabled: boolean;
+  onBirthdaysEnabledChange: (v: boolean) => void;
+  /** How the hub resolves a member's rendered name color when both a role
+   *  color and the member's own choice are set. Default "role_over_user". */
+  nameColorMode: NameColorMode;
+  onNameColorModeChange: (v: NameColorMode) => void;
+  /** Channel idle voice participants are auto-moved into, or "" for unset
+   *  (sweep disabled) — same empty-string-clears convention as `timezone`. */
+  afkChannelId: string;
+  onAfkChannelIdChange: (v: string) => void;
+  /** Idle threshold in seconds before the hub moves someone to the AFK
+   *  channel. Hub minimum is 60. */
+  afkTimeoutSecs: number;
+  onAfkTimeoutSecsChange: (v: number) => void;
   saveError: string | null;
   onSave: () => void;
 
@@ -96,7 +115,6 @@ export interface HubAdminPageProps {
   activeHubUrl: string;
   /** This hub's stable serial (its public key) — embedded in invite links so a
    *  farm can route the same domain to different hubs. */
-  hubSerial: string;
   onCreateInvite: (maxUses: number | null, expiresInSeconds: number | null, grantRoleId: string | null) => void;
   onRevokeInvite: (code: string) => void;
 
@@ -131,6 +149,12 @@ export interface HubAdminPageProps {
   renderOutgoingWebhooks?: () => ReactNode;
   renderRecoveryContacts?: () => ReactNode;
 }
+
+// `Intl.supportedValuesOf` isn't in every configured lib target here yet
+// (TS lib.esnext.intl); cast locally rather than widen the whole app's lib
+// set for one feature-detected call.
+const supportedTimeZones = (Intl as unknown as { supportedValuesOf?: (key: "timeZone") => string[] })
+  .supportedValuesOf;
 
 function hubToWavvonUrl(hubUrl: string): string {
   try {
@@ -277,6 +301,83 @@ export function HubAdminPage(props: HubAdminPageProps) {
             <div className="settings-section">
               <label className="settings-label" htmlFor="admin-antispam">Minimum proof-of-work level</label>
               <input id="admin-antispam" type="number" min={0} max={9999} value={props.minSecurityLevel} onChange={(e) => props.onMinSecurityLevelChange(Number(e.target.value))} />
+            </div>
+            <div className="settings-section">
+              <label className="settings-label" htmlFor="admin-hub-timezone">Hub timezone</label>
+              <p className="muted">
+                Ambient flavor for members (a hub-local clock) — message and event times always stay in each viewer's own local time.
+              </p>
+              {typeof supportedTimeZones === "function" ? (
+                <select
+                  id="admin-hub-timezone"
+                  value={props.timezone}
+                  onChange={(e) => props.onTimezoneChange(e.target.value)}
+                >
+                  <option value="">Not set</option>
+                  {supportedTimeZones("timeZone").map((tz) => (
+                    <option key={tz} value={tz}>{tz}</option>
+                  ))}
+                </select>
+              ) : (
+                <p className="muted">Timezone picker isn't supported by this browser.</p>
+              )}
+              <label className="checkbox-label" style={{ marginTop: "var(--space-2)" }}>
+                <input
+                  type="checkbox"
+                  checked={props.birthdaysEnabled}
+                  onChange={(e) => props.onBirthdaysEnabledChange(e.target.checked)}
+                />
+                Show member birthdays (🎂 badge on the day, if the member shared one)
+              </label>
+            </div>
+            <div className="settings-section">
+              <label className="settings-label" htmlFor="admin-name-color-mode">Member name colors</label>
+              <p className="muted">
+                Members can pick their own name color; roles can carry a color too. This decides which one wins when both are set.
+              </p>
+              <select
+                id="admin-name-color-mode"
+                value={props.nameColorMode}
+                onChange={(e) => props.onNameColorModeChange(e.target.value as typeof props.nameColorMode)}
+              >
+                <option value="role_over_user">Role color wins over the member's own choice</option>
+                <option value="user_over_role">Member's own choice wins over their role color</option>
+                <option value="role_only">Only role colors — members can't pick their own</option>
+                <option value="user_only">Only member-chosen colors — role colors don't apply to names</option>
+                <option value="none">No name colors at all</option>
+              </select>
+            </div>
+            <div className="settings-section">
+              <label className="settings-label" htmlFor="admin-afk-channel">AFK channel</label>
+              <p className="muted">
+                Members idle in voice (not speaking) longer than the timeout are moved here automatically.
+              </p>
+              <select
+                id="admin-afk-channel"
+                value={props.afkChannelId}
+                onChange={(e) => props.onAfkChannelIdChange(e.target.value)}
+              >
+                <option value="">No AFK channel</option>
+                {moveChannelOptions(props.channels).map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              {props.afkChannelId && (
+                <>
+                  <label className="settings-label" htmlFor="admin-afk-timeout" style={{ marginTop: "var(--space-2)" }}>AFK timeout</label>
+                  <select
+                    id="admin-afk-timeout"
+                    value={props.afkTimeoutSecs}
+                    onChange={(e) => props.onAfkTimeoutSecsChange(Number(e.target.value))}
+                  >
+                    <option value={60}>1 minute</option>
+                    <option value={300}>5 minutes</option>
+                    <option value={900}>15 minutes</option>
+                    <option value={1800}>30 minutes</option>
+                    <option value={3600}>1 hour</option>
+                  </select>
+                </>
+              )}
             </div>
             <div className="settings-section">
               <label className="settings-label" htmlFor="admin-max-depth">Max channel nesting depth</label>
@@ -482,7 +583,6 @@ export function HubAdminPage(props: HubAdminPageProps) {
           <InviteManager
             invites={props.invites}
             activeHubUrl={props.activeHubUrl}
-            hubSerial={props.hubSerial}
             myMaxPriority={props.myMaxPriority}
             isAdmin={props.isAdmin}
             onCreateInvite={props.onCreateInvite}

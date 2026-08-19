@@ -14,7 +14,7 @@ pub(crate) async fn voice_join(
         return Err("Already in a voice channel".to_string());
     }
 
-    let (active_id, hub_url, ws_tx) = {
+    let (active_id, ws_tx) = {
         let active_id = state
             .active_hub
             .lock()
@@ -23,36 +23,23 @@ pub(crate) async fn voice_join(
             .ok_or("No active hub")?;
         let hubs = state.hubs.lock().unwrap();
         let s = hubs.get(&active_id).ok_or("Hub not connected")?;
-        (active_id, s.hub_url.clone(), s.ws_tx.clone())
+        (active_id, s.ws_tx.clone())
     };
-
-    let host = hub_url
-        .trim_start_matches("http://")
-        .trim_start_matches("https://")
-        .split('/')
-        .next()
-        .unwrap_or("")
-        .split(':')
-        .next()
-        .unwrap_or("127.0.0.1")
-        .to_string();
-
-    let hub_addr = tokio::net::lookup_host(format!("{host}:3001"))
-        .await
-        .map_err(|e| format!("Cannot resolve {host}: {e}"))?
-        .next()
-        .ok_or_else(|| format!("No addresses for {host}"))?;
 
     type VoiceReady = Result<
         (
-            u16,
             std::sync::Arc<std::sync::atomic::AtomicBool>,
             std::sync::Arc<std::sync::atomic::AtomicBool>,
             std::sync::Arc<tokio::sync::RwLock<std::collections::HashMap<u16, f32>>>,
             std::sync::Arc<tokio::sync::RwLock<std::collections::HashMap<u16, String>>>,
             std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, ZoneInfo>>>,
             std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, Vec<f64>>>>,
-            std::sync::Arc<std::sync::Mutex<Option<String>>>,
+            std::sync::Arc<
+                tokio::sync::RwLock<
+                    Option<std::sync::Arc<wavvon_voice::transport::VoiceTransport>>,
+                >,
+            >,
+            std::sync::Arc<tokio::sync::RwLock<wavvon_voice::VoiceKeys>>,
             std::sync::Arc<std::sync::Mutex<Option<wavvon_voice::soundboard::ActiveClip>>>,
             u32,
         ),
@@ -95,9 +82,7 @@ pub(crate) async fn voice_join(
                 custom_complexity: saved.custom_complexity,
             };
             let mut pipeline =
-                match wavvon_voice::AudioPipeline::start_p2p_with_settings(0, hub_addr, vsettings)
-                    .await
-                {
+                match wavvon_voice::AudioPipeline::start_p2p_with_settings(vsettings).await {
                     Ok(p) => p,
                     Err(e) => {
                         let _ = ready_tx.send(Err(format!("Audio: {e}")));
@@ -105,12 +90,22 @@ pub(crate) async fn voice_join(
                     }
                 };
 
-            let local_port = pipeline.local_udp_port;
+            // Generate our own voice sender key (key_id = 1) now, before the
+            // WT session even exists -- the WS layer's voice_joined handler
+            // reads it back out of `pipeline.voice_keys` to build the
+            // initial voice_key_offer once it knows who else is in the
+            // channel (voice-transport-v2.md "Join" flow).
+            {
+                let mut vk = pipeline.voice_keys.write().await;
+                vk.set_own(crate::voice_keys::generate_sender_key(1));
+            }
+
             let muted_arc = pipeline.muted.clone();
             let deafened_arc = pipeline.deafened.clone();
             let gain_map = pipeline.gain_map.clone();
             let roster_map = pipeline.roster_map.clone();
-            let udp_reg_token = pipeline.udp_reg_token.clone();
+            let transport = pipeline.transport.clone();
+            let voice_keys = pipeline.voice_keys.clone();
             let active_clip = pipeline.active_clip.clone();
             let opus_rate = pipeline.opus_rate;
             let voice_zones =
@@ -124,14 +119,14 @@ pub(crate) async fn voice_join(
                     Vec<f64>,
                 >::new()));
             let _ = ready_tx.send(Ok((
-                local_port,
                 muted_arc,
                 deafened_arc,
                 gain_map,
                 roster_map,
                 voice_zones,
                 my_position,
-                udp_reg_token,
+                transport,
+                voice_keys,
                 active_clip,
                 opus_rate,
             )));
@@ -191,14 +186,14 @@ pub(crate) async fn voice_join(
     });
 
     let (
-        local_port,
         muted,
         deafened,
         gain_map,
         roster_map,
         voice_zones,
         my_position,
-        udp_reg_token,
+        transport,
+        voice_keys,
         active_clip,
         opus_rate,
     ) = ready_rx
@@ -208,7 +203,6 @@ pub(crate) async fn voice_join(
     ws_tx
         .send(WsCommand::VoiceJoin {
             channel_id: channel_id.clone(),
-            udp_port: local_port,
         })
         .map_err(|_| "WS closed".to_string())?;
 
@@ -222,7 +216,8 @@ pub(crate) async fn voice_join(
         roster_map,
         voice_zones,
         my_position,
-        udp_reg_token,
+        transport,
+        voice_keys,
         active_clip,
         opus_rate,
     });
@@ -458,9 +453,10 @@ pub(crate) fn mic_test_start(state: State<'_, AppState>, app: AppHandle) -> Resu
         roster_map: std::sync::Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         voice_zones: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         my_position: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
-        udp_reg_token: std::sync::Arc::new(std::sync::Mutex::new(None)),
-        // Mic test is a loopback pipeline, not a real voice session -- the
-        // soundboard has nothing to mix into here.
+        // Mic test is a loopback pipeline, not a real voice session -- no
+        // WT session or voice keys ever get populated here.
+        transport: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        voice_keys: std::sync::Arc::new(tokio::sync::RwLock::new(wavvon_voice::VoiceKeys::new())),
         active_clip: std::sync::Arc::new(std::sync::Mutex::new(None)),
         opus_rate: 48_000,
     });

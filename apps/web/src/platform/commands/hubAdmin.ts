@@ -8,7 +8,7 @@ import type {
   RecoveryRequestBundle,
   InviteInfo,
 } from "../../types";
-import type { CertIssuance, CertAdmissionSettings } from "@wavvon/ui";
+import type { CertIssuance, CertAdmissionSettings, NameColorMode } from "@wavvon/ui";
 import { signRecoveryRequest, signRecoveryAttestation, publicKeyHex } from "@wavvon/core";
 import { loadIdentity } from "../../identity/store";
 
@@ -251,6 +251,15 @@ export async function saveHubSettings(settings: {
   /** Role auto-granted at invite redemption when the invite carries no
    *  explicit grant_role_id. null clears it (newcomers get only @everyone). */
   default_invite_role_id?: string | null;
+  /** IANA name; "" clears it (matches this route's other empty-string-clears
+   *  fields). */
+  timezone?: string;
+  birthdays_enabled?: boolean;
+  /** AFK channel for the hub's idle-voice sweep; "" clears it. */
+  afk_channel_id?: string;
+  /** Idle threshold in seconds; hub minimum is 60. */
+  afk_timeout_secs?: number;
+  name_color_mode?: NameColorMode;
 }): Promise<void> {
   await hubFetch("/hub", {
     method: "PATCH",
@@ -268,6 +277,11 @@ export async function getHubSettings(): Promise<{
   welcome_label: string;
   welcome_invite_url: string;
   default_invite_role_id: string | null;
+  timezone: string;
+  birthdays_enabled: boolean;
+  afk_channel_id: string;
+  afk_timeout_secs: number;
+  name_color_mode: NameColorMode;
 }> {
   const [settingsRes, infoRes] = await Promise.all([
     hubFetch("/hub/settings").then((r) => r.json() as Promise<{
@@ -276,6 +290,11 @@ export async function getHubSettings(): Promise<{
       min_security_level: number;
       max_channel_depth: number;
       default_invite_role_id?: string | null;
+      timezone?: string | null;
+      birthdays_enabled?: boolean;
+      afk_channel_id?: string | null;
+      afk_timeout_secs?: number;
+      name_color_mode?: NameColorMode;
     }>),
     hubFetch("/info").then((r) => r.json() as Promise<{
       name: string;
@@ -295,6 +314,11 @@ export async function getHubSettings(): Promise<{
     welcome_label: infoRes.welcome_label ?? "",
     welcome_invite_url: infoRes.welcome_invite_url ?? "",
     default_invite_role_id: settingsRes.default_invite_role_id ?? null,
+    timezone: settingsRes.timezone ?? "",
+    birthdays_enabled: settingsRes.birthdays_enabled ?? true,
+    afk_channel_id: settingsRes.afk_channel_id ?? "",
+    afk_timeout_secs: settingsRes.afk_timeout_secs ?? 300,
+    name_color_mode: settingsRes.name_color_mode ?? "role_over_user",
   };
 }
 

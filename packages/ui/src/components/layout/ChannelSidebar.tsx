@@ -27,15 +27,17 @@ import type {
   SoundboardChip,
   WhisperTarget,
   WhisperList,
+  WhisperReplyBind,
 } from "../../types";
 import { PhoneOffIcon, ChannelIcon, PingIcon, MicOnIcon, MicOffIcon, DeafenIcon, ScreenShareIcon, CameraOnIcon, CameraOffIcon } from "../Icons";
+import { HubClock } from "../HubClock";
 import { SortableCategoryItem, SortableChannelItem } from "../SortableItems";
 import { HoverSubmenu } from "../HoverSubmenu";
 import { SoundboardPopover } from "../voice/SoundboardPopover";
 import { WhisperPanel } from "../voice/WhisperPanel";
 import {
   DRILL_DEPTH, computeIndent, resolveDrillInScope,
-  flattenAllianceChannels, allianceChannelIcon,
+  flattenAllianceChannels, allianceChannelIcon, computeDragIntent,
 } from "./channelSidebarLayout";
 import { isSpawnerChannel, resolveOwnerDisplayName } from "../../utils/spawnerChannels";
 
@@ -113,6 +115,9 @@ interface Props {
   onSetStatus?: (status: "online" | "away" | "dnd" | "invisible", ttlMinutes: number | null) => void;
   hubNotifyMode: Record<string, NotifyMode>;
   hubDropdownOpen: boolean;
+  /** Active hub's IANA timezone, for the ambient hub-local clock — absent/null
+   *  when the hub hasn't set one. */
+  hubTimezone?: string | null;
   hideSilenced?: boolean;
   silencedChannelIds?: Set<string>;
   userAlliances: AllianceInfo[];
@@ -174,6 +179,11 @@ interface Props {
   onStopWhisper?: () => void;
   onSaveWhisperList?: (list: WhisperList) => void;
   onDeleteWhisperList?: (id: string) => void;
+  onListWhisperRoles?: () => Promise<Array<{ id: string; name: string }>>;
+  whisperReplyBind?: WhisperReplyBind;
+  onSetWhisperReplyBind?: (bind: WhisperReplyBind) => void;
+  whisperOptout?: boolean;
+  onSetWhisperOptout?: (enabled: boolean) => void;
   canUseSoundboard?: boolean;
   onListSoundboardClips?: () => Promise<SoundboardClip[]>;
   onTriggerSoundboardClip?: (clip: SoundboardClip) => void;
@@ -186,6 +196,7 @@ export function ChannelSidebar({
   unreadByChannel, collapsedCategories,
   voicePartByChannel, voiceChannelId, voiceChannelNameHint, selfMuted, selfDeafened,
   users, publicKey, pingByHub, isAdmin, canCreateInvites, canOpenChannelSettings, myStatus, onSetStatus, hubNotifyMode, hubDropdownOpen,
+  hubTimezone,
   hideSilenced, silencedChannelIds,
   userAlliances, allianceChannels, selectedAllianceChannel,
   conversations, selectedConversation, unreadDms,
@@ -202,7 +213,8 @@ export function ChannelSidebar({
   onOpenSearch,
   isWhispering, whisperTargets, whisperLists, showWhisperPanel,
   onToggleWhisperPanel, onCloseWhisperPanel, onStartWhisper, onStopWhisper,
-  onSaveWhisperList, onDeleteWhisperList,
+  onSaveWhisperList, onDeleteWhisperList, onListWhisperRoles,
+  whisperReplyBind, onSetWhisperReplyBind, whisperOptout, onSetWhisperOptout,
   canUseSoundboard, onListSoundboardClips, onTriggerSoundboardClip, soundboardPlayingClipId, soundboardChips,
 }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -373,7 +385,13 @@ export function ChannelSidebar({
   function handleDragOver(e: DragOverEvent) {
     const overId = e.over ? String(e.over.id) : null;
     const overNode = overId ? flatVisible.find(n => n.node.id === overId) : null;
-    setDragOverId(overNode?.node.is_category ? overId : null);
+    if (!overNode?.node.is_category || !e.over) { setDragOverId(null); return; }
+    // Same edge-zone rule as the drag-end reparent decision: only highlight
+    // as a nest target when the drop would actually nest (nested-channels-ux
+    // drag&drop fix) — otherwise this always lit up for any drop on a
+    // category, even a root-level reorder past it.
+    const intent = computeDragIntent(e.active.rect.current.translated, e.over.rect, true);
+    setDragOverId(intent === "nest" ? overId : null);
   }
 
   function handleToggleVideo() {
@@ -455,6 +473,7 @@ export function ChannelSidebar({
             onClick={() => onHubDropdownOpenChange(!hubDropdownOpen)}
           >
             <span className="hub-header-name">{activeHub?.hub_name ?? "Hub"}</span>
+            <HubClock timezone={hubTimezone} />
             <span className="hub-header-chevron">{hubDropdownOpen ? "▴" : "▾"}</span>
           </button>
           {hubDropdownOpen && (
@@ -885,7 +904,9 @@ export function ChannelSidebar({
                     <WhisperPanel
                       voiceParticipants={
                         voiceChannelId
-                          ? (voicePartByChannel[voiceChannelId] ?? [])
+                          ? (voicePartByChannel[voiceChannelId] ?? []).filter(
+                              (p) => p.public_key !== publicKey,
+                            )
                           : []
                       }
                       voiceChannels={channels.filter(c => !c.is_category)}
@@ -897,6 +918,11 @@ export function ChannelSidebar({
                       onSaveList={onSaveWhisperList ?? (() => {})}
                       onDeleteList={onDeleteWhisperList ?? (() => {})}
                       onClose={onCloseWhisperPanel}
+                      whisperOptout={whisperOptout}
+                      onSetWhisperOptout={onSetWhisperOptout}
+                      onListWhisperRoles={onListWhisperRoles}
+                      whisperReplyBind={whisperReplyBind}
+                      onSetWhisperReplyBind={onSetWhisperReplyBind}
                     />
                   </div>,
                   document.body

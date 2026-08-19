@@ -12,6 +12,9 @@ import { HubWebSocket, type WsHandlers } from "../ws";
 import {
   upsertSavedHub,
   removeSavedHub,
+  updateSavedHub,
+  updateSavedHubUrl,
+  saveHubCapabilities,
   saveActiveHubId,
   saveToken,
   clearToken,
@@ -27,6 +30,15 @@ interface InfoResponse {
   public_key: string;
   name: string;
   icon: string | null;
+  /** What the hub can do. Absent on hubs older than capability advertising,
+   * which reads correctly as "knows nothing". Gate features on this — never
+   * on `version`. See platform/session.ts `hubSupports`. */
+  capabilities?: string[];
+  /** Display and "very old hub" warnings only. Not a feature gate. */
+  version?: string;
+  /** The address this hub says to use for it. Changes when a farm-hosted hub
+   * is renamed; the client follows it, keyed on the pubkey that doesn't. */
+  canonical_url?: string | null;
   farm_url?: string | null;
   welcome_label?: string | null;
   welcome_invite_url?: string | null;
@@ -107,6 +119,8 @@ export async function addHub(
     token,
     ws,
     scope,
+    capabilities: info.capabilities ?? [],
+    hub_version: info.version,
   };
   setSession(info.public_key, session);
 
@@ -121,6 +135,8 @@ export async function addHub(
     hub_url: url,
     hub_icon: info.icon,
     remember_token: rememberMe,
+    capabilities: info.capabilities ?? [],
+    hub_version: info.version,
   };
   upsertSavedHub(saved);
 
@@ -142,6 +158,70 @@ export function listHubs(): Hub[] {
     hub_icon: s.hub_icon,
     is_active: s.hub_id === getActiveHubId(),
   }));
+}
+
+// Chokepoint for syncing a hub's name+icon+capabilities from its /info into
+// both the live session and the localStorage SavedHub — used by the
+// post-admin-save sync, the hub_updated WS handler, and the loadHubData
+// self-heal, so none of them re-implement the fetch. Returns the fetched info
+// (incl. timezone, read by loadHubData) or null if the hub has no session or
+// the fetch failed.
+//
+// Capabilities ride along here rather than in their own fetch: this already
+// runs on connect and on every hub_updated, which is exactly when what a hub
+// can do could have changed (it was restarted onto a new version).
+export async function refreshHubInfo(
+  hub_id: string,
+): Promise<{
+  name: string;
+  icon: string | null;
+  timezone: string | null;
+  capabilities: string[];
+  version: string | null;
+} | null> {
+  const s = getSession(hub_id);
+  if (!s) return null;
+  try {
+    const info = await rawFetch(`${s.hub_url}/info`).then(
+      (r) => r.json() as Promise<InfoResponse & { timezone?: string | null }>,
+    );
+    const capabilities = info.capabilities ?? [];
+
+    // Follow the hub if it has moved. A farm-hosted hub lives at an
+    // owner-chosen name that can change, and `canonical_url` is how it tells
+    // us the current one — so a rename costs nobody their session.
+    //
+    // Safe precisely because we are keyed on the pubkey: we only change *where*
+    // we look, never who we believe we are talking to. And we only accept this
+    // from a hub whose key we have already verified, so a farm handing out a
+    // bogus address gets caught on the first /info at the new one.
+    const movedTo =
+      info.canonical_url && info.canonical_url !== s.hub_url ? info.canonical_url : null;
+    if (movedTo) {
+      console.info(`[hubs] ${hub_id.slice(0, 8)} moved to ${movedTo}`);
+      updateSavedHubUrl(hub_id, movedTo);
+    }
+
+    setSession(hub_id, {
+      ...s,
+      hub_url: movedTo ?? s.hub_url,
+      hub_name: info.name,
+      hub_icon: info.icon,
+      capabilities,
+      hub_version: info.version,
+    });
+    updateSavedHub(hub_id, info.name, info.icon);
+    saveHubCapabilities(hub_id, capabilities, info.version);
+    return {
+      name: info.name,
+      icon: info.icon,
+      timezone: info.timezone ?? null,
+      capabilities,
+      version: info.version ?? null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export function setActiveHub(hub_id: string): void {
@@ -369,6 +449,14 @@ export async function restorePersistedHubs(handlers: WsHandlers): Promise<Hub[]>
         token,
         ws,
         scope,
+        // Last known, from localStorage — this path deliberately skips /info
+        // when a cached token makes it unnecessary, so seeding from the saved
+        // list is the only way the UI is right before loadHubData's
+        // refreshHubInfo lands. `undefined` (hub saved by an older build)
+        // stays undefined so hubSupports() falls through to the saved record
+        // rather than caching an empty list as fact.
+        capabilities: hub.capabilities,
+        hub_version: hub.hub_version,
       });
 
       result.push({

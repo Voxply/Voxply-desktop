@@ -1,3 +1,5 @@
+import type { VoiceKeyBundle } from "./voiceKeys";
+
 export interface WsHandlers {
   onMessage?: (m: object) => void;
   onDm?: (m: object) => void;
@@ -19,12 +21,17 @@ export interface WsHandlers {
   onError?: (e: object) => void;
   onReauthNeeded?: (hubId: string) => void;
   onChannelsUpdated?: (hubId: string) => void;
+  /** The hub dropped events for this socket (broadcast lag) — resync. */
+  onLagged?: (hubId: string) => void;
+  /** Hub name/icon/settings changed (e.g. a rename via hub admin). */
+  onHubUpdated?: (hubId: string) => void;
   onMemberOnline?: (publicKey: string, hubId: string) => void;
   onMemberOffline?: (publicKey: string, hubId: string) => void;
   onMemberUpdated?: (
     publicKey: string,
     displayName: string | null,
     avatar: string | null,
+    nameColor: string | null,
     hubId: string,
   ) => void;
   /** Presence status changed: status is null (online), "away", or "dnd". */
@@ -37,6 +44,10 @@ export interface WsHandlers {
   onBotApp?: (e: object) => void;
   /** Hub-pushed voice_move (events.md §7.1) — targeted-by-pubkey, like whisper. */
   onVoiceMove?: (e: object) => void;
+  /** voice-transport-v2.md E2E key distribution — a peer's key offer for us. */
+  onVoiceKeyReceived?: (e: object) => void;
+  /** A newcomer needs our current voice key; reply with a one-bundle offer. */
+  onVoiceKeyRequest?: (e: object) => void;
 }
 
 const BACKOFF_INITIAL = 1000;
@@ -154,9 +165,13 @@ export class HubWebSocket {
     } else if (type === "error") {
       this.handlers.onError?.(tagged);
     } else if (type === "lagged") {
-      this.handlers.onChannelsUpdated?.(this.hub_id);
+      // The hub dropped an unknown number of events of ANY kind for this
+      // socket (broadcast buffer overflow) — full resync, not just channels.
+      this.handlers.onLagged?.(this.hub_id);
     } else if (type === "channels_updated") {
       this.handlers.onChannelsUpdated?.(this.hub_id);
+    } else if (type === "hub_updated") {
+      this.handlers.onHubUpdated?.(this.hub_id);
     } else if (type === "member_online") {
       this.handlers.onMemberOnline?.(tagged.public_key as string, this.hub_id);
     } else if (type === "member_offline") {
@@ -166,6 +181,7 @@ export class HubWebSocket {
         tagged.public_key as string,
         (tagged.display_name as string | null) ?? null,
         (tagged.avatar as string | null) ?? null,
+        (tagged.name_color as string | null) ?? null,
         this.hub_id,
       );
     } else if (type === "member_status") {
@@ -187,6 +203,10 @@ export class HubWebSocket {
       this.handlers.onVoiceZoneState?.(tagged);
     } else if (type === "voice_move") {
       this.handlers.onVoiceMove?.(tagged);
+    } else if (type === "voice_key_received") {
+      this.handlers.onVoiceKeyReceived?.(tagged);
+    } else if (type === "voice_key_request") {
+      this.handlers.onVoiceKeyRequest?.(tagged);
     }
   }
 
@@ -230,6 +250,17 @@ export class HubWebSocket {
     this.send({ type: "voice_watch", channel_id: channelId });
   }
 
+  // --- voice-transport-v2.md: join now travels over the main WS (the hub
+  // replies with `voice_joined`, carrying the WebTransport URL/token/cert
+  // hash — see useVoice.handleVoiceJoin for the request/response pairing).
+  joinVoice(channelId: string): void {
+    this.send({ type: "voice_join", channel_id: channelId });
+  }
+
+  sendVoiceKeyOffer(channelId: string, bundles: VoiceKeyBundle[]): void {
+    this.send({ type: "voice_key_offer", channel_id: channelId, bundles });
+  }
+
   // --- Camera video signaling (full-mesh WebRTC, main WS) ---
   sendVideoEnable(channelId: string): void {
     this.send({ type: "video_enable", channel_id: channelId });
@@ -253,6 +284,12 @@ export class HubWebSocket {
   }
   stopWhisper(): void {
     this.send({ type: "voice_whisper_stop" });
+  }
+  // Hub-side opt-out state is ephemeral (not persisted across the hub's own
+  // reconnects), so callers must re-send this on every WS (re)connect —
+  // see App.tsx's onStatusChange, which does exactly that.
+  setWhisperOptout(enabled: boolean): void {
+    this.send({ type: "voice_whisper_optout", enabled });
   }
 
   // --- Voice move (main WS, events.md §7.1) — eventId is present for every
