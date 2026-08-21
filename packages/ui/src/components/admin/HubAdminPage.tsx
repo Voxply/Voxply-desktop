@@ -267,147 +267,184 @@ export function HubAdminPage(props: HubAdminPageProps) {
         {props.tab === "overview" && (
           <section>
             <h1>Overview</h1>
-            <div className="settings-section">
-              <label className="settings-label" htmlFor="admin-hub-name">Hub name</label>
-              <input id="admin-hub-name" type="text" value={props.hubName} onChange={(e) => props.onHubNameChange(e.target.value)} />
-            </div>
-            <div className="settings-section">
-              <label className="settings-label" htmlFor="admin-hub-desc">Description</label>
-              <textarea id="admin-hub-desc" rows={3} value={props.hubDescription} onChange={(e) => props.onHubDescriptionChange(e.target.value)} />
-            </div>
-            <div className="settings-section">
-              <label className="settings-label">Hub icon</label>
-              <div className="hub-icon-editor">
-                {props.hubIcon ? (
-                  <img src={props.hubIcon} alt="Hub icon" className="hub-icon-preview" />
-                ) : (
-                  <div className="hub-icon-preview placeholder">No icon</div>
-                )}
-                <ImagePicker
-                  onPick={props.onHubIconChange}
-                  onClear={() => props.onHubIconChange("")}
-                  hasValue={!!props.hubIcon}
-                  buttonLabel="Choose icon"
-                />
+            <div className="settings-cards">
+              <div className="settings-card">
+                <h3>Identity</h3>
+                <div className="settings-section">
+                  <label className="settings-label" htmlFor="admin-hub-name">Hub name</label>
+                  <input id="admin-hub-name" type="text" value={props.hubName} onChange={(e) => props.onHubNameChange(e.target.value)} />
+                </div>
+                <div className="settings-section">
+                  <label className="settings-label" htmlFor="admin-hub-desc">Description</label>
+                  <textarea id="admin-hub-desc" rows={2} value={props.hubDescription} onChange={(e) => props.onHubDescriptionChange(e.target.value)} />
+                </div>
+                <div className="settings-section">
+                  <label className="settings-label">Hub icon</label>
+                  <div className="hub-icon-editor">
+                    {props.hubIcon ? (
+                      <img src={props.hubIcon} alt="Hub icon" className="hub-icon-preview" />
+                    ) : (
+                      <div className="hub-icon-preview placeholder">No icon</div>
+                    )}
+                    <ImagePicker
+                      onPick={props.onHubIconChange}
+                      onClear={() => props.onHubIconChange("")}
+                      hasValue={!!props.hubIcon}
+                      buttonLabel="Choose icon"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="settings-card">
+                <h3>Access</h3>
+                <div className="settings-section">
+                  <label className="settings-label">Membership</label>
+                  <label className="checkbox-label">
+                    <input type="checkbox" checked={props.requireApproval} onChange={(e) => props.onRequireApprovalChange(e.target.checked)} />
+                    Require admin approval for new members
+                  </label>
+                </div>
+                <div className="settings-section">
+                  <label className="settings-label" htmlFor="admin-antispam">Minimum proof-of-work level</label>
+                  <input id="admin-antispam" type="number" min={0} max={9999} value={props.minSecurityLevel} onChange={(e) => props.onMinSecurityLevelChange(Number(e.target.value))} />
+                </div>
+              </div>
+
+              <div className="settings-card">
+                <h3>Locale &amp; appearance</h3>
+                <div className="settings-section">
+                  <label className="settings-label" htmlFor="admin-hub-timezone">Hub timezone</label>
+                  <p className="muted">
+                    Ambient flavor for members (a hub-local clock) — message and event times always stay in each viewer's own local time.
+                  </p>
+                  {typeof supportedTimeZones === "function" ? (
+                    <select
+                      id="admin-hub-timezone"
+                      value={props.timezone}
+                      onChange={(e) => props.onTimezoneChange(e.target.value)}
+                    >
+                      <option value="">Not set</option>
+                      {supportedTimeZones("timeZone").map((tz) => (
+                        <option key={tz} value={tz}>{tz}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="muted">Timezone picker isn't supported by this browser.</p>
+                  )}
+                  <label className="checkbox-label" style={{ marginTop: "var(--space-2)" }}>
+                    <input
+                      type="checkbox"
+                      checked={props.birthdaysEnabled}
+                      onChange={(e) => props.onBirthdaysEnabledChange(e.target.checked)}
+                    />
+                    Show member birthdays (🎂 badge on the day, if the member shared one)
+                  </label>
+                </div>
+                <div className="settings-section">
+                  <label className="settings-label" htmlFor="admin-name-color-mode">Member name colors</label>
+                  <p className="muted">
+                    Members can pick their own name color; roles can carry a color too. This decides which one wins when both are set.
+                  </p>
+                  <select
+                    id="admin-name-color-mode"
+                    value={props.nameColorMode}
+                    onChange={(e) => props.onNameColorModeChange(e.target.value as typeof props.nameColorMode)}
+                  >
+                    {/* Short labels: the sentence-length ones overflowed the
+                        select in a narrow card, and the paragraph above
+                        already carries the explanation. */}
+                    <option value="role_over_user">Role color wins</option>
+                    <option value="user_over_role">Member's choice wins</option>
+                    <option value="role_only">Role colors only</option>
+                    <option value="user_only">Member colors only</option>
+                    <option value="none">No name colors</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="settings-card">
+                <h3>Channels &amp; voice</h3>
+                <div className="settings-section">
+                  <label className="settings-label" htmlFor="admin-afk-channel">AFK channel</label>
+                  <p className="muted">
+                    Members idle in voice (not speaking) longer than the timeout are moved here automatically.
+                  </p>
+                  {/* Channel and timeout are one decision, so they share a row —
+                      the timeout only appears once a channel is picked. */}
+                  <div className="settings-card-row">
+                    <div>
+                      <select
+                        id="admin-afk-channel"
+                        value={props.afkChannelId}
+                        onChange={(e) => props.onAfkChannelIdChange(e.target.value)}
+                      >
+                        <option value="">No AFK channel</option>
+                        {moveChannelOptions(props.channels).map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {props.afkChannelId && (
+                      <div>
+                        <label className="settings-label" htmlFor="admin-afk-timeout">AFK timeout</label>
+                        <select
+                          id="admin-afk-timeout"
+                          value={props.afkTimeoutSecs}
+                          onChange={(e) => props.onAfkTimeoutSecsChange(Number(e.target.value))}
+                        >
+                          <option value={60}>1 minute</option>
+                          <option value={300}>5 minutes</option>
+                          <option value={900}>15 minutes</option>
+                          <option value={1800}>30 minutes</option>
+                          <option value={3600}>1 hour</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="settings-section">
+                  <label className="settings-label" htmlFor="admin-max-depth">Max channel nesting depth</label>
+                  <p className="muted">How many levels deep channel categories can nest.</p>
+                  <input id="admin-max-depth" type="number" min={0} max={20} value={props.maxChannelDepth} onChange={(e) => props.onMaxChannelDepthChange(Number(e.target.value))} />
+                </div>
+              </div>
+
+              <div className="settings-card">
+                <h3>Welcome message</h3>
+                <div className="settings-section">
+                  <p className="muted">Shown to new members right after they join. Optional.</p>
+                  <div className="settings-card-row">
+                    <div>
+                      <label className="settings-label" htmlFor="admin-welcome-label">Label</label>
+                      <input
+                        id="admin-welcome-label"
+                        type="text"
+                        maxLength={100}
+                        value={props.welcomeLabel}
+                        placeholder="e.g. Join our Discord too!"
+                        onChange={(e) => props.onWelcomeLabelChange(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="settings-label" htmlFor="admin-welcome-invite">Invite URL</label>
+                      <input
+                        id="admin-welcome-invite"
+                        type="text"
+                        value={props.welcomeInviteUrl}
+                        placeholder="https:// or wavvon://"
+                        onChange={(e) => props.onWelcomeInviteUrlChange(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  {(props.welcomeLabel.trim() || props.welcomeInviteUrl.trim()) && (
+                    <p className="muted">Shown to new members as: "{props.welcomeLabel.trim() || "(label)"}" → {props.welcomeInviteUrl.trim() || "(invite)"}</p>
+                  )}
+                </div>
               </div>
             </div>
-            <div className="settings-section">
-              <label className="settings-label">Membership</label>
-              <label className="checkbox-label">
-                <input type="checkbox" checked={props.requireApproval} onChange={(e) => props.onRequireApprovalChange(e.target.checked)} />
-                Require admin approval for new members
-              </label>
-            </div>
-            <div className="settings-section">
-              <label className="settings-label" htmlFor="admin-antispam">Minimum proof-of-work level</label>
-              <input id="admin-antispam" type="number" min={0} max={9999} value={props.minSecurityLevel} onChange={(e) => props.onMinSecurityLevelChange(Number(e.target.value))} />
-            </div>
-            <div className="settings-section">
-              <label className="settings-label" htmlFor="admin-hub-timezone">Hub timezone</label>
-              <p className="muted">
-                Ambient flavor for members (a hub-local clock) — message and event times always stay in each viewer's own local time.
-              </p>
-              {typeof supportedTimeZones === "function" ? (
-                <select
-                  id="admin-hub-timezone"
-                  value={props.timezone}
-                  onChange={(e) => props.onTimezoneChange(e.target.value)}
-                >
-                  <option value="">Not set</option>
-                  {supportedTimeZones("timeZone").map((tz) => (
-                    <option key={tz} value={tz}>{tz}</option>
-                  ))}
-                </select>
-              ) : (
-                <p className="muted">Timezone picker isn't supported by this browser.</p>
-              )}
-              <label className="checkbox-label" style={{ marginTop: "var(--space-2)" }}>
-                <input
-                  type="checkbox"
-                  checked={props.birthdaysEnabled}
-                  onChange={(e) => props.onBirthdaysEnabledChange(e.target.checked)}
-                />
-                Show member birthdays (🎂 badge on the day, if the member shared one)
-              </label>
-            </div>
-            <div className="settings-section">
-              <label className="settings-label" htmlFor="admin-name-color-mode">Member name colors</label>
-              <p className="muted">
-                Members can pick their own name color; roles can carry a color too. This decides which one wins when both are set.
-              </p>
-              <select
-                id="admin-name-color-mode"
-                value={props.nameColorMode}
-                onChange={(e) => props.onNameColorModeChange(e.target.value as typeof props.nameColorMode)}
-              >
-                <option value="role_over_user">Role color wins over the member's own choice</option>
-                <option value="user_over_role">Member's own choice wins over their role color</option>
-                <option value="role_only">Only role colors — members can't pick their own</option>
-                <option value="user_only">Only member-chosen colors — role colors don't apply to names</option>
-                <option value="none">No name colors at all</option>
-              </select>
-            </div>
-            <div className="settings-section">
-              <label className="settings-label" htmlFor="admin-afk-channel">AFK channel</label>
-              <p className="muted">
-                Members idle in voice (not speaking) longer than the timeout are moved here automatically.
-              </p>
-              <select
-                id="admin-afk-channel"
-                value={props.afkChannelId}
-                onChange={(e) => props.onAfkChannelIdChange(e.target.value)}
-              >
-                <option value="">No AFK channel</option>
-                {moveChannelOptions(props.channels).map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              {props.afkChannelId && (
-                <>
-                  <label className="settings-label" htmlFor="admin-afk-timeout" style={{ marginTop: "var(--space-2)" }}>AFK timeout</label>
-                  <select
-                    id="admin-afk-timeout"
-                    value={props.afkTimeoutSecs}
-                    onChange={(e) => props.onAfkTimeoutSecsChange(Number(e.target.value))}
-                  >
-                    <option value={60}>1 minute</option>
-                    <option value={300}>5 minutes</option>
-                    <option value={900}>15 minutes</option>
-                    <option value={1800}>30 minutes</option>
-                    <option value={3600}>1 hour</option>
-                  </select>
-                </>
-              )}
-            </div>
-            <div className="settings-section">
-              <label className="settings-label" htmlFor="admin-max-depth">Max channel nesting depth</label>
-              <p className="muted">How many levels deep channel categories can nest.</p>
-              <input id="admin-max-depth" type="number" min={0} max={20} value={props.maxChannelDepth} onChange={(e) => props.onMaxChannelDepthChange(Number(e.target.value))} />
-            </div>
-            <div className="settings-section">
-              <label className="settings-label" htmlFor="admin-welcome-label">Welcome message label (optional)</label>
-              <input
-                id="admin-welcome-label"
-                type="text"
-                maxLength={100}
-                value={props.welcomeLabel}
-                placeholder="e.g. Join our Discord too!"
-                onChange={(e) => props.onWelcomeLabelChange(e.target.value)}
-              />
-              <label className="settings-label" htmlFor="admin-welcome-invite" style={{ marginTop: "var(--space-2)" }}>Welcome invite URL</label>
-              <input
-                id="admin-welcome-invite"
-                type="text"
-                value={props.welcomeInviteUrl}
-                placeholder="https:// or wavvon://"
-                onChange={(e) => props.onWelcomeInviteUrlChange(e.target.value)}
-              />
-              {(props.welcomeLabel.trim() || props.welcomeInviteUrl.trim()) && (
-                <p className="muted">Shown to new members as: "{props.welcomeLabel.trim() || "(label)"}" → {props.welcomeInviteUrl.trim() || "(invite)"}</p>
-              )}
-            </div>
             {props.saveError && <p className="error-text">{props.saveError}</p>}
-            <div className="settings-section">
+            <div className="settings-save-bar">
               <button onClick={props.onSave}>Save</button>
             </div>
           </section>
