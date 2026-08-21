@@ -664,6 +664,8 @@
   "reconnect.working": "In corso…",
   "content.members.show": "Mostra lista membri",
   "content.members.hide": "Nascondi lista membri",
+  "content.streams.title": "Condivisioni schermo attive",
+  "content.pinned.title": "Messaggi fissati",
   "content.search.title": "Cerca messaggi",
   "content.activities": "Attività",
   "alliances.title": "Alleanze",

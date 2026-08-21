@@ -93,8 +93,8 @@ export function ChannelHeader({
           <button
             onClick={onOpenHubStreams}
             className="btn-icon-header"
-            title="Live screen shares"
-            aria-label="Live screen shares"
+            title={t("content.streams.title")}
+            aria-label={t("content.streams.title")}
           >
             📡
           </button>
@@ -102,7 +102,8 @@ export function ChannelHeader({
         <button
           onClick={onShowPinned}
           className="btn-icon-header"
-          title="Pinned messages"
+          title={t("content.pinned.title")}
+          aria-label={t("content.pinned.title")}
         >
           📌
         </button>

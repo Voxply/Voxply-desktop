@@ -10,6 +10,7 @@ import {
   REMINDER_OFFSETS,
   type ReminderOffset,
 } from "../../utils/events";
+import { nextHalfHourValue } from "../../utils/calendar";
 import { EventSlotEditor, type SlotRow } from "./EventSlotEditor";
 
 type EventScope = "channel" | "hub_wide";
@@ -55,7 +56,12 @@ export function EventComposer({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
-  const [startAt, setStartAt] = useState("");
+  // Seeded, not empty: an empty datetime-local makes the native picker
+  // highlight a time it has not committed, so a user who only set the date
+  // hit "a start time is required" while looking at one. Kept in a memo so
+  // the dirty check below can tell "untouched default" from "chosen".
+  const initialStartAt = useMemo(() => nextHalfHourValue(), []);
+  const [startAt, setStartAt] = useState(initialStartAt);
   const [endAt, setEndAt] = useState("");
   const [slots, setSlots] = useState<SlotRow[]>([]);
   const [reminderOffset, setReminderOffset] = useState<ReminderOffset>("off");
@@ -66,6 +72,16 @@ export function EventComposer({
   const [propagateToChildren, setPropagateToChildren] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // "Is there anything here worth protecting from a stray backdrop click."
+  // The seeded start time does not count until the user changes it.
+  const isDirty =
+    title.trim() !== "" ||
+    description.trim() !== "" ||
+    location.trim() !== "" ||
+    endAt !== "" ||
+    slots.length > 0 ||
+    startAt !== initialStartAt;
 
   const announcementCandidates = useMemo(() => announcementChannelCandidates(channels), [channels]);
   const anchorChannelId = advancedFieldsSupported && scope === "hub_wide" ? announcementChannelId : channelId;
@@ -127,7 +143,13 @@ export function EventComposer({
   return (
     <div
       className="modal-overlay"
-      onClick={onClose}
+      // A backdrop click used to close and discard everything, which is a lot
+      // of typing to lose to a stray click. It still dismisses an untouched
+      // composer; once there is anything to lose it does nothing, and Cancel
+      // is the deliberate way out.
+      onClick={() => {
+        if (!isDirty) onClose();
+      }}
       role="dialog"
       aria-modal="true"
       aria-label="Create event"

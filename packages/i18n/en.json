@@ -806,6 +806,8 @@
   "reconnect.working": "Working…",
   "content.members.show": "Show member list",
   "content.members.hide": "Hide member list",
+  "content.streams.title": "Live screen shares",
+  "content.pinned.title": "Pinned messages",
   "content.search.title": "Search messages",
   "content.activities": "Activities",
   "alliances.title": "Alliances",
