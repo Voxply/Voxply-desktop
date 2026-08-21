@@ -241,6 +241,23 @@ export function prefsBlobSigningBytes(
   );
 }
 
+/** Master-sign a prefs blob. `blobVersion` must exceed whatever the hub
+ *  already holds — the hub rejects a non-increasing version with 409. */
+export function buildPrefsBlob(
+  masterSeedHex: string,
+  masterPubkey: string,
+  blobVersion: number,
+  ciphertextHex: string,
+): SignedPrefsBlob {
+  const sb = prefsBlobSigningBytes(masterPubkey, blobVersion, hexToBytes(ciphertextHex));
+  return {
+    master_pubkey: masterPubkey,
+    blob_version: blobVersion,
+    ciphertext_hex: ciphertextHex,
+    signature: sign(sb, masterSeedHex),
+  };
+}
+
 /** Verify a SignedPrefsBlob's master signature over its ciphertext. */
 export function verifyPrefsBlob(blob: SignedPrefsBlob): boolean {
   try {

@@ -43,6 +43,7 @@ import { WhisperInbox } from "@wavvon/ui";
 import { ContentArea } from "@components/layout/ContentArea";
 import { ChannelSidebarContainer } from "@components/layout/ChannelSidebarContainer";
 import { loadDefaultProfile, saveDefaultProfile, type DefaultProfile } from "./utils/profiles";
+import { startPrefsSync } from "./utils/prefsSync";
 import { listRoles, listUserRoles, assignRoleToUser, removeRoleFromUser, createInvite } from "@platform";
 import {
   listHubIcons,
@@ -636,8 +637,15 @@ export default function App({ initialView }: AppProps = {}) {
 
   // === Hub restore on startup ===
 
+  // One reload per page load is enough to let pulled boot-time settings
+  // (language, theme) take hold; the flag lives in sessionStorage so a
+  // reload loop is impossible even if a pull somehow keeps reporting changes.
+  const PREFS_RELOAD_FLAG = "wavvon.prefsReloaded";
+  const prefsSyncRef = useRef<Awaited<ReturnType<typeof startPrefsSync>>>(null);
+
   useEffect(() => {
     if (ready !== "ok") return;
+    let cancelled = false;
     async function restore() {
       const list = await restorePersistedHubs(stableHandlers);
       setHubs(list);
@@ -651,8 +659,31 @@ export default function App({ initialView }: AppProps = {}) {
       if (typeof globalHomeHub === "string" && globalHomeHub.trim() && loadSavedHubs().length === 0) {
         setHomeHubUrl(globalHomeHub.trim());
       }
+      // Cross-device settings (docs/docs/home-hub.md "Prefs blob"). Started
+      // here because it needs a hub to read and write through. Language and
+      // theme are read once at boot, so a pull that actually changed
+      // something only takes effect after a reload — done once per load, and
+      // the steady state reports no change, so it cannot loop.
+      startPrefsSync(() => {
+        if (!sessionStorage.getItem(PREFS_RELOAD_FLAG)) {
+          sessionStorage.setItem(PREFS_RELOAD_FLAG, "1");
+          window.location.reload();
+        }
+      })
+        .then((handle) => {
+          // An account switch can unmount before the pull resolves; without
+          // this the poll would outlive the App that started it.
+          if (cancelled) handle?.stop();
+          else prefsSyncRef.current = handle;
+        })
+        .catch(() => { /* offline, or nothing published yet */ });
     }
     void restore();
+    return () => {
+      cancelled = true;
+      prefsSyncRef.current?.stop();
+      prefsSyncRef.current = null;
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 

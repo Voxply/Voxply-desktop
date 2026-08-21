@@ -7,6 +7,7 @@ import {
   revocationSigningBytes,
   pairingOfferSigningBytes,
   pairingClaimSigningBytes,
+  buildPrefsBlob,
   prefsBlobSigningBytes,
   verifyPrefsBlob,
   buildHomeHubList,
@@ -133,6 +134,22 @@ describe("wire signing-bytes vectors", () => {
     };
     expect(verifyPrefsBlob(blob)).toBe(true);
     expect(verifyPrefsBlob({ ...blob, blob_version: 4 })).toBe(false);
+  });
+
+  it("buildPrefsBlob produces exactly the envelope Rust signs and verifies", () => {
+    const blob = buildPrefsBlob(
+      MASTER_SEED_FROM_ENTROPY,
+      MASTER_FROM_ENTROPY_PUB,
+      3,
+      PREFS_BLOB_CIPHERTEXT_HEX,
+    );
+    expect(blob.signature).toBe(PREFS_BLOB_SIG);
+    expect(verifyPrefsBlob(blob)).toBe(true);
+    // A version bump changes the signature — the hub's monotonic counter is
+    // inside the signed bytes, so a replay at a lower version cannot verify.
+    const bumped = buildPrefsBlob(MASTER_SEED_FROM_ENTROPY, MASTER_FROM_ENTROPY_PUB, 4, PREFS_BLOB_CIPHERTEXT_HEX);
+    expect(bumped.signature).not.toBe(blob.signature);
+    expect(verifyPrefsBlob(bumped)).toBe(true);
   });
 });
 

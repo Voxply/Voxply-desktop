@@ -55,6 +55,30 @@ export async function getPrefsBlob(masterPubkey: string): Promise<SignedPrefsBlo
   }
 }
 
+/** Same read against an explicit hub URL. The prefs endpoints are
+ *  unauthenticated — the envelope carries its own master signature — so this
+ *  reaches a home hub the user is not currently connected to. `hubUrl` must
+ *  carry no trailing slash. */
+export async function getPrefsBlobFrom(hubUrl: string, masterPubkey: string): Promise<SignedPrefsBlob | null> {
+  try {
+    const res = await rawFetch(`${hubUrl}/identity/${masterPubkey}/prefs`);
+    return (await res.json()) as SignedPrefsBlob;
+  } catch {
+    // 404 (nothing published yet) and an unreachable hub are the same thing
+    // to the caller: this hub has no blob to offer.
+    return null;
+  }
+}
+
+/** Publish the master-signed prefs blob to one hub. The hub rejects a
+ *  non-increasing blob_version with 409 — the caller re-reads and retries. */
+export async function putPrefsBlobTo(hubUrl: string, blob: SignedPrefsBlob): Promise<void> {
+  await rawFetch(`${hubUrl}/identity/${blob.master_pubkey}/prefs`, {
+    method: "PUT",
+    body: JSON.stringify(blob),
+  });
+}
+
 /** Publish a master-signed revocation of a subkey to the active hub. */
 export async function postDeviceRevocation(entry: RevocationEntry): Promise<void> {
   await hubFetch(`/identity/${entry.master_pubkey}/revocations`, {
