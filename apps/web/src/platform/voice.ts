@@ -3,6 +3,7 @@ import { hexToBytes, voicePacketSeal, voicePacketOpen } from '@wavvon/core';
 import { getScoped, setScoped } from '../utils/accountScope';
 import { VoiceKeyManager, type VoiceKeyBundle } from './voiceKeys';
 import { parseDownlinkDatagram, peekSealedKeyId, ReplayGuard } from './voiceDatagram';
+import { nextPlayoutStart } from './voicePlayout';
 
 export interface VoiceZoneAttenuation {
   model: 'linear' | 'inverse_square' | 'step' | 'exponential';
@@ -149,6 +150,10 @@ export class VoiceWtSession {
   private sampleAccumLen = 0;
   private gainNodes: Map<number, GainNode> = new Map();
   private senderIdToPubkey: Map<number, string> = new Map();
+  /** Per-sender playout clock: when that sender's last scheduled
+   *  frame ends. Cleared when they leave, so a rejoin does not
+   *  inherit a stale future timestamp and start out silent. */
+  private playoutEnd: Map<number, number> = new Map();
   private savedGains: Record<string, number>;
   private zones: Map<string, VoiceZone> = new Map();
   private myPubkey: string;
@@ -397,7 +402,13 @@ export class VoiceWtSession {
     src.buffer = buffer;
     const gainNode = this.getOrCreateGainNode(senderId);
     src.connect(gainNode);
-    src.start();
+
+    // Scheduled, not `start()`. See voicePlayout.ts: playing each frame the
+    // instant it arrives is gapless only when arrival is gapless, which is
+    // true on a loopback and false across the internet.
+    const at = nextPlayoutStart(this.playoutEnd.get(senderId), this.audioCtx.currentTime);
+    src.start(at);
+    this.playoutEnd.set(senderId, at + pcm.length / 48000);
   }
 
   handleRosterUpdate(participants: { sender_id: number; public_key: string }[]): void {
@@ -411,6 +422,7 @@ export class VoiceWtSession {
           this.gainNodes.delete(sid);
         }
         this.senderIdToPubkey.delete(sid);
+        this.playoutEnd.delete(sid);
       }
     }
 
