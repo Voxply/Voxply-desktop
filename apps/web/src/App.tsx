@@ -25,7 +25,7 @@ import { useAppKeybinds } from "./hooks/useAppKeybinds";
 import { loadWhisperReplyBind, saveWhisperReplyBind } from "./utils/whisperReply";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
-import { flattenTree, descendantIds, computeDepth, channelPath } from "@wavvon/core";
+import { flattenTree, descendantIds, computeDepth, channelPath, inviteCodeFromPath } from "@wavvon/core";
 import { getScoped, setScoped } from "./utils/accountScope";
 import { DISCOVERY_NEW_HUB_URL, HUB_SETUP_COMMAND } from "./constants";
 import type {
@@ -817,6 +817,30 @@ export default function App({ initialView }: AppProps = {}) {
     publicKey, stableHandlers, hubsRef, setHubs, setActiveHubIdState, loadHubData,
     setShowCreateHub, applyDeepLinkTarget, t,
   });
+
+  // An invite link is `https://hub.example/join/<code>`, and the hub serves
+  // this client there. Pick the code out of our own address and open the
+  // add-hub flow prefilled, so clicking the link a friend sent lands on the
+  // hub preview instead of an empty app. Deliberately not an automatic join:
+  // a link should not silently change someone's hub list.
+  //
+  // Runs once the identity exists — a first-time visitor has onboarding to do
+  // first, and the code is held until then. The path is cleared only when the
+  // invite is actually applied, so reloading mid-onboarding still honours the
+  // link rather than losing it.
+  const pathInviteRef = useRef<string | null>(null);
+  const pathInviteHandledRef = useRef(false);
+  if (pathInviteRef.current === null) {
+    pathInviteRef.current = inviteCodeFromPath(window.location.pathname) ?? "";
+  }
+  useEffect(() => {
+    const code = pathInviteRef.current;
+    if (!code || pathInviteHandledRef.current || !publicKey) return;
+    pathInviteHandledRef.current = true;
+    window.history.replaceState({}, "", "/");
+    handleHubUrlInput(`${window.location.origin}/join/${code}`);
+    setShowAddHub(true);
+  }, [publicKey]);
 
   async function handleSaveFirstRunName() {
     const name = firstRunName.trim();

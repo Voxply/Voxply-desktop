@@ -202,3 +202,19 @@ export function parseHubInput(raw: string): HubInputResult | null {
     inviteCode: "",
   };
 }
+
+/**
+ * The invite code carried by the page's own path.
+ *
+ * A hub serves its web client at `/join/<code>` as well as at `/`, because
+ * that URL is the link an operator hands out — before this the hub answered it
+ * with JSON and a new user's first sight of Wavvon was `{"code":…}` on a white
+ * page. Serving the app there is only half the fix: the app has to notice the
+ * code is in its own address, which is what this reads.
+ *
+ * Returns null for any other path, so a normal page load is unaffected.
+ */
+export function inviteCodeFromPath(pathname: string): string | null {
+  const match = /^\/join\/([A-Za-z0-9_-]+)\/?$/.exec(pathname);
+  return match ? match[1] : null;
+}

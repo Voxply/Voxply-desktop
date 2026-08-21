@@ -1,4 +1,4 @@
-export { parseHubInput, buildInviteLink } from "./parseHubInput";
+export { parseHubInput, buildInviteLink, inviteCodeFromPath } from "./parseHubInput";
 export type { HubInputResult } from "./parseHubInput";
 export * from "./audio";
 export * from "./bots";

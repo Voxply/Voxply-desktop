@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseHubInput, buildInviteLink } from "./parseHubInput";
+import { parseHubInput, buildInviteLink, inviteCodeFromPath } from "./parseHubInput";
 
 describe("parseHubInput — farm-ready invite links (hub serial)", () => {
   it("parses wavvon://host/i/<serial>/<code> into hubUrl + serial + code", () => {
@@ -217,5 +217,37 @@ describe("parseHubInput — farm-hosted hub base URLs", () => {
       hubUrl: "https://hub.example.com",
       inviteCode: "abc123",
     });
+  });
+});
+
+describe("inviteCodeFromPath", () => {
+  it("reads the code out of a /join/<code> path", () => {
+    expect(inviteCodeFromPath("/join/d00a375964f4")).toBe("d00a375964f4");
+  });
+
+  it("tolerates a trailing slash", () => {
+    expect(inviteCodeFromPath("/join/abc123/")).toBe("abc123");
+  });
+
+  it("returns null for a normal page load", () => {
+    expect(inviteCodeFromPath("/")).toBeNull();
+    expect(inviteCodeFromPath("")).toBeNull();
+  });
+
+  it("returns null for paths that merely start with join", () => {
+    expect(inviteCodeFromPath("/joinsomething/abc")).toBeNull();
+    expect(inviteCodeFromPath("/join")).toBeNull();
+    expect(inviteCodeFromPath("/join/")).toBeNull();
+  });
+
+  it("refuses a code with path separators or junk, rather than passing it on", () => {
+    expect(inviteCodeFromPath("/join/a/b")).toBeNull();
+    expect(inviteCodeFromPath("/join/../etc")).toBeNull();
+    expect(inviteCodeFromPath("/join/abc?x=1")).toBeNull();
+  });
+
+  it("round-trips a link built by buildInviteLink", () => {
+    const link = buildInviteLink("hub.example", "zz99");
+    expect(inviteCodeFromPath(new URL(link).pathname)).toBe("zz99");
   });
 });
