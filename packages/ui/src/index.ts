@@ -152,6 +152,7 @@ export { MessageContextMenu } from "./components/content/MessageContextMenu";
 export { MessageRow } from "./components/content/MessageRow";
 export type { MessageRowActions } from "./components/content/MessageRow";
 export { ChannelHeader } from "./components/content/ChannelHeader";
+export { ConnectionStatus } from "./components/content/ConnectionStatus";
 export { ChannelComposer } from "./components/content/ChannelComposer";
 export { ChannelMessageList } from "./components/content/ChannelMessageList";
 export { DmView } from "./components/content/DmView";

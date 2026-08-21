@@ -4,6 +4,7 @@ import { getScoped, setScoped } from '../utils/accountScope';
 import { VoiceKeyManager, type VoiceKeyBundle } from './voiceKeys';
 import { parseDownlinkDatagram, peekSealedKeyId, ReplayGuard } from './voiceDatagram';
 import { nextPlayoutStart } from './voicePlayout';
+import { lossPercent, trackPacket, type LossTracker } from './connectionStats';
 import {
   DEFAULT_SPEAKING,
   INITIAL_SPEAKING_STATE,
@@ -164,6 +165,10 @@ export class VoiceWtSession {
    *  inherit a stale future timestamp and start out silent. */
   private playoutEnd: Map<number, number> = new Map();
   private speakingState: SpeakingState = INITIAL_SPEAKING_STATE;
+  /** Per-sender inbound loss trackers, keyed by sender id. Fed from the
+   *  cleartext `ctr` in each packet header, so gaps are visible without
+   *  decrypting anything. */
+  private lossBySender: Map<number, LossTracker> = new Map();
   private savedGains: Record<string, number>;
   private zones: Map<string, VoiceZone> = new Map();
   private myPubkey: string;
@@ -306,6 +311,11 @@ export class VoiceWtSession {
       return;
     }
 
+    this.lossBySender.set(
+      frame.senderId,
+      trackPacket(this.lossBySender.get(frame.senderId), opened.ctr),
+    );
+
     this.playPcm(new Int16Array(pcm.buffer, pcm.byteOffset, pcm.byteLength / 2), frame.senderId);
   }
 
@@ -424,6 +434,20 @@ export class VoiceWtSession {
     this.speakingState = next;
   }
 
+  /** Worst inbound loss across the senders we are hearing, as a percentage,
+   *  or null when nothing has been received long enough to judge. The worst
+   *  rather than the average: one badly-reaching participant is the thing you
+   *  want to see, and averaging it against three clean streams hides it. */
+  inboundLossPercent(): number | null {
+    let worst: number | null = null;
+    for (const tracker of this.lossBySender.values()) {
+      const pct = lossPercent(tracker);
+      if (pct === null) continue;
+      if (worst === null || pct > worst) worst = pct;
+    }
+    return worst;
+  }
+
   private playPcm(pcm: Int16Array, senderId: number): void {
     if (!this.audioCtx) return;
     const buffer = this.audioCtx.createBuffer(1, pcm.length, 48000);
@@ -449,6 +473,7 @@ export class VoiceWtSession {
 
     for (const [sid] of this.senderIdToPubkey) {
       if (!activeIds.has(sid)) {
+        this.lossBySender.delete(sid);
         const gainNode = this.gainNodes.get(sid);
         if (gainNode) {
           gainNode.disconnect();

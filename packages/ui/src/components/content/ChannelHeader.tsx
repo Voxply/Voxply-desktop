@@ -8,6 +8,9 @@ interface Props {
   selectedChannel: Channel;
   channels: Channel[];
   memberSidebarHidden: boolean;
+  /** Live connection readout, supplied by the app (this package is
+   *  network-free, so it cannot measure anything itself). */
+  connectionStatus?: React.ReactNode;
   searchOpen: boolean;
   searchQuery: string;
   searchResults: Message[] | null;
@@ -28,6 +31,7 @@ export function ChannelHeader({
   selectedChannel,
   channels,
   memberSidebarHidden,
+  connectionStatus,
   searchOpen,
   searchQuery,
   searchResults,
@@ -89,6 +93,7 @@ export function ChannelHeader({
             </p>
           ) : null}
         </div>
+        {connectionStatus}
         {onOpenHubStreams && (
           <button
             onClick={onOpenHubStreams}

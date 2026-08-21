@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useConnectionStats } from "../../hooks/useConnectionStats";
 import type {
   Channel,
   Message,
@@ -26,6 +27,7 @@ import {
   type RsvpStatus,
   type HubEmoji,
   PinnedMessagesModal,
+  ConnectionStatus,
 } from "@wavvon/ui";
 import {
   hubFetch, getPolls, createPoll, getBotProfile, sendBotAppJoin,
@@ -196,6 +198,14 @@ export function ContentArea(props: Props) {
     selfInvisible, onSetUserContextMenu, onToast, slashCommands, canMoveMembers, onMoveMember,
   } = props;
   const { selectedChannel } = channelMessages;
+
+  // Both sources keep their own rolling counters; this only samples them.
+  const conn = useConnectionStats(
+    () => {
+      try { return activeSession().ws?.connectionStats() ?? null; } catch { return null; }
+    },
+    () => voice.voiceSessionRef.current?.inboundLossPercent() ?? null,
+  );
   const { selectedConversation } = dms;
 
   // Scoped down from the raw typing maps to just this channel/conversation's
@@ -266,6 +276,18 @@ export function ContentArea(props: Props) {
         reconnectingHubs={hubConnection.reconnectingHubs}
         memberSidebarHidden={memberSidebarHidden}
         voiceActiveUsers={voice.voiceActiveUsers}
+        connectionStatus={
+          <ConnectionStatus
+            rttMs={conn.rttMs}
+            jitterMs={conn.jitterMs}
+            inboundLossPercent={conn.inboundLossPercent}
+            connected={
+              hubLifecycle.activeHubId
+                ? hubConnection.hubConnected[hubLifecycle.activeHubId] !== false
+                : false
+            }
+          />
+        }
         selfInvisible={selfInvisible}
         hideBirthdays={notifyPrefs.hideBirthdays}
         inputText={channelMessages.inputText}

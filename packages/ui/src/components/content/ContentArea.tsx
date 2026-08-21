@@ -82,6 +82,8 @@ interface Props {
   reconnectingHubs: Record<string, boolean>;
   memberSidebarHidden: boolean;
   voiceActiveUsers: Set<string>;
+  /** Live connection readout for the channel header, rendered by the app. */
+  connectionStatus?: React.ReactNode;
   selfInvisible?: boolean;
   /** Viewer opt-out from the 🎂 badge (member list + message author rows). */
   hideBirthdays?: boolean;
@@ -173,7 +175,7 @@ export function ContentArea({
   users, publicKey, blockedUsers, ignoredUsers, knownDisplayNames, myDisplayName,
   isAdmin, myRoles, editingMessageId, editingDraft, replyTarget,
   pendingAttachments, stickToBottom, newWhileScrolledUp,
-  hubConnected, reconnectingHubs, memberSidebarHidden, voiceActiveUsers,
+  hubConnected, reconnectingHubs, memberSidebarHidden, voiceActiveUsers, connectionStatus,
   selfInvisible,
   hideBirthdays,
   inputText, typingByKey, dmTypingByKey,
@@ -521,6 +523,7 @@ export function ContentArea({
         ) : selectedChannel ? (
           <div className="chat-column">
             <ChannelHeader
+              connectionStatus={connectionStatus}
               selectedChannel={selectedChannel}
               channels={channels}
               memberSidebarHidden={memberSidebarHidden}

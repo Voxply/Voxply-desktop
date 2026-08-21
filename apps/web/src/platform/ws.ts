@@ -1,4 +1,9 @@
 import type { VoiceKeyBundle } from "./voiceKeys";
+import { pushSample, rttStats, type RttStats } from "./connectionStats";
+
+/** How often to probe. Two seconds keeps the readout feeling live without
+ *  making the measurement itself part of the traffic it measures. */
+const PING_INTERVAL_MS = 2000;
 
 export interface WsHandlers {
   onMessage?: (m: object) => void;
@@ -60,6 +65,10 @@ export class HubWebSocket {
   private backoff = BACKOFF_INITIAL;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private consecutiveFailures = 0;
+  /** Rolling round-trip samples in ms; the window size lives in
+   *  connectionStats.ts. Kept here because the socket owns the probe. */
+  private rttSamples: number[] = [];
+  private pingTimer: number | null = null;
   private pendingChunkEnvelope: { stream_id: string; is_init: boolean } | null = null;
 
   constructor(
@@ -87,6 +96,7 @@ export class HubWebSocket {
       this.backoff = BACKOFF_INITIAL;
       this.consecutiveFailures = 0;
       this.handlers.onStatusChange?.(true, this.hub_id);
+      this.startProbing();
     };
 
     this.ws.onmessage = (ev) => {
@@ -111,6 +121,7 @@ export class HubWebSocket {
     };
 
     this.ws.onclose = () => {
+      this.stopProbing();
       this.pendingChunkEnvelope = null;
       this.handlers.onStatusChange?.(false, this.hub_id);
       if (!this.closed) this.scheduleReconnect();
@@ -156,6 +167,15 @@ export class HubWebSocket {
       type === "stream_subscribed" || type === "stream_subscription_ended" || type === "hub_streams"
     ) {
       this.handlers.onScreenShare?.(tagged);
+    } else if (type === "pong") {
+      // The nonce *is* the send timestamp, so the round trip needs no table of
+      // outstanding probes: subtract and done. A pong for a probe sent before
+      // a reconnect simply reads as one large sample and ages out of the
+      // window.
+      const n = (tagged as unknown as { nonce?: number }).nonce;
+      if (typeof n === "number") {
+        this.rttSamples = pushSample(this.rttSamples, Date.now() - n);
+      }
     } else if (type === "message_pinned" || type === "message_unpinned") {
       this.handlers.onPin?.(tagged);
     } else if (type === "poll_vote_updated") {
@@ -266,6 +286,35 @@ export class HubWebSocket {
    *  what the AFK sweep reads — so this is not only the indicator. */
   sendVoiceSpeaking(channelId: string, speaking: boolean): void {
     this.send({ type: "voice_speaking", channel_id: channelId, speaking });
+  }
+
+  /** Round-trip probe. The hub echoes `nonce` untouched, so the caller times
+   *  it against its own clock and the hub keeps no state. */
+  sendPing(nonce: number): void {
+    this.send({ type: "ping", nonce });
+  }
+
+  /** Snapshot of the latency figures. Cheap to call — the UI polls it. */
+  connectionStats(): RttStats {
+    return rttStats(this.rttSamples);
+  }
+
+  /** Starts probing. Called on open; the interval is cleared on close so a
+   *  dropped socket stops measuring instead of piling up failed sends. */
+  private startProbing(): void {
+    this.stopProbing();
+    const probe = () => {
+      try { this.sendPing(Date.now()); } catch { /* socket not ready */ }
+    };
+    probe();
+    this.pingTimer = setInterval(probe, PING_INTERVAL_MS) as unknown as number;
+  }
+
+  private stopProbing(): void {
+    if (this.pingTimer !== null) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = null;
+    }
   }
 
   // --- Camera video signaling (full-mesh WebRTC, main WS) ---
