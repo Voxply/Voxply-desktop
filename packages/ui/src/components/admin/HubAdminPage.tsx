@@ -118,6 +118,10 @@ export interface HubAdminPageProps {
 
   myPubkey: string;
   isAdmin: boolean;
+  /** Base URL of the hub directory, or absent when none is configured — the
+   *  Discovery tab is then not offered at all. It used to seed its form with
+   *  a hardcoded discovery.wavvon.io, a host that does not resolve. */
+  discoveryUrl?: string;
   canManageSoundboard: boolean;
   channels: Channel[];
 
@@ -169,7 +173,7 @@ export function HubAdminPage(props: HubAdminPageProps) {
   const [dirLanguage, setDirLanguage] = useState("en");
   const [dirBio, setDirBio] = useState("");
   const [dirInviteCode, setDirInviteCode] = useState("");
-  const [dirUrl, setDirUrl] = useState("https://discovery.wavvon.io");
+  const [dirUrl, setDirUrl] = useState(props.discoveryUrl ?? "");
   const [dirStatus, setDirStatus] = useState<"idle" | "submitting" | "ok" | "error">("idle");
   const [dirError, setDirError] = useState("");
   const [listingBusy, setListingBusy] = useState(false);
@@ -211,7 +215,7 @@ export function HubAdminPage(props: HubAdminPageProps) {
   const admin = props.isAdmin;
   const TABS: { id: HubAdminTab; label: string; group: string }[] = [
     { id: "overview", label: "Overview", group: G_GENERAL },
-    { id: "discovery", label: "Discovery", group: G_GENERAL },
+    ...(props.discoveryUrl ? [{ id: "discovery" as HubAdminTab, label: "Discovery", group: G_GENERAL }] : []),
     { id: "tags", label: "Tags", group: G_GENERAL },
     { id: "roles", label: "Roles", group: G_MEMBERS },
     { id: "members", label: "Members", group: G_MEMBERS },

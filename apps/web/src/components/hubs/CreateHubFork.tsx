@@ -15,7 +15,7 @@ interface Props {
   knownFarms: KnownFarm[];
   wsHandlers: WsHandlers;
   onHubCreated: (hub: Hub) => void;
-  discoveryNewUrl: string;
+  discoveryNewUrl: string | null;
   setupCommand: string;
   inviteValue: string;
   onInviteChange: (v: string) => void;

@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { validateSkin } from "../skinValidation";
 import type { WavvonSkin } from "../skinValidation";
 
-const DISCOVERY_URL = "https://discovery.wavvon.app";
+// Supplied by the app (prop-only package); the literal that used to be here
+// did not resolve.
 
 interface SkinListItem {
   id: string;
@@ -21,6 +22,10 @@ interface Props {
    *  (kept app-side since packages/ui stays network-free). Only ever called
    *  here with a bare URL, so any richer app-side signature still fits. */
   fetchWithTimeout: (url: string) => Promise<Response>;
+  /** Base URL of the hub directory that hosts the gallery. The app does not
+   *  render this component when it has none, so this is required rather than
+   *  defaulted — a default is how the dead hostname got here. */
+  discoveryUrl: string;
   onImport: (skin: WavvonSkin) => void;
 }
 
@@ -37,7 +42,7 @@ function truncatePubkey(pk: string): string {
   return pk.slice(0, 10) + "…" + pk.slice(-6);
 }
 
-export function SkinsGallery({ fetchWithTimeout, onImport }: Props) {
+export function SkinsGallery({ fetchWithTimeout, onImport, discoveryUrl }: Props) {
   const [q, setQ] = useState("");
   const [base, setBase] = useState("");
   const [page, setPage] = useState(1);
@@ -57,7 +62,7 @@ export function SkinsGallery({ fetchWithTimeout, onImport }: Props) {
     if (query.trim()) params.set("q", query.trim());
     if (baseFilter) params.set("base", baseFilter);
     params.set("page", String(pageNum));
-    fetchWithTimeout(`${DISCOVERY_URL}/api/skins?${params.toString()}`)
+    fetchWithTimeout(`${discoveryUrl}/api/skins?${params.toString()}`)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json() as Promise<{ skins: SkinListItem[]; total: number }>;
@@ -93,7 +98,7 @@ export function SkinsGallery({ fetchWithTimeout, onImport }: Props) {
   async function handleCardClick(skin: SkinListItem) {
     setImportingId(skin.id);
     try {
-      const res = await fetchWithTimeout(`${DISCOVERY_URL}/api/skins/${skin.id}`);
+      const res = await fetchWithTimeout(`${discoveryUrl}/api/skins/${skin.id}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const full = await res.json() as { payload: string };
       const parsed = JSON.parse(full.payload) as unknown;

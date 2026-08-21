@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { FocusTrap } from "@wavvon/ui";
 
 interface Props {
-  discoveryNewUrl: string;
+  discoveryNewUrl: string | null;
   setupCommand: string;
   inviteValue: string;
   onInviteChange: (v: string) => void;
@@ -48,6 +48,10 @@ export function CreateHubSelfHost({
           <h3 id="create-hub-title">{t("create_hub.title")}</h3>
           <p className="muted">{t("create_hub.intro")}</p>
 
+          {/* Hidden, not disabled, when no directory is configured: the
+              hosted wizard lives on the directory, so without one there is
+              nothing to link to. */}
+          {discoveryNewUrl && (
           <div className="settings-section">
             <label className="settings-label">{t("create_hub.web.label")}</label>
             <p className="muted">{t("create_hub.web.hint")}</p>
@@ -61,6 +65,7 @@ export function CreateHubSelfHost({
               {t("create_hub.web.action")}
             </a>
           </div>
+          )}
 
           <div className="settings-section">
             <label className="settings-label">{t("create_hub.cli.label")}</label>

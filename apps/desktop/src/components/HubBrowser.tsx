@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { DISCOVERY_URL } from "../constants";
 import type { HubListing } from "../types";
 
 interface HubBrowserProps {
@@ -12,7 +13,11 @@ interface HubListingResult extends HubListing {
 
 const FALLBACK_HUBS: string[] = [];
 
-const KNOWN_HUBS_URL = "https://hub-directory.wavvon.io/known-hubs.json";
+// Derived from the one configured directory instead of a third hostname of
+// its own — hub-directory.wavvon.io, which was hardcoded here, does not
+// resolve. Null when no directory is configured; the caller does not open
+// this browser then.
+const KNOWN_HUBS_URL = DISCOVERY_URL === null ? null : `${DISCOVERY_URL}/known-hubs.json`;
 
 function normalizeHubUrl(raw: string): string {
   const trimmed = raw.trim();
@@ -97,6 +102,7 @@ export function HubBrowser({ onClose, onJoinHub }: HubBrowserProps) {
     async function loadKnownHubs() {
       let urls: string[] = FALLBACK_HUBS;
       try {
+        if (!KNOWN_HUBS_URL) return;
         const res = await fetch(KNOWN_HUBS_URL);
         if (res.ok) {
           const data: unknown = await res.json();

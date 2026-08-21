@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { BackgroundMode } from "../utils/backgroundProcessor";
 import type { Hub } from "../types";
+import { DISCOVERY_URL } from "../constants";
 import { AudioProfileSection } from "./AudioProfileSection";
 import { MicLevelMeter } from "./MicLevelMeter";
 import { PttKeyBinder } from "./PttKeyBinder";
@@ -226,7 +227,13 @@ export function SettingsPage(props: SettingsPageProps) {
                 onChange={props.onSkinChange}
               />
             )}
-            <SkinsGallery fetchWithTimeout={fetchWithTimeout} onImport={props.onImportSkin} />
+            {DISCOVERY_URL && (
+              <SkinsGallery
+                fetchWithTimeout={fetchWithTimeout}
+                onImport={props.onImportSkin}
+                discoveryUrl={DISCOVERY_URL}
+              />
+            )}
             <div className="settings-section">
               <label className="settings-label" htmlFor="settings-language">{t("settings.language.label")}</label>
               <div className="settings-row">

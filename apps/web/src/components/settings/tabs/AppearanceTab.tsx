@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import type { ThemeId, WavvonSkin } from "@wavvon/ui";
 import { SkinEditor, SkinsGallery } from "@wavvon/ui";
+import { DISCOVERY_URL } from "../../../constants";
 import type { NamedCustomTheme } from "@shared/utils/customThemes";
 import { fetchWithTimeout } from "@platform";
 import { CustomThemesSection } from "../CustomThemesSection";
@@ -95,7 +96,13 @@ export function AppearanceTab(props: Props) {
           </>
         )}
       </div>
-      <SkinsGallery fetchWithTimeout={fetchWithTimeout} onImport={props.onImportSkin} />
+      {DISCOVERY_URL && (
+        <SkinsGallery
+          fetchWithTimeout={fetchWithTimeout}
+          onImport={props.onImportSkin}
+          discoveryUrl={DISCOVERY_URL}
+        />
+      )}
     </section>
   );
 }

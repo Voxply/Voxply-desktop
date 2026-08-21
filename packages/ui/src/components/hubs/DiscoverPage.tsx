@@ -6,14 +6,19 @@ interface Props {
   onClose: () => void;
   onJoinHub: (hubUrl: string, inviteCode: string) => void;
   fetchUrl: (url: string) => Promise<Response>;
-  directoryUrl?: string;
+  /** Base URL of the hub directory. Required: this used to be optional
+   *  with a hardcoded default, and the default was a host that does not
+   *  resolve. The app does not render this page without one. */
+  directoryUrl: string;
 }
 
-const DEFAULT_DIR = "https://discovery.wavvon.io";
+// No default host here on purpose: this package is prop-only, and the one
+// that used to live here (discovery.wavvon.io) does not resolve. The app owns
+// the config and does not render this page without it.
 const PAGE_SIZE = 20;
 const POPULAR_TAGS = ["gaming", "music", "art", "tech", "anime", "sports", "community", "18+", "english", "social"];
 
-export function DiscoverPage({ onClose, onJoinHub, fetchUrl, directoryUrl = DEFAULT_DIR }: Props) {
+export function DiscoverPage({ onClose, onJoinHub, fetchUrl, directoryUrl }: Props) {
   const { t } = useTranslation();
   const [q, setQ] = useState("");
   const [language, setLanguage] = useState("");

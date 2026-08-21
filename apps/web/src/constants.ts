@@ -22,10 +22,20 @@ export const MIC_METER_MAX = 0.2;
 // screen. null means the button is hidden — don't ship a dead button.
 export const DEMO_HUB_URL: string | null = null;
 
-// Discovery's web-based hub creation wizard (docs/docs/hub-creation-wizard.md
-// §3). No client-side config for this yet — same literal host the wizard
-// itself uses everywhere else it's referenced.
-export const DISCOVERY_NEW_HUB_URL = "https://discovery.wavvon.app/new";
+// The public hub directory (discovery-v2.md). null means every surface that
+// needs it — browse public hubs, the hub-creation wizard link, the skins
+// gallery, the directory listing form in hub admin — is not rendered at all.
+// Same rule as DEMO_HUB_URL above: don't ship a dead button.
+//
+// It was three different hardcoded hostnames across five files
+// (discovery.wavvon.io, discovery.wavvon.app, hub-directory.wavvon.io), none
+// of which resolves. That is what "the features that don't work because we
+// don't have discovery yet" actually was.
+export const DISCOVERY_URL: string | null = null;
+
+/** The wizard's hub-creation page, or null when there is no directory. */
+export const DISCOVERY_NEW_HUB_URL: string | null =
+  DISCOVERY_URL === null ? null : `${DISCOVERY_URL}/new`;
 
 // The offline self-host one-liner (hub-creation-wizard.md §4). Interactive:
 // asks name/preset/domain-or-LAN/TLS, emits compose + env, starts the hub,

@@ -7,6 +7,7 @@
 // - Event handlers use camelCase: onClick, onChange, onSubmit
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { DISCOVERY_URL } from "./constants";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import type { DragEndEvent } from "@dnd-kit/core";
@@ -1560,11 +1561,12 @@ function App() {
               onFarmSettings={() => { setShowFarmSettings(true); setFarmAdminTab("general"); }}
               isFarmAdmin={isFarmAdmin}
             />
-            {showDiscover ? (
+            {showDiscover && DISCOVERY_URL ? (
               <DiscoverPage
                 onClose={() => setShowDiscover(false)}
                 onJoinHub={handleDiscoverJoin}
                 fetchUrl={(url) => fetchWithTimeout(url)}
+                directoryUrl={DISCOVERY_URL}
               />
             ) : showHubBrowser ? (
               <HubBrowser
@@ -1585,7 +1587,7 @@ function App() {
                   loading={loading}
                   error={error}
                   onJoin={() => handleAddHub()}
-                  onBrowse={() => setShowDiscover(true)}
+                  onBrowse={DISCOVERY_URL ? () => setShowDiscover(true) : undefined}
                   onCheckHubUrl={() => setShowHubBrowser(true)}
                   onDismiss={dismissWelcome}
                 />
@@ -1839,7 +1841,7 @@ function App() {
             error={error}
             onAdd={() => handleAddHub()}
             onClose={() => { setShowAddHub(false); setHubUrl(""); setInviteCode(""); }}
-            onBrowse={() => { setShowAddHub(false); setShowHubBrowser(true); }}
+            onBrowse={DISCOVERY_URL ? () => { setShowAddHub(false); setShowHubBrowser(true); } : undefined}
           />
         )}
 

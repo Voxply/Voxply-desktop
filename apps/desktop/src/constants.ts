@@ -8,6 +8,11 @@
 
 export const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024; // matches the hub cap
 
+// The public hub directory (discovery-v2.md). null means the surfaces that
+// need it are not rendered — same rule the web client uses. The desktop hub
+// browser used to point at hub-directory.wavvon.io, which does not resolve.
+export const DISCOVERY_URL: string | null = null;
+
 export const MIC_METER_MAX = 0.2;
 
 export const ALL_PERMISSIONS: { id: string; label: string }[] = [

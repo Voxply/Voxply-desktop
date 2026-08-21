@@ -36,7 +36,10 @@ interface Props {
   onHubReorder: (event: DragEndEvent) => void;
   onAddHub: () => void;
   onCreateHub: () => void;
-  onDiscover: () => void;
+  /** Absent when no hub directory is configured, and then the ⊕ button is
+   *  not rendered at all — the sidebar had a permanent entry to a page that
+   *  fetched a hostname which does not resolve. */
+  onDiscover?: () => void;
   onFarmSettings: () => void;
 }
 
@@ -219,14 +222,18 @@ export function HubSidebar({
         </div>
       )}
 
-      <div className="hub-sidebar-divider" />
-      <button
-        className={`hub-icon discover ${showDiscover ? "active" : ""}`}
-        onClick={onDiscover}
-        title={t("hub.discover")}
-      >
-        ⊕
-      </button>
+      {onDiscover && (
+        <>
+          <div className="hub-sidebar-divider" />
+          <button
+            className={`hub-icon discover ${showDiscover ? "active" : ""}`}
+            onClick={onDiscover}
+            title={t("hub.discover")}
+          >
+            ⊕
+          </button>
+        </>
+      )}
       {isFarmAdmin && (
         <button
           className="hub-icon"

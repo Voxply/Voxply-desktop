@@ -27,7 +27,7 @@ import type { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { flattenTree, descendantIds, computeDepth, channelPath, inviteCodeFromPath } from "@wavvon/core";
 import { getScoped, setScoped } from "./utils/accountScope";
-import { DISCOVERY_NEW_HUB_URL, HUB_SETUP_COMMAND } from "./constants";
+import { DISCOVERY_NEW_HUB_URL, DISCOVERY_URL, HUB_SETUP_COMMAND } from "./constants";
 import type {
   Channel,
   User,
@@ -1183,7 +1183,7 @@ export default function App({ initialView }: AppProps = {}) {
         <KeyboardShortcuts onClose={() => setShowKeyboardShortcuts(false)} />
       )}
 
-      {showDiscover && (
+      {showDiscover && DISCOVERY_URL && (
         <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: "var(--bg, #1a1a2e)", overflow: "auto" }}>
           <DiscoverPage
             onClose={() => setShowDiscover(false)}
@@ -1194,6 +1194,7 @@ export default function App({ initialView }: AppProps = {}) {
               setShowAddHub(true);
             }}
             fetchUrl={fetchWithTimeout}
+            directoryUrl={DISCOVERY_URL}
           />
         </div>
       )}
@@ -1347,7 +1348,7 @@ export default function App({ initialView }: AppProps = {}) {
         onHubReorder={handleHubReorder}
         onAddHub={() => setShowAddHub(true)}
         onCreateHub={() => setShowCreateHub(true)}
-        onDiscover={() => setShowDiscover(true)}
+        onDiscover={DISCOVERY_URL ? () => setShowDiscover(true) : undefined}
         onFarmSettings={() => { setShowFarmSettings(true); setFarmAdminTab("general"); }}
       />
 
@@ -1418,7 +1419,7 @@ export default function App({ initialView }: AppProps = {}) {
               });
             }}
             initialHubUrl={homeHubUrl}
-            onBrowse={() => setShowDiscover(true)}
+            onBrowse={DISCOVERY_URL ? () => setShowDiscover(true) : undefined}
           />
         </main>
       ) : activeHubId && lobbyHubs.has(activeHubId) && publicKey ? (
@@ -1534,7 +1535,7 @@ export default function App({ initialView }: AppProps = {}) {
             setAddHubError(null);
             setFingerprintMatch(false);
           }}
-          onBrowse={() => { setShowAddHub(false); setShowDiscover(true); }}
+          onBrowse={DISCOVERY_URL ? () => { setShowAddHub(false); setShowDiscover(true); } : undefined}
         />
       )}
 
