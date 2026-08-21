@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 // A "test your mic" level meter: opens its own microphone stream, runs it
 // through an AnalyserNode, and animates a bar from the RMS level. Fully
 // client-side (no hub involvement); ported from the desktop MicLevelMeter.
 // The stream is opened only while testing and always released on stop.
 export function MicLevelMeter() {
+  const { t } = useTranslation();
   const [testing, setTesting] = useState(false);
   const [level, setLevel] = useState(0); // 0..1
   const [error, setError] = useState<string | null>(null);
@@ -16,7 +18,7 @@ export function MicLevelMeter() {
   function stop() {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
-    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     void ctxRef.current?.close().catch(() => {});
     ctxRef.current = null;
@@ -64,14 +66,14 @@ export function MicLevelMeter() {
 
   return (
     <div className="settings-section" style={{ marginTop: 16 }}>
-      <label className="settings-label">Microphone test</label>
+      <label className="settings-label">{t("settings.voice.mic_test.label")}</label>
       <div className="settings-row" style={{ alignItems: "center", gap: 12 }}>
         <button type="button" onClick={testing ? stop : start}>
-          {testing ? "Stop test" : "Test microphone"}
+          {testing ? t("settings.voice.mic_test.stop") : t("settings.voice.mic_test.start")}
         </button>
         <div
           role="meter"
-          aria-label="Microphone level"
+          aria-label={t("settings.voice.mic_test.level_aria")}
           aria-valuenow={pct}
           aria-valuemin={0}
           aria-valuemax={100}
@@ -95,7 +97,7 @@ export function MicLevelMeter() {
         </div>
       </div>
       {error && <p className="error-text" style={{ fontSize: "var(--text-sm)" }}>{error}</p>}
-      {testing && <p className="muted" style={{ fontSize: "var(--text-xs)" }}>Speak — the bar should move.</p>}
+      {testing && <p className="muted" style={{ fontSize: "var(--text-xs)" }}>{t("settings.voice.mic_test.speak")}</p>}
     </div>
   );
 }
