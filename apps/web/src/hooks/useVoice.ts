@@ -259,6 +259,9 @@ export function useVoice({ publicKey, publicKeyRef, meInfoRef, showHubError, ref
           sendKeyOffer: (channelId, bundles) => {
             try { activeSession().ws?.sendVoiceKeyOffer(channelId, bundles); } catch {}
           },
+          sendSpeaking: (channelId, speaking) => {
+            try { activeSession().ws?.sendVoiceSpeaking(channelId, speaking); } catch {}
+          },
         },
         loadVoiceAudioProfile(),
         myPk,

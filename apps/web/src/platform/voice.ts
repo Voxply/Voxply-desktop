@@ -4,6 +4,13 @@ import { getScoped, setScoped } from '../utils/accountScope';
 import { VoiceKeyManager, type VoiceKeyBundle } from './voiceKeys';
 import { parseDownlinkDatagram, peekSealedKeyId, ReplayGuard } from './voiceDatagram';
 import { nextPlayoutStart } from './voicePlayout';
+import {
+  DEFAULT_SPEAKING,
+  INITIAL_SPEAKING_STATE,
+  frameEnergy,
+  nextSpeakingState,
+  type SpeakingState,
+} from './speakingDetector';
 
 export interface VoiceZoneAttenuation {
   model: 'linear' | 'inverse_square' | 'step' | 'exponential';
@@ -49,6 +56,8 @@ export interface VoiceSessionHandlers {
    *  "E2E key distribution") — the WebTransport session has no signaling
    *  channel of its own, only datagrams. */
   sendKeyOffer: (channelId: string, bundles: VoiceKeyBundle[]) => void;
+  /** Called only when speech starts or stops, never per frame. */
+  sendSpeaking: (channelId: string, speaking: boolean) => void;
 }
 
 /** What `voice_join` gets back from the hub (the `voice_joined` reply) —
@@ -154,6 +163,7 @@ export class VoiceWtSession {
    *  frame ends. Cleared when they leave, so a rejoin does not
    *  inherit a stale future timestamp and start out silent. */
   private playoutEnd: Map<number, number> = new Map();
+  private speakingState: SpeakingState = INITIAL_SPEAKING_STATE;
   private savedGains: Record<string, number>;
   private zones: Map<string, VoiceZone> = new Map();
   private myPubkey: string;
@@ -342,6 +352,11 @@ export class VoiceWtSession {
     if (this.muted || !this.datagramWriter || !this.encoder) return;
 
     const micFrame = e.inputBuffer.getChannelData(0);
+
+    // Speech detection runs on the raw mic frame, before the soundboard mix:
+    // a clip playing through our own stream is not us talking.
+    this.updateSpeaking(micFrame);
+
     const { output, nextClip } = mixClipIntoFrame(micFrame, this.activeClip);
     this.activeClip = nextClip;
     if (!this.activeClip) this.activeClipId = null;
@@ -389,6 +404,24 @@ export class VoiceWtSession {
     gainNode.connect(this.audioCtx!.destination);
     this.gainNodes.set(senderId, gainNode);
     return gainNode;
+  }
+
+  /** Advances the speech detector and reports only the on/off edges.
+   *
+   *  Muted counts as not speaking regardless of what the mic hears: we are
+   *  sending no audio, so claiming otherwise would light our name up in
+   *  everyone's member list while they hear silence. */
+  private updateSpeaking(micFrame: Float32Array): void {
+    const threshold = this.audioConfig?.customVadThreshold ?? DEFAULT_SPEAKING.threshold;
+    const energy = this.muted ? 0 : frameEnergy(micFrame);
+    const next = nextSpeakingState(this.speakingState, energy, Date.now(), {
+      threshold,
+      holdMs: DEFAULT_SPEAKING.holdMs,
+    });
+    if (next.speaking !== this.speakingState.speaking) {
+      this.handlers.sendSpeaking(this.channelId, next.speaking);
+    }
+    this.speakingState = next;
   }
 
   private playPcm(pcm: Int16Array, senderId: number): void {

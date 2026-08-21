@@ -4035,10 +4035,23 @@ select:focus-visible {
   font-weight: var(--weight-medium);
 }
 
-.user-in-voice {
+/* Someone talking right now. Animated on purpose: a static badge next to a
+   name reads as a property of the person, and this is a property of the
+   moment. Honours reduced-motion. */
+.user-speaking {
   margin-left: auto;
   font-size: var(--text-xs);
   opacity: 0.85;
+  animation: user-speaking-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes user-speaking-pulse {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-speaking { animation: none; opacity: 1; }
 }
 
 .user-list-filter {

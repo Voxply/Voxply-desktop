@@ -261,6 +261,13 @@ export class HubWebSocket {
     this.send({ type: "voice_key_offer", channel_id: channelId, bundles });
   }
 
+  /** Reports a speech on/off edge. The hub fans it out as
+   *  `voice_participant_speaking` and stamps `voice_last_active`, which is
+   *  what the AFK sweep reads — so this is not only the indicator. */
+  sendVoiceSpeaking(channelId: string, speaking: boolean): void {
+    this.send({ type: "voice_speaking", channel_id: channelId, speaking });
+  }
+
   // --- Camera video signaling (full-mesh WebRTC, main WS) ---
   sendVideoEnable(channelId: string): void {
     this.send({ type: "video_enable", channel_id: channelId });

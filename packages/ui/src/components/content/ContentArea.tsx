@@ -693,7 +693,7 @@ export function ContentArea({
         <aside className="user-list-sidebar" aria-label={t("member.list.title")}>
           <UserListGrouped
             users={users}
-            inVoice={voiceActiveUsers}
+            speaking={voiceActiveUsers}
             myPubkey={publicKey}
             selfInvisible={selfInvisible}
             hideBirthdays={hideBirthdays}

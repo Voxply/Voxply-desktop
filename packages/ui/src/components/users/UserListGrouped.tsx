@@ -7,7 +7,7 @@ import { nameColorStyle, safeRoleColor } from "../../utils/roleAppearance";
 
 export function UserListGrouped({
   users,
-  inVoice,
+  speaking,
   myPubkey,
   selfInvisible,
   hideBirthdays,
@@ -16,7 +16,10 @@ export function UserListGrouped({
   onBotClick,
 }: {
   users: User[];
-  inVoice?: Set<string>;
+  /** Members currently *speaking*, not merely connected to voice — the hub
+   *  reports on/off edges and this is the set they build. The prop was called
+   *  inVoice and labelled "In voice" while being fed exactly this. */
+  speaking?: Set<string>;
   /** This device's own account, so it can be styled distinctly below. */
   myPubkey?: string | null;
   /** True while self chose the Invisible status — self still shows "offline"
@@ -173,8 +176,8 @@ export function UserListGrouped({
                       <span className="user-custom-status"> — {u.status_custom}</span>
                     )}
                   </span>
-                  {inVoice?.has(u.public_key) && (
-                    <span className="user-in-voice" title="In voice">
+                  {speaking?.has(u.public_key) && (
+                    <span className="user-speaking" title={t("voice.speaking")} aria-label={t("voice.speaking")}>
                       🎙️
                     </span>
                   )}
@@ -221,8 +224,8 @@ export function UserListGrouped({
                       <span className="user-custom-status"> — {t("presence.invisible")}</span>
                     )}
                   </span>
-                  {inVoice?.has(u.public_key) && (
-                    <span className="user-in-voice" title="In voice">
+                  {speaking?.has(u.public_key) && (
+                    <span className="user-speaking" title={t("voice.speaking")} aria-label={t("voice.speaking")}>
                       🎙️
                     </span>
                   )}
