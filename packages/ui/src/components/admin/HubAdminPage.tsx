@@ -11,7 +11,6 @@ import { RolesSection, type RolesSectionActions } from "./RolesSection";
 import { MemberRoleManager, type MemberRoleManagerActions } from "./MemberRoleManager";
 import { ServerTagsSection, type ServerTagsSectionActions } from "./ServerTagsSection";
 import { InviteManager, type InviteManagerActions } from "./InviteManager";
-import { NativeBotsSection, type NativeBotsSectionActions } from "./NativeBotsSection";
 import { AuditLogSection, type AuditLogSectionActions } from "./AuditLogSection";
 import { CertificationsSection, type CertificationsSectionActions } from "./CertificationsSection";
 import { SoundboardAdminSection, type SoundboardAdminSectionActions } from "./SoundboardAdminSection";
@@ -32,7 +31,6 @@ export type HubAdminTab =
   | "recovery"
   | "moderation"
   | "soundboard"
-  | "native-bots"
   | "alliances"
   | "hub-icons"
   | "onboarding"
@@ -130,7 +128,6 @@ export interface HubAdminPageProps {
   webhookActions: WebhooksSectionActions;
   externalBotActions: ExternalBotSectionActions;
   renderBotCapabilities?: (pubkey: string) => ReactNode;
-  nativeBotActions: NativeBotsSectionActions;
   auditLogActions: AuditLogSectionActions;
   certActions: CertificationsSectionActions;
   /** Soundboard hub routes (upload/list/delete/fetch-audio) — omitted where
@@ -233,8 +230,7 @@ export function HubAdminPage(props: HubAdminPageProps) {
     // move here.
     ...(admin ? [{ id: "alliances" as HubAdminTab, label: "Alliances", group: G_FEDERATION }] : []),
     { id: "integrations", label: "Webhooks", group: G_INTEGRATIONS },
-    { id: "external-bots", label: "External bots", group: G_INTEGRATIONS },
-    ...(admin ? [{ id: "native-bots" as HubAdminTab, label: "Native bots", group: G_INTEGRATIONS }] : []),
+    { id: "external-bots", label: "Bots", group: G_INTEGRATIONS },
     ...(admin ? [{ id: "hub-icons" as HubAdminTab, label: "Icons", group: G_CUSTOM }] : []),
     ...(props.canManageSoundboard && props.soundboardActions ? [{ id: "soundboard" as HubAdminTab, label: "Soundboard", group: G_CUSTOM }] : []),
     ...(admin ? [{ id: "audit-log" as HubAdminTab, label: "Audit log", group: G_ADVANCED }] : []),
@@ -657,9 +653,6 @@ export function HubAdminPage(props: HubAdminPageProps) {
 
         {props.tab === "moderation" && props.isAdmin && props.renderModerationTab?.()}
 
-        {props.tab === "native-bots" && props.isAdmin && (
-          <NativeBotsSection actions={props.nativeBotActions} />
-        )}
         {props.tab === "alliances" && props.isAdmin && (
           <AlliancesSection
             activeHubUrl={props.activeHubUrl}

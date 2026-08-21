@@ -260,8 +260,6 @@ export type { ChannelBan } from "./commands/channelBans";
 export { getTalkPower, setTalkPower } from "./commands/talkPower";
 export { listHubIcons, createHubIcon, renameHubIcon, deleteHubIcon } from "./commands/hubIcons";
 export type { HubIcon } from "./commands/hubIcons";
-export { listNativeBots, createNativeBot, deleteNativeBot, getNativeBotDetail, setNativeBotWebhook } from "./commands/nativeBots";
-export type { NativeBot, NativeBotCreated, NativeBotDetail, NativeBotCommandInfo } from "./commands/nativeBots";
 export {
   listAlliances, createAlliance, getAlliance, leaveAlliance,
   listPendingAllianceInvites, acceptAllianceInvite, declineAllianceInvite,

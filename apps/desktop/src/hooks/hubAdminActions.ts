@@ -17,7 +17,6 @@ import type {
   MemberRoleManagerActions,
   ServerTagsSectionActions,
   InviteManagerActions,
-  NativeBotsSectionActions,
   AuditLogSectionActions,
   CertificationsSectionActions,
   OnboardingAdminSectionActions,
@@ -179,22 +178,7 @@ export function makeExternalBotActions(getHubUrl: () => string): ExternalBotSect
   };
 }
 
-export function makeNativeBotActions(getHubUrl: () => string): NativeBotsSectionActions {
-  return {
-    listNativeBots: () => invoke<BotAdminInfo[]>("admin_list_bots", { hubUrl: getHubUrl() }),
-    createNativeBot: (input) =>
-      invoke<BotCreatedResult>("admin_create_bot", {
-        hubUrl: getHubUrl(),
-        displayName: input.display_name,
-        miniAppUrl: input.mini_app_url ?? null,
-        requiresCamera: input.requires_camera ?? false,
-      }),
-    deleteNativeBot: (pubkey) => invoke("admin_delete_bot", { hubUrl: getHubUrl(), pubkey }),
-    getBotDetail: (pubkey) => invoke<BotDetailInfo>("admin_get_bot_detail", { hubUrl: getHubUrl(), pubkey }),
-    setBotWebhook: (pubkey, webhookUrl) =>
-      invoke("admin_set_bot_webhook", { hubUrl: getHubUrl(), pubkey, webhookUrl }),
-  };
-}
+
 
 export function makeAuditLogActions(getHubUrl: () => string): AuditLogSectionActions {
   return {

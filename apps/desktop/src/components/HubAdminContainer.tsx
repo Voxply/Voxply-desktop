@@ -11,7 +11,6 @@ import {
   submitToDirectory,
   makeWebhookActions,
   makeExternalBotActions,
-  makeNativeBotActions,
   makeAuditLogActions,
   makeCertActions,
   makeOnboardingActions,
@@ -23,7 +22,7 @@ type PassthroughProps = Omit<
   | "saveError"
   | "rolesActions" | "memberRoleActions" | "serverTagsActions" | "inviteActions"
   | "allianceActions" | "hubIconActions" | "submitToDirectory"
-  | "webhookActions" | "externalBotActions" | "nativeBotActions"
+  | "webhookActions" | "externalBotActions"
   | "auditLogActions" | "certActions" | "onboardingActions" | "surveyActions"
   | "activeHubUrl" | "myPubkey"
   | "canManageRoles" | "myMaxPriority" | "canManageSoundboard"
@@ -55,7 +54,6 @@ export function HubAdminContainer({
 
   const webhookActions = useMemo(() => makeWebhookActions(getActiveHubUrl), [activeHubUrl]);
   const externalBotActions = useMemo(() => makeExternalBotActions(getActiveHubUrl), [activeHubUrl]);
-  const nativeBotActions = useMemo(() => makeNativeBotActions(getActiveHubUrl), [activeHubUrl]);
   const auditLogActions = useMemo(() => makeAuditLogActions(getActiveHubUrl), [activeHubUrl]);
   const certActions = useMemo(() => makeCertActions(getActiveHubUrl), [activeHubUrl]);
   const onboardingActions = useMemo(() => makeOnboardingActions(getActiveHubUrl), [activeHubUrl]);
@@ -84,7 +82,6 @@ export function HubAdminContainer({
       submitToDirectory={submitToDirectory}
       webhookActions={webhookActions}
       externalBotActions={externalBotActions}
-      nativeBotActions={nativeBotActions}
       auditLogActions={auditLogActions}
       certActions={certActions}
       onboardingActions={onboardingActions}

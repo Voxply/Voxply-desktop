@@ -298,8 +298,6 @@ export { ServerTagsSection } from "./components/admin/ServerTagsSection";
 export type { ServerTagsSectionActions } from "./components/admin/ServerTagsSection";
 export { InviteManager } from "./components/admin/InviteManager";
 export type { InviteManagerActions } from "./components/admin/InviteManager";
-export { NativeBotsSection } from "./components/admin/NativeBotsSection";
-export type { NativeBotsSectionActions } from "./components/admin/NativeBotsSection";
 export { AuditLogSection } from "./components/admin/AuditLogSection";
 export type { AuditLogSectionActions } from "./components/admin/AuditLogSection";
 export { CertificationsSection } from "./components/admin/CertificationsSection";

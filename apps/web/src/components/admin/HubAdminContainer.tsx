@@ -9,7 +9,7 @@ import { HubAdminPage, RecoveryContactsSection } from "@wavvon/ui";
 import type { RecoveryContactsSectionActions } from "@wavvon/ui";
 import {
   rolesActions, memberRoleActions, serverTagsActions, inviteActions,
-  webhookActions, externalBotActions, nativeBotActions, auditLogActions,
+  webhookActions, externalBotActions, auditLogActions,
   certActions, soundboardActions, onboardingActions, allianceActions,
   hubIconActions, surveyActions,
 } from "../../platform/adminActions";
@@ -120,7 +120,6 @@ export function HubAdminContainer({
         webhookActions={webhookActions}
         externalBotActions={externalBotActions}
         renderBotCapabilities={(pubkey) => <BotCapabilitiesPanel pubkey={pubkey} />}
-        nativeBotActions={nativeBotActions}
         auditLogActions={auditLogActions}
         certActions={certActions}
         soundboardActions={soundboardActions}

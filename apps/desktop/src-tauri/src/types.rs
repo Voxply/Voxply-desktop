@@ -791,40 +791,6 @@ pub(crate) struct ChallengeResult {
 // Bots
 // ---------------------------------------------------------------------------
 
-#[derive(serde::Serialize, serde::Deserialize)]
-pub(crate) struct BotAdminInfo {
-    pub public_key: String,
-    pub display_name: String,
-    pub created_by: String,
-    pub created_at: i64,
-    pub webhook_url: Option<String>,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-pub(crate) struct BotCreatedResult {
-    pub public_key: String,
-    pub display_name: String,
-    pub created_by: String,
-    pub created_at: i64,
-    pub token: String,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-pub(crate) struct BotSlashCommandInfo {
-    pub command: String,
-    pub description: String,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-pub(crate) struct BotDetailInfo {
-    pub public_key: String,
-    pub display_name: String,
-    pub created_by: String,
-    pub created_at: i64,
-    pub webhook_url: Option<String>,
-    pub commands: Vec<BotSlashCommandInfo>,
-}
-
 #[derive(Serialize, Deserialize)]
 pub(crate) struct BotCommandDef {
     pub name: String,

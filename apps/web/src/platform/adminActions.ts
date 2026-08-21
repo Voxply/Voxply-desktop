@@ -16,7 +16,6 @@ import {
   getDiscoveryTags, setDiscoveryTags,
   listBadges, listPendingBadges, acceptBadge, declineBadge, removeBadge, grantBadge,
   createHubIcon, renameHubIcon, deleteHubIcon,
-  listNativeBots, createNativeBot, deleteNativeBot, getNativeBotDetail, setNativeBotWebhook,
   getAuditLog,
   listCertIssuances, getCertSettings, saveCertSettings, issueCertManual, revokeCert, grantUserBadge,
   listSoundboardClips, uploadSoundboardClip, deleteSoundboardClip,
@@ -43,7 +42,7 @@ import type {
   UserProfileCardActions,
   ChannelPermissionsTabActions, ChannelBansTabActions, ChannelTalkPowerTabActions,
   RolesSectionActions, MemberRoleManagerActions, ServerTagsSectionActions, InviteManagerActions,
-  NativeBotsSectionActions, AuditLogSectionActions, CertificationsSectionActions,
+  AuditLogSectionActions, CertificationsSectionActions,
   SoundboardAdminSectionActions, OnboardingAdminSectionActions,
   FarmSettingsActions,
 } from "@wavvon/ui";
@@ -115,11 +114,6 @@ export const externalBotActions = {
   getBotChannelScope: adminGetBotChannelScope,
   setBotChannelScope: adminSetBotChannelScope,
 };
-
-export const nativeBotActions = {
-  listNativeBots, createNativeBot, deleteNativeBot,
-  getBotDetail: getNativeBotDetail, setBotWebhook: setNativeBotWebhook,
-} as NativeBotsSectionActions;
 
 export const auditLogActions = { getAuditLog } as AuditLogSectionActions;
 
