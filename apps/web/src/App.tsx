@@ -552,6 +552,33 @@ export default function App({ initialView }: AppProps = {}) {
   useEffect(() => { channelsRef.current = channels; }, [channels]);
   useEffect(() => { hubsRef.current = hubs; }, [hubs]);
 
+  // An identity restored from a .wavvon-backup never went through onboarding,
+  // so it has no local default profile even though the hub already holds the
+  // real one -- the profile editor opened on an empty card (placeholder name,
+  // no avatar) for a user the hub knows perfectly well. Seed the default from
+  // the hub member state the first time we see it; the guard means a real
+  // default is never overwritten.
+  // ponytail: first hub to load wins if several are joined -- fine for a
+  // restore, revisit if per-hub profiles ever diverge before the seed.
+  useEffect(() => {
+    if (!meInfo?.display_name) return;
+    if (loadDefaultProfile()) return;
+    saveDefaultProfile({
+      display_name: meInfo.display_name,
+      avatar: meInfo.avatar,
+      bio: meInfo.bio,
+      pronouns: meInfo.pronouns,
+      status_message: meInfo.status_message,
+      activities: meInfo.activities,
+      accent_color: meInfo.accent_color,
+      name_color: meInfo.name_color,
+      cover: meInfo.cover,
+      favorite_hubs: meInfo.favorite_hubs,
+      show_hubs: meInfo.show_hubs,
+      birthday: meInfo.birthday,
+    });
+  }, [meInfo]);
+
   useEffect(() => {
     if (hubs.length === 1 && meInfo !== null && !meInfo.display_name) {
       // A default profile means the user already told us who they want to

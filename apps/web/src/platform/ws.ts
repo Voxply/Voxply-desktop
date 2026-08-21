@@ -370,8 +370,11 @@ export class HubWebSocket {
     this.send({ type: "stream_unsubscribe", source_channel_id: sourceChannelId, stream_id: streamId });
   }
 
-  unwatchVoice(): void {
-    this.send({ type: "voice_unwatch" });
+  /** Roster removal is WS-authoritative (voice-transport-v2.md): closing the
+   *  WebTransport session only clears the audio handle, so this is what
+   *  actually takes us out of the channel participant list. */
+  leaveVoice(channelId: string): void {
+    this.send({ type: "voice_leave", channel_id: channelId });
   }
 
   close(): void {

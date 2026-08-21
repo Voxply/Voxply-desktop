@@ -24,6 +24,16 @@ interface VoiceJoinedMsg {
 
 const VOICE_JOIN_TIMEOUT_MS = 10_000;
 
+// Tell the hub we are out of the room. The hub treats the WS message as the
+// sole authority for roster membership -- a closed WebTransport session only
+// clears the audio handle -- so skipping this left the pubkey in the channel
+// participant list until the whole WS dropped: a ghost member after leaving,
+// and the same identity listed in two rooms at once across two clients.
+function sendVoiceLeave(channelId: string | null) {
+  if (!channelId) return;
+  try { activeSession().ws?.leaveVoice(channelId); } catch { /* socket already gone */ }
+}
+
 // The voice audio profile is persisted by SettingsPage under this key; read
 // it here so the saved profile is actually applied to the live session.
 function loadVoiceAudioProfile(): AudioProfileConfig | undefined {
@@ -185,7 +195,7 @@ export function useVoice({ publicKey, publicKeyRef, meInfoRef, showHubError, ref
       extRef.current.stopVideoSessionOnly();
       voiceSessionRef.current.stop();
       voiceSessionRef.current = null;
-      try { activeSession().ws?.unwatchVoice(); } catch {}
+      sendVoiceLeave(voiceChannelIdRef.current);
     }
     try {
       const sess = activeSession();
@@ -254,7 +264,7 @@ export function useVoice({ publicKey, publicKeyRef, meInfoRef, showHubError, ref
             extRef.current.clearVoiceChannelNameHint();
             setSelfMuted(false);
             setSelfDeafened(false);
-            try { activeSession().ws?.unwatchVoice(); } catch {}
+            sendVoiceLeave(voiceChannelIdRef.current);
           },
           sendKeyOffer: (channelId, bundles) => {
             try { activeSession().ws?.sendVoiceKeyOffer(channelId, bundles); } catch {}
@@ -301,7 +311,7 @@ export function useVoice({ publicKey, publicKeyRef, meInfoRef, showHubError, ref
     extRef.current.clearVoiceChannelNameHint();
     setSelfMuted(false);
     setSelfDeafened(false);
-    try { activeSession().ws?.unwatchVoice(); } catch {}
+    sendVoiceLeave(channelId);
     const me = meInfoRef.current;
     if (me && channelId) {
       setVoicePartByChannel((prev) => {
