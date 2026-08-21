@@ -196,6 +196,7 @@ pub(crate) async fn update_hub_branding(
     afk_channel_id: Option<String>,
     afk_timeout_secs: Option<u32>,
     name_color_mode: Option<String>,
+    max_attachment_bytes: Option<u64>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let (hub_url, token) = active_session(&state)?;
@@ -218,6 +219,7 @@ pub(crate) async fn update_hub_branding(
             "afk_channel_id": afk_channel_id,
             "afk_timeout_secs": afk_timeout_secs,
             "name_color_mode": name_color_mode,
+            "max_attachment_bytes": max_attachment_bytes,
         }))
         .send()
         .await

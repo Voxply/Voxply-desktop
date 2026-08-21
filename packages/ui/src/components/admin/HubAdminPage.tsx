@@ -53,6 +53,10 @@ export interface HubAdminPageProps {
   minSecurityLevel: number;
   onMinSecurityLevelChange: (v: number) => void;
   maxChannelDepth: number;
+  /** Per-message attachment cap in bytes. The hub owns the bounds; this is
+   *  edited in MB because nobody thinks in bytes. */
+  maxAttachmentBytes: number;
+  onMaxAttachmentBytesChange: (bytes: number) => void;
   onMaxChannelDepthChange: (v: number) => void;
   welcomeLabel: string;
   onWelcomeLabelChange: (v: string) => void;
@@ -407,6 +411,48 @@ export function HubAdminPage(props: HubAdminPageProps) {
                   <label className="settings-label" htmlFor="admin-max-depth">Max channel nesting depth</label>
                   <p className="muted">How many levels deep channel categories can nest.</p>
                   <input id="admin-max-depth" type="number" min={0} max={20} value={props.maxChannelDepth} onChange={(e) => props.onMaxChannelDepthChange(Number(e.target.value))} />
+                </div>
+              </div>
+
+              <div className="settings-card">
+                <h3>Limits</h3>
+                <div className="settings-section">
+                  <label className="settings-label" htmlFor="admin-attachment-cap">
+                    Attachment size per message
+                  </label>
+                  <p className="muted">
+                    Total across all files on one message. Attachments are stored
+                    inline, so this is also a cap on how large a message row gets —
+                    the hub refuses anything under 0.06 MB or over 8 MB. A reverse
+                    proxy in front may cap request bodies lower still.
+                  </p>
+                  <div className="settings-row">
+                    <input
+                      id="admin-attachment-cap"
+                      type="number"
+                      min={1}
+                      max={8}
+                      step={1}
+                      value={Math.max(1, Math.round(props.maxAttachmentBytes / 1024 / 1024))}
+                      onChange={(e) =>
+                        props.onMaxAttachmentBytesChange(Number(e.target.value) * 1024 * 1024)
+                      }
+                    />
+                    <span className="muted">MB</span>
+                  </div>
+                </div>
+                {/* Deliberately not editable here: these come from the
+                    environment and need a restart, so an input would imply
+                    something this page cannot deliver. Named so an operator
+                    knows what to go and change. */}
+                <div className="settings-section">
+                  <label className="settings-label">Set at startup, not here</label>
+                  <p className="muted">
+                    Database pool size — <code>WAVVON_DB_MAX_CONNECTIONS</code>.
+                    Voice UDP port — <code>WAVVON_VOICE_UDP_PORT</code>. Rate limits
+                    are fixed in the build. Changing any of these means restarting
+                    the hub.
+                  </p>
                 </div>
               </div>
 

@@ -35,6 +35,8 @@ export function useHubAdmin({ activeHubId, onSaved }: UseHubAdminParams) {
   const [hubAdminNameColorMode, setHubAdminNameColorMode] = useState<NameColorMode>("role_over_user");
   const [hubAdminAfkChannelId, setHubAdminAfkChannelId] = useState("");
   const [hubAdminAfkTimeoutSecs, setHubAdminAfkTimeoutSecs] = useState(300);
+  // Seeded with the hub default; the real value arrives from GET /hub/settings.
+  const [hubAdminMaxAttachmentBytes, setHubAdminMaxAttachmentBytes] = useState(3 * 1024 * 1024);
   const [hubAdminSaveError, setHubAdminSaveError] = useState<string | null>(null);
   const [hubAdminMembers, setHubAdminMembers] = useState<MemberAdminInfo[]>([]);
   const [hubAdminBans, setHubAdminBans] = useState<BanInfo[]>([]);
@@ -63,6 +65,7 @@ export function useHubAdmin({ activeHubId, onSaved }: UseHubAdminParams) {
       setHubAdminNameColorMode(s.name_color_mode ?? "role_over_user");
       setHubAdminAfkChannelId(s.afk_channel_id ?? "");
       setHubAdminAfkTimeoutSecs(s.afk_timeout_secs ?? 300);
+      setHubAdminMaxAttachmentBytes(s.max_attachment_bytes ?? 3 * 1024 * 1024);
     } catch { /* prefill skipped */ }
     try {
       const [members, bans, invites, pending] = await Promise.allSettled([
@@ -146,6 +149,7 @@ export function useHubAdmin({ activeHubId, onSaved }: UseHubAdminParams) {
         birthdays_enabled: hubAdminBirthdaysEnabled,
         afk_channel_id: hubAdminAfkChannelId,
         afk_timeout_secs: hubAdminAfkTimeoutSecs,
+        max_attachment_bytes: hubAdminMaxAttachmentBytes,
         name_color_mode: hubAdminNameColorMode,
       });
       onSaved?.();
@@ -194,6 +198,8 @@ export function useHubAdmin({ activeHubId, onSaved }: UseHubAdminParams) {
     hubAdminAfkChannelId,
     setHubAdminAfkChannelId,
     hubAdminAfkTimeoutSecs,
+    hubAdminMaxAttachmentBytes,
+    setHubAdminMaxAttachmentBytes,
     setHubAdminAfkTimeoutSecs,
     hubAdminSaveError,
     hubAdminMembers,

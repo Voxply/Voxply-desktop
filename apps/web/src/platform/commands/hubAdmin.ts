@@ -260,6 +260,9 @@ export async function saveHubSettings(settings: {
   /** Idle threshold in seconds; hub minimum is 60. */
   afk_timeout_secs?: number;
   name_color_mode?: NameColorMode;
+  /** Per-message attachment cap in bytes. The hub clamps it to its own floor
+   *  and ceiling and rejects anything outside them. */
+  max_attachment_bytes?: number;
 }): Promise<void> {
   await hubFetch("/hub", {
     method: "PATCH",
@@ -282,6 +285,7 @@ export async function getHubSettings(): Promise<{
   afk_channel_id: string;
   afk_timeout_secs: number;
   name_color_mode: NameColorMode;
+  max_attachment_bytes: number;
 }> {
   const [settingsRes, infoRes] = await Promise.all([
     hubFetch("/hub/settings").then((r) => r.json() as Promise<{
@@ -295,6 +299,7 @@ export async function getHubSettings(): Promise<{
       afk_channel_id?: string | null;
       afk_timeout_secs?: number;
       name_color_mode?: NameColorMode;
+      max_attachment_bytes?: number;
     }>),
     hubFetch("/info").then((r) => r.json() as Promise<{
       name: string;
@@ -319,6 +324,8 @@ export async function getHubSettings(): Promise<{
     afk_channel_id: settingsRes.afk_channel_id ?? "",
     afk_timeout_secs: settingsRes.afk_timeout_secs ?? 300,
     name_color_mode: settingsRes.name_color_mode ?? "role_over_user",
+    // Falls back to the hub's own default, for a hub predating the setting.
+    max_attachment_bytes: settingsRes.max_attachment_bytes ?? 3 * 1024 * 1024,
   };
 }
 

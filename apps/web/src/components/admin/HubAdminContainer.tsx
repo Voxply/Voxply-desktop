@@ -62,6 +62,8 @@ export function HubAdminContainer({
         minSecurityLevel={hubAdmin.hubAdminMinLevel}
         onMinSecurityLevelChange={hubAdmin.setHubAdminMinLevel}
         maxChannelDepth={hubAdmin.maxChannelDepth}
+        maxAttachmentBytes={hubAdmin.hubAdminMaxAttachmentBytes}
+        onMaxAttachmentBytesChange={hubAdmin.setHubAdminMaxAttachmentBytes}
         onMaxChannelDepthChange={hubAdmin.setMaxChannelDepth}
         welcomeLabel={hubAdmin.hubAdminWelcomeLabel}
         onWelcomeLabelChange={hubAdmin.setHubAdminWelcomeLabel}

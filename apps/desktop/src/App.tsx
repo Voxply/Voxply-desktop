@@ -296,6 +296,8 @@ function App() {
     setMinSecurityLevel,
     maxChannelDepth,
     setMaxChannelDepth,
+    maxAttachmentBytes,
+    setMaxAttachmentBytes,
     hubTimezone,
     setHubTimezone,
     birthdaysEnabled,
@@ -1476,6 +1478,8 @@ function App() {
             minSecurityLevel={minSecurityLevel}
             onMinSecurityLevelChange={setMinSecurityLevel}
             maxChannelDepth={maxChannelDepth}
+            maxAttachmentBytes={maxAttachmentBytes}
+            onMaxAttachmentBytesChange={setMaxAttachmentBytes}
             onMaxChannelDepthChange={setMaxChannelDepth}
             welcomeLabel={adminWelcomeLabel}
             onWelcomeLabelChange={setAdminWelcomeLabel}

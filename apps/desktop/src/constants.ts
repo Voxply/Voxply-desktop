@@ -6,7 +6,13 @@
 // EMOJI_CATALOG and QUICK_REACTIONS moved to @wavvon/ui (packages/ui/src/emojiCatalog.ts)
 // so both apps share one catalog.
 
-export const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024; // matches the hub cap
+// A pre-flight ceiling, not the hub's limit. The per-message cap is
+// operator-configurable (hub_settings max_attachment_bytes, advertised on
+// /info) and the hub is authoritative: its 413 names the real number. This
+// exists only so the client does not upload something no hub could accept, so
+// it matches the hub's hard ceiling rather than its default — a copy of the
+// default would refuse files an operator had deliberately allowed.
+export const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
 
 // The public hub directory (discovery-v2.md). null means the surfaces that
 // need it are not rendered — same rule the web client uses. The desktop hub

@@ -6,7 +6,10 @@
 // EMOJI_CATALOG and QUICK_REACTIONS moved to @wavvon/ui (packages/ui/src/emojiCatalog.ts)
 // so both apps share one catalog.
 
-export const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024; // matches the hub cap
+// No client-side attachment cap on web: nothing read this constant, and the
+// hub is authoritative now that the limit is operator-configurable — its 413
+// names the configured size. A hardcoded copy here would go stale the moment
+// an operator changed it.
 
 export const RECENT_EMOJI_KEY = "wavvon.recentEmojis";
 export const RECENT_EMOJI_MAX = 8;

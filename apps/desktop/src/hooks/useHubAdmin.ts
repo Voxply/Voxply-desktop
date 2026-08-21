@@ -42,6 +42,7 @@ export function useHubAdmin({
   const [requireApproval, setRequireApproval] = useState(false);
   const [minSecurityLevel, setMinSecurityLevel] = useState(0);
   const [maxChannelDepth, setMaxChannelDepth] = useState(0);
+  const [maxAttachmentBytes, setMaxAttachmentBytes] = useState(3 * 1024 * 1024);
   const [hubTimezone, setHubTimezone] = useState("");
   const [birthdaysEnabled, setBirthdaysEnabled] = useState(true);
   const [nameColorMode, setNameColorMode] = useState<NameColorMode>("role_over_user");
@@ -83,6 +84,7 @@ export function useHubAdmin({
         afk_channel_id?: string | null;
         afk_timeout_secs?: number;
         name_color_mode?: NameColorMode;
+        max_attachment_bytes?: number;
       }>("get_hub_settings");
       setRequireApproval(settings.require_approval);
       setMinSecurityLevel(settings.min_security_level ?? 0);
@@ -92,6 +94,7 @@ export function useHubAdmin({
       setAfkChannelId(settings.afk_channel_id ?? "");
       setAfkTimeoutSecs(settings.afk_timeout_secs ?? 300);
       setNameColorMode(settings.name_color_mode ?? "role_over_user");
+      setMaxAttachmentBytes(settings.max_attachment_bytes ?? 3 * 1024 * 1024);
     } catch (e) {
       setError(String(e));
     }
@@ -126,6 +129,7 @@ export function useHubAdmin({
         afkChannelId,
         afkTimeoutSecs,
         nameColorMode,
+        maxAttachmentBytes,
       });
       const refreshed = await invoke<Hub[]>("list_hubs");
       setHubs(() => refreshed);
@@ -332,6 +336,8 @@ export function useHubAdmin({
     setMinSecurityLevel,
     maxChannelDepth,
     setMaxChannelDepth,
+    maxAttachmentBytes,
+    setMaxAttachmentBytes,
     hubTimezone,
     setHubTimezone,
     birthdaysEnabled,
