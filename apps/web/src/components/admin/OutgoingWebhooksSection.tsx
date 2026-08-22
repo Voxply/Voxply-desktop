@@ -67,6 +67,7 @@ function SecretRevealDialog({
   secret: string;
   onDismiss: () => void;
 }) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   return (
@@ -82,16 +83,16 @@ function SecretRevealDialog({
             setTimeout(() => setCopied(false), 2000);
           }}
         >
-          {copied ? "Copied!" : "Copy secret"}
+          {copied ? t("hub.admin.owh.secret.copied") : t("hub.admin.owh.secret.copy")}
         </button>
       </div>
       <label className="checkbox-label">
         <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
-        I've copied this secret.
+        {t("hub.admin.owh.secret.confirm")}
       </label>
       <div className="bot-token-actions">
         <button className="btn-secondary" disabled={!confirmed} onClick={onDismiss}>
-          Dismiss
+          {t("hub.admin.owh.secret.dismiss")}
         </button>
       </div>
     </div>
@@ -151,7 +152,7 @@ export function OutgoingWebhooksSection({ channels }: Props) {
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm("Delete this webhook? Deliveries will stop immediately.")) return;
+    if (!window.confirm(t("hub.admin.owh.delete_confirm"))) return;
     try {
       await adminDeleteOutgoingWebhook(id);
       await loadWebhooks();
@@ -255,25 +256,22 @@ export function OutgoingWebhooksSection({ channels }: Props) {
         <span
           className="status-badge status-badge-danger"
           onClick={() => togglePanel(wh.id)}
-          title="Click to view and re-enable"
+          title={t("hub.admin.owh.status.failed_title")}
         >
-          Failed — re-enable
+          {t("hub.admin.owh.status.failed")}
         </span>
       );
     }
     if (!wh.active) {
-      return <span className="status-badge">Disabled</span>;
+      return <span className="status-badge">{t("hub.admin.owh.status.disabled")}</span>;
     }
-    return <span className="status-badge status-badge-success">Active</span>;
+    return <span className="status-badge status-badge-success">{t("hub.admin.owh.status.active")}</span>;
   }
 
   return (
     <section style={{ marginTop: "var(--space-5)" }}>
       <h2>{t("hub.admin.tabs.outgoing_webhooks")}</h2>
-      <p className="muted">
-        Register an external HTTPS endpoint to receive a push for selected hub events. No bot identity
-        or persistent connection required.
-      </p>
+      <p className="muted">{t("hub.admin.owh.hint")}</p>
 
       {error && <p className="muted" style={{ color: "var(--danger)", marginBottom: "var(--space-3)" }}>{error}</p>}
 
@@ -288,42 +286,42 @@ export function OutgoingWebhooksSection({ channels }: Props) {
         />
       </div>
       <div className="settings-section">
-        <label className="settings-label">Display name (optional)</label>
+        <label className="settings-label">{t("hub.admin.owh.name_label")}</label>
         <input
           type="text"
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="Grafana alerts"
+          placeholder={t("hub.admin.owh.name_placeholder")}
           style={{ width: "100%" }}
         />
       </div>
       <div className="settings-section">
         <button onClick={handleCreate} disabled={creating || !url.trim()}>
-          {creating ? "Creating…" : "Add webhook"}
+          {creating ? t("hub.admin.owh.adding") : t("hub.admin.owh.add")}
         </button>
       </div>
 
       {createdSecret && (
         <SecretRevealDialog
-          title="Webhook created"
-          warning="This secret signs delivery payloads (HMAC). Save it now — it won't be shown again."
+          title={t("hub.admin.owh.secret.created")}
+          warning={t("hub.admin.owh.secret.warn_created")}
           secret={createdSecret}
           onDismiss={() => setCreatedSecret(null)}
         />
       )}
 
       {webhooks.length === 0 ? (
-        <p className="muted">No outgoing webhooks yet.</p>
+        <p className="muted">{t("hub.admin.owh.empty")}</p>
       ) : (
         <table className="members-table" style={{ marginTop: "var(--space-4)" }}>
           <thead>
             <tr>
-              <th>Name</th>
+              <th>{t("hub.admin.owh.col.name")}</th>
               <th>URL</th>
-              <th>Subscriptions</th>
-              <th>Status</th>
-              <th>Last delivery</th>
-              <th>Actions</th>
+              <th>{t("hub.admin.owh.col.subscriptions")}</th>
+              <th>{t("hub.admin.owh.col.status")}</th>
+              <th>{t("hub.admin.owh.col.last_delivery")}</th>
+              <th>{t("hub.admin.owh.col.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -341,10 +339,10 @@ export function OutgoingWebhooksSection({ channels }: Props) {
                     </td>
                     <td style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
                       <button className="btn-small btn-secondary" onClick={() => togglePanel(wh.id)}>
-                        {panel.expanded ? "Hide" : "Manage"}
+                        {panel.expanded ? t("hub.admin.owh.hide") : t("hub.admin.owh.manage")}
                       </button>
                       <button className="btn-small btn-secondary danger" onClick={() => handleDelete(wh.id)}>
-                        Delete
+                        {t("hub.admin.owh.delete")}
                       </button>
                     </td>
                   </tr>
@@ -356,21 +354,21 @@ export function OutgoingWebhooksSection({ channels }: Props) {
                             <div style={{ display: "flex", gap: "var(--space-2)", marginBottom: "var(--space-2)" }}>
                               {wh.active ? (
                                 <button className="btn-small btn-secondary" onClick={() => handleDisable(wh.id)}>
-                                  Disable
+                                  {t("hub.admin.owh.disable")}
                                 </button>
                               ) : (
                                 <button className="btn-small" onClick={() => handleEnable(wh.id)}>
-                                  Re-enable
+                                  {t("hub.admin.owh.reenable")}
                                 </button>
                               )}
                               <button className="btn-small btn-secondary" onClick={() => handleRotateSecret(wh.id)}>
-                                Rotate secret
+                                {t("hub.admin.owh.rotate")}
                               </button>
                             </div>
                             {rotatedSecret?.id === wh.id && (
                               <SecretRevealDialog
-                                title="Secret rotated"
-                                warning="The previous secret is now invalid. Save the new one — it won't be shown again."
+                                title={t("hub.admin.owh.secret.rotated")}
+                                warning={t("hub.admin.owh.secret.warn_rotated")}
                                 secret={rotatedSecret.secret}
                                 onDismiss={() => setRotatedSecret(null)}
                               />
@@ -378,10 +376,10 @@ export function OutgoingWebhooksSection({ channels }: Props) {
                           </div>
 
                           <div>
-                            <label className="settings-label">Event subscriptions</label>
-                            <p className="muted">Saving replaces the full subscription set for this webhook.</p>
+                            <label className="settings-label">{t("hub.admin.owh.subs.title")}</label>
+                            <p className="muted">{t("hub.admin.owh.subs.hint")}</p>
                             {!panel.subscriptionsLoaded ? (
-                              <p className="muted">Loading current subscriptions…</p>
+                              <p className="muted">{t("hub.admin.owh.subs.loading")}</p>
                             ) : (
                               <>
                                 <EventSubscriptionEditor
@@ -391,7 +389,7 @@ export function OutgoingWebhooksSection({ channels }: Props) {
                                 />
                                 <div style={{ marginTop: "var(--space-2)" }}>
                                   <button onClick={() => saveSubscriptions(wh.id)} disabled={panel.savingSubscriptions}>
-                                    {panel.savingSubscriptions ? "Saving…" : "Save subscriptions"}
+                                    {panel.savingSubscriptions ? t("hub.admin.owh.subs.saving") : t("hub.admin.owh.subs.save")}
                                   </button>
                                 </div>
                               </>
@@ -399,7 +397,7 @@ export function OutgoingWebhooksSection({ channels }: Props) {
                           </div>
 
                           <div>
-                            <label className="settings-label">Delivery log</label>
+                            <label className="settings-label">{t("hub.admin.owh.log.title")}</label>
                             <div style={{ display: "flex", gap: "var(--space-2)", marginBottom: "var(--space-2)" }}>
                               <select
                                 value={panel.deliveryEventFilter}
@@ -412,7 +410,7 @@ export function OutgoingWebhooksSection({ channels }: Props) {
                                   })
                                 }
                               >
-                                <option value="">All events</option>
+                                <option value="">{t("hub.admin.owh.log.all_events")}</option>
                                 {Array.from(new Set(panel.deliveries.map((d) => d.event_type))).map((ev) => (
                                   <option key={ev} value={ev}>{ev}</option>
                                 ))}
@@ -428,22 +426,22 @@ export function OutgoingWebhooksSection({ channels }: Props) {
                                   })
                                 }
                               >
-                                <option value="">All statuses</option>
-                                <option value="true">Success</option>
-                                <option value="false">Failure</option>
+                                <option value="">{t("hub.admin.owh.log.all_statuses")}</option>
+                                <option value="true">{t("hub.admin.owh.log.success")}</option>
+                                <option value="false">{t("hub.admin.owh.log.failure")}</option>
                               </select>
                             </div>
                             {panel.deliveries.length === 0 ? (
-                              <p className="muted">No deliveries yet.</p>
+                              <p className="muted">{t("hub.admin.owh.log.empty")}</p>
                             ) : (
                               <table className="members-table">
                                 <thead>
                                   <tr>
-                                    <th>Time</th>
-                                    <th>Event</th>
-                                    <th>Attempt</th>
-                                    <th>Status</th>
-                                    <th>Result</th>
+                                    <th>{t("hub.admin.owh.log.col.time")}</th>
+                                    <th>{t("hub.admin.owh.log.col.event")}</th>
+                                    <th>{t("hub.admin.owh.log.col.attempt")}</th>
+                                    <th>{t("hub.admin.owh.col.status")}</th>
+                                    <th>{t("hub.admin.owh.log.col.result")}</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -458,7 +456,7 @@ export function OutgoingWebhooksSection({ channels }: Props) {
                                           <span className="status-badge status-badge-success">OK</span>
                                         ) : (
                                           <span className="status-badge status-badge-danger" title={d.error_msg ?? undefined}>
-                                            Failed
+                                            {t("hub.admin.owh.log.failed")}
                                           </span>
                                         )}
                                       </td>
@@ -480,7 +478,7 @@ export function OutgoingWebhooksSection({ channels }: Props) {
                                   })
                                 }
                               >
-                                {panel.loadingDeliveries ? "Loading…" : "Load more"}
+                                {panel.loadingDeliveries ? t("hub.admin.owh.log.loading") : t("hub.admin.owh.log.load_more")}
                               </button>
                             </div>
                           </div>

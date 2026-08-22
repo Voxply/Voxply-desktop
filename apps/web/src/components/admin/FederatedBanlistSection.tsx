@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { BanlistSource, FederatedBanEntry, BanlistOverride } from "@shared/types";
 import {
   getBanlistSettings,
@@ -14,6 +15,7 @@ import {
 import { formatRelative } from "@wavvon/core";
 
 export function FederatedBanlistSection() {
+  const { t } = useTranslation();
   const [sources, setSources] = useState<BanlistSource[]>([]);
   const [entries, setEntries] = useState<FederatedBanEntry[]>([]);
   const [overrides, setOverrides] = useState<BanlistOverride[]>([]);
@@ -112,19 +114,19 @@ export function FederatedBanlistSection() {
 
   return (
     <div className="settings-section">
-      <h2>Federated Ban Lists</h2>
+      <h2>{t("hub.admin.banlist.title")}</h2>
       {error && <p className="error-text">{error}</p>}
 
-      <h3>Sources</h3>
-      {sources.length === 0 && <p className="muted">No sources configured.</p>}
+      <h3>{t("hub.admin.banlist.sources")}</h3>
+      {sources.length === 0 && <p className="muted">{t("hub.admin.banlist.sources_empty")}</p>}
       {sources.length > 0 && (
         <table className="members-table">
           <thead>
             <tr>
               <th>URL</th>
-              <th>Policy</th>
-              <th>Added</th>
-              <th>Actions</th>
+              <th>{t("hub.admin.banlist.col.policy")}</th>
+              <th>{t("hub.admin.banlist.col.added")}</th>
+              <th>{t("hub.admin.banlist.col.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -138,8 +140,8 @@ export function FederatedBanlistSection() {
                       handlePolicyChange(s.url, e.target.value as "hard-reject" | "soft-flag")
                     }
                   >
-                    <option value="hard-reject">Hard reject</option>
-                    <option value="soft-flag">Soft flag</option>
+                    <option value="hard-reject">{t("hub.admin.banlist.policy.hard")}</option>
+                    <option value="soft-flag">{t("hub.admin.banlist.policy.soft")}</option>
                   </select>
                 </td>
                 <td>{formatRelative(s.added_at)}</td>
@@ -148,7 +150,7 @@ export function FederatedBanlistSection() {
                     className="btn-small btn-secondary danger"
                     onClick={() => handleRemoveSource(s.url)}
                   >
-                    Remove
+                    {t("hub.admin.banlist.remove")}
                   </button>
                 </td>
               </tr>
@@ -168,11 +170,11 @@ export function FederatedBanlistSection() {
           value={newSourcePolicy}
           onChange={(e) => setNewSourcePolicy(e.target.value as "hard-reject" | "soft-flag")}
         >
-          <option value="hard-reject">Hard reject</option>
-          <option value="soft-flag">Soft flag</option>
+          <option value="hard-reject">{t("hub.admin.banlist.policy.hard")}</option>
+          <option value="soft-flag">{t("hub.admin.banlist.policy.soft")}</option>
         </select>
         <button onClick={handleAddSource} disabled={!newSourceUrl.trim()}>
-          Add source
+          {t("hub.admin.banlist.add_source")}
         </button>
       </div>
 
@@ -183,7 +185,7 @@ export function FederatedBanlistSection() {
             checked={publishBanlist}
             onChange={(e) => handlePublishToggle(e.target.checked)}
           />
-          Publish this hub's own ban list at /federation/banlist
+          {t("hub.admin.banlist.publish")}
         </label>
       </div>
 
@@ -194,20 +196,20 @@ export function FederatedBanlistSection() {
           onClick={() => setEntriesOpen((o) => !o)}
           aria-expanded={entriesOpen}
         >
-          {entriesOpen ? "▾" : "▸"} Synced entries ({entries.length})
+          {entriesOpen ? "▾" : "▸"} {t("hub.admin.banlist.entries.title", { count: entries.length })}
         </button>
       </h3>
       {entriesOpen && (
         entries.length === 0 ? (
-          <p className="muted">No synced entries.</p>
+          <p className="muted">{t("hub.admin.banlist.entries_empty")}</p>
         ) : (
           <table className="members-table">
             <thead>
               <tr>
-                <th>Source hub</th>
-                <th>Target pubkey</th>
-                <th>Reason</th>
-                <th>Synced</th>
+                <th>{t("hub.admin.banlist.col.source_hub")}</th>
+                <th>{t("hub.admin.banlist.col.target")}</th>
+                <th>{t("hub.admin.banlist.col.reason")}</th>
+                <th>{t("hub.admin.banlist.col.synced")}</th>
               </tr>
             </thead>
             <tbody>
@@ -224,16 +226,16 @@ export function FederatedBanlistSection() {
         )
       )}
 
-      <h3>Local overrides</h3>
-      {overrides.length === 0 && <p className="muted">No local overrides.</p>}
+      <h3>{t("hub.admin.banlist.overrides")}</h3>
+      {overrides.length === 0 && <p className="muted">{t("hub.admin.banlist.overrides_empty")}</p>}
       {overrides.length > 0 && (
         <table className="members-table">
           <thead>
             <tr>
-              <th>Pubkey</th>
-              <th>Type</th>
-              <th>Reason</th>
-              <th>Actions</th>
+              <th>{t("hub.admin.banlist.col.pubkey")}</th>
+              <th>{t("hub.admin.banlist.col.type")}</th>
+              <th>{t("hub.admin.banlist.col.reason")}</th>
+              <th>{t("hub.admin.banlist.col.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -251,7 +253,7 @@ export function FederatedBanlistSection() {
                     className="btn-small btn-secondary danger"
                     onClick={() => handleRemoveOverride(o.target_pubkey)}
                   >
-                    Remove
+                    {t("hub.admin.banlist.remove")}
                   </button>
                 </td>
               </tr>
@@ -262,7 +264,7 @@ export function FederatedBanlistSection() {
       <div className="settings-row" style={{ marginTop: "var(--space-3)", flexWrap: "wrap", gap: "var(--space-2)" }}>
         <input
           type="text"
-          placeholder="Pubkey (hex)"
+          placeholder={t("hub.admin.banlist.pubkey_placeholder")}
           value={newOverridePubkey}
           onChange={(e) => setNewOverridePubkey(e.target.value)}
           style={{ flex: 1, minWidth: 160 }}
@@ -271,18 +273,18 @@ export function FederatedBanlistSection() {
           value={newOverrideType}
           onChange={(e) => setNewOverrideType(e.target.value as "whitelist" | "blacklist")}
         >
-          <option value="whitelist">Whitelist</option>
-          <option value="blacklist">Blacklist</option>
+          <option value="whitelist">{t("hub.admin.banlist.override.whitelist")}</option>
+          <option value="blacklist">{t("hub.admin.banlist.override.blacklist")}</option>
         </select>
         <input
           type="text"
-          placeholder="Reason (optional)"
+          placeholder={t("hub.admin.banlist.reason_placeholder")}
           value={newOverrideReason}
           onChange={(e) => setNewOverrideReason(e.target.value)}
           style={{ flex: 1, minWidth: 140 }}
         />
         <button onClick={handleAddOverride} disabled={!newOverridePubkey.trim()}>
-          Add override
+          {t("hub.admin.banlist.add_override")}
         </button>
       </div>
     </div>

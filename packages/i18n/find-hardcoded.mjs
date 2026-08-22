@@ -34,7 +34,7 @@ function looksHuman(s) {
   if (/^[a-z0-9_.-]+$/.test(t)) return false;                // identifiers, class names
   if (/^[A-Z0-9_]+$/.test(t) && !/ /.test(t)) return false;   // SCREAMING_CASE
   if (/^https?:\/\//.test(t)) return false;
-  if (/^var\(--/.test(t)) return false;                       // CSS custom property
+  if (/var\(--/.test(t)) return false;                        // CSS value, e.g. "0 var(--space-1)"
   if (/^[a-z]+(?:[A-Z][a-zA-Z]*)*$/.test(t)) return false;    // camelCase identifier
   // Type syntax a text-node regex can still catch a fragment of.
   if (/^(Promise|Array|Record|Map|Set|ReactNode|void|string|number|boolean)\b/.test(t)) return false;
