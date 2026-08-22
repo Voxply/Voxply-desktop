@@ -39,6 +39,41 @@ export interface SpeakingOptions {
 
 export const DEFAULT_SPEAKING: SpeakingOptions = { threshold: 0.02, holdMs: 400 };
 
+export interface EffectiveVad {
+  /** When false the mic transmits continuously and we report speaking from
+   *  the first frame on, with no release. */
+  enabled: boolean;
+  threshold: number;
+}
+
+/**
+ * Resolve the audio profile into the VAD settings actually in force.
+ *
+ * Mirrors `effective_config` in the desktop pipeline
+ * (`crates/voice/src/pipeline.rs`) so the same profile behaves the same on
+ * both clients: standard detects speech at the default threshold, music turns
+ * VAD off because a continuous instrument is exactly what a silence gate cuts
+ * up, and only the custom profile reads the toggle and slider the voice
+ * settings expose. The web engine used to apply `customVadThreshold` under
+ * every profile and ignore `customVad` entirely.
+ */
+export function effectiveVad(cfg?: {
+  profile?: 'standard' | 'music' | 'custom';
+  customVad?: boolean;
+  customVadThreshold?: number;
+}): EffectiveVad {
+  if (cfg?.profile === 'music') {
+    return { enabled: false, threshold: DEFAULT_SPEAKING.threshold };
+  }
+  if (cfg?.profile === 'custom') {
+    return {
+      enabled: cfg.customVad ?? true,
+      threshold: cfg.customVadThreshold ?? DEFAULT_SPEAKING.threshold,
+    };
+  }
+  return { enabled: true, threshold: DEFAULT_SPEAKING.threshold };
+}
+
 export const INITIAL_SPEAKING_STATE: SpeakingState = { speaking: false, lastLoudAt: 0 };
 
 /**

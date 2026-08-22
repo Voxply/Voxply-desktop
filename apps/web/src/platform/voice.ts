@@ -10,6 +10,7 @@ import {
   INITIAL_SPEAKING_STATE,
   frameEnergy,
   nextSpeakingState,
+  effectiveVad,
   type SpeakingState,
 } from './speakingDetector';
 
@@ -371,6 +372,19 @@ export class VoiceWtSession {
     this.activeClip = nextClip;
     if (!this.activeClip) this.activeClipId = null;
 
+    // "Enable voice activity detection (drops silence)" is what the settings
+    // label promises, and until now nothing read the toggle: the web engine
+    // transmitted every frame, silence included. Hold the datagram back while
+    // there is nothing to send.
+    //
+    // A playing soundboard clip counts, and has to be tested separately:
+    // `updateSpeaking` runs on the raw mic frame on purpose, so a clip never
+    // reads as speech, and gating on speech alone would silence the
+    // soundboard. Safe for receivers by construction -- `ctr` only advances on
+    // a send, so a gap is not counted as inbound loss, and the playout clock
+    // rebuilds its lead after one (voicePlayout.ts).
+    const silenceGated = !this.speakingState.speaking && !this.activeClip;
+
     let offset = 0;
 
     while (offset < output.length) {
@@ -391,10 +405,20 @@ export class VoiceWtSession {
           return;
         }
 
-        const ownKey = this.keys.ownKey();
-        const sealed = voicePacketSeal(ownKey.key, ownKey.salt, ownKey.keyId, this.keys.nextCtr(), this.timestamp, opusBytes);
+        // The encoder ran either way: it carries state between frames, and
+        // starving it through a silence would make the first frame after one
+        // pop. Only the send is skipped.
+        if (!silenceGated) {
+          const ownKey = this.keys.ownKey();
+          const sealed = voicePacketSeal(ownKey.key, ownKey.salt, ownKey.keyId, this.keys.nextCtr(), this.timestamp, opusBytes);
+          this.datagramWriter.write(sealed).catch(() => {});
+        }
+        // Advanced whether or not the frame went out: `timestamp` is a media
+        // clock, and the desktop pipeline advances it through suppressed
+        // frames too. `ctr` is the opposite -- it counts packets actually
+        // sent, so it must only move inside the branch above or receivers
+        // would read the silence as inbound loss.
         this.timestamp += OPUS_FRAME_SIZE;
-        this.datagramWriter.write(sealed).catch(() => {});
         this.sampleAccumLen = 0;
       }
     }
@@ -422,10 +446,22 @@ export class VoiceWtSession {
    *  sending no audio, so claiming otherwise would light our name up in
    *  everyone's member list while they hear silence. */
   private updateSpeaking(micFrame: Float32Array): void {
-    const threshold = this.audioConfig?.customVadThreshold ?? DEFAULT_SPEAKING.threshold;
+    const vad = effectiveVad(this.audioConfig);
+
+    // VAD off: we transmit continuously, so anything but a steady "speaking"
+    // would be a lie about what the other end is hearing. One edge, no
+    // release — the desktop pipeline's else-branch does the same.
+    if (!vad.enabled) {
+      if (!this.speakingState.speaking) {
+        this.speakingState = { speaking: true, lastLoudAt: Date.now() };
+        this.handlers.sendSpeaking(this.channelId, true);
+      }
+      return;
+    }
+
     const energy = this.muted ? 0 : frameEnergy(micFrame);
     const next = nextSpeakingState(this.speakingState, energy, Date.now(), {
-      threshold,
+      threshold: vad.threshold,
       holdMs: DEFAULT_SPEAKING.holdMs,
     });
     if (next.speaking !== this.speakingState.speaking) {

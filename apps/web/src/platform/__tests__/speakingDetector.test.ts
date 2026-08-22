@@ -4,6 +4,7 @@ import {
   INITIAL_SPEAKING_STATE,
   frameEnergy,
   nextSpeakingState,
+  effectiveVad,
 } from "../speakingDetector";
 
 const QUIET = 0.001;
@@ -95,5 +96,33 @@ describe("nextSpeakingState", () => {
     const strict = { threshold: 0.5, holdMs: 400 };
     expect(nextSpeakingState(INITIAL_SPEAKING_STATE, 0.3, 0, strict).speaking).toBe(false);
     expect(nextSpeakingState(INITIAL_SPEAKING_STATE, 0.6, 0, strict).speaking).toBe(true);
+  });
+});
+
+describe("effectiveVad", () => {
+  it("reads the toggle and slider only under the custom profile", () => {
+    expect(effectiveVad({ profile: "custom", customVad: false })).toEqual({
+      enabled: false,
+      threshold: DEFAULT_SPEAKING.threshold,
+    });
+    expect(effectiveVad({ profile: "custom", customVadThreshold: 0.09 })).toEqual({
+      enabled: true,
+      threshold: 0.09,
+    });
+    // The bug this guards: the web engine applied customVadThreshold under
+    // every profile, so a slider only the custom profile shows was changing
+    // how the standard profile detected speech.
+    expect(effectiveVad({ profile: "standard", customVadThreshold: 0.09 }).threshold).toBe(
+      DEFAULT_SPEAKING.threshold,
+    );
+    expect(effectiveVad({ profile: "standard", customVad: false }).enabled).toBe(true);
+  });
+
+  it("turns VAD off for music, which is the profile that must not gate silence", () => {
+    expect(effectiveVad({ profile: "music" }).enabled).toBe(false);
+  });
+
+  it("defaults to enabled with no config at all", () => {
+    expect(effectiveVad()).toEqual({ enabled: true, threshold: DEFAULT_SPEAKING.threshold });
   });
 });

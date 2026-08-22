@@ -505,7 +505,15 @@ impl AudioPipeline {
                 // While muted: keep the encoder in sync (so unmuting doesn't
                 // pop) but drop the bytes before sealing/sending. VAD + level
                 // already fired above so the local meter still pulses.
-                let suppress = send_muted.load(Ordering::Relaxed);
+                //
+                // Silence is suppressed the same way, which is what "drops
+                // silence" in the voice settings has always promised and what
+                // nothing here actually did: `vad_enabled` only chose how the
+                // speaking indicator behaved, and every frame went out
+                // regardless. The clip mix is summed into `denoised` before the
+                // VAD above, so a playing soundboard clip holds `is_speaking`
+                // and is not gated.
+                let suppress = send_muted.load(Ordering::Relaxed) || (vad_enabled && !is_speaking);
 
                 for opus_data in packets {
                     if !suppress {
