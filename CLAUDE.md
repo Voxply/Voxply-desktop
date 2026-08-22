@@ -66,6 +66,7 @@ npm run build        # tsc && vite build
 npm run typecheck
 npm run test
 npm run check-i18n   # translation coverage
+npm run check-hardcoded  # no NEW hardcoded UI strings (baseline-gated)
 ```
 
 Desktop app (`apps/desktop`):
@@ -222,5 +223,20 @@ the `run-web` skill; say plainly when you could not verify something visually.
 - Type-only imports for interfaces. One component per file, keep them small.
 - Prefer one fixed home per UI control — avoid context-dependent relocation.
 - Any user-visible string goes through i18n; run `npm run check-i18n` from `apps/web` if you touched catalogs.
+- **Two i18n checks, and they catch different things.** `check-i18n` proves
+  every key in `en.json` exists in it/es/de. It cannot see a string that never
+  became a key, which is how ~1,100 hardcoded English strings accumulated in an
+  app advertising four locales — every catalog "complete", most of the UI
+  English. `check-hardcoded` scans the tracked `.tsx` files instead, against a
+  per-file baseline in `packages/i18n/hardcoded-baseline.json`: a file may not
+  gain a literal, and the count only ratchets down. Translated a batch? Re-run
+  `node packages/i18n/find-hardcoded.mjs --baseline` to bank it.
+- Translating a file, the parts no scan-and-replace handles: a local
+  `const t = …` silently shadows the translator inside its own callback (and
+  TypeScript is happy either way); a second component in the same file needs
+  its own `useTranslation()`; `window.confirm("…")` is user-facing text that no
+  JSX scan finds by shape; a paragraph wrapped across source lines does not
+  match its own string literal; and prose broken around `<strong>`/`<em>` wants
+  one key, not fragments a translator cannot reorder.
 - Design decisions go in the wiki's `decisions.md` (newest entry at the top). Mark superseded entries; don't delete them.
 - Competitor references are allowed — factual, no logos, no disparagement.

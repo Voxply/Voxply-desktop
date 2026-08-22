@@ -3,7 +3,15 @@ import { expect, type Browser, type BrowserContext, type Page } from "@playwrigh
 // Live-hub test constants. The owner seed is deterministic: its pubkey is
 // passed to the hub as WAVVON_OWNER_PUBKEY so the recovered identity lands
 // as builtin-owner. See e2e/live/README.md for the launch recipe.
-export const HUB_URL = "http://localhost:3000";
+// The hub this suite drives, and the app origin it drives it from. Both are
+// overridable so the suite is not tied to one machine: CI starts its own hub
+// and its own vite, and pointing WAVVON_E2E_HUB_URL at a farm-hosted
+// `/hub/<slug>` is how the same 57 specs cover that path too.
+//
+// They were consts, and that is the whole reason the live suite only ever ran
+// on a laptop where someone had started a hub by hand.
+export const HUB_URL = process.env.WAVVON_E2E_HUB_URL ?? "http://localhost:3000";
+export const APP_URL = process.env.WAVVON_E2E_APP_URL ?? "http://localhost:1421";
 export const OWNER_SEED_HEX =
   "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
 export const OWNER_PUBKEY =
@@ -73,6 +81,25 @@ export async function onboardWithSeed(
     await page.getByRole("button", { name: "Save name" }).click();
   }
   await expectInHub(page);
+  await dismissHubSetupWizard(page);
+}
+
+// A hub with no channels greets whoever can create them with the first-boot
+// template picker, and its overlay swallows every click behind it.
+//
+// No spec had ever seen it: they were written against a dev hub that already
+// had channels. A genuinely fresh hub — which is what CI creates on every run,
+// and what a new operator sees — fails the very first ".hub-header-button"
+// click with "modal-overlay intercepts pointer events". Dismissing it here
+// rather than per spec means the "don't nag again" flag lands in the owner
+// storageState that live-setup saves, so the rest of the suite never meets it.
+export async function dismissHubSetupWizard(page: Page): Promise<void> {
+  const wizard = page
+    .getByRole("dialog")
+    .filter({ hasText: "How do you want to use this hub?" });
+  if (!(await wizard.isVisible().catch(() => false))) return;
+  await wizard.getByRole("button", { name: /Start blank/ }).click();
+  await expect(wizard).toBeHidden({ timeout: 15000 });
 }
 
 // Assert the main hub UI is active: welcome overlay gone, sidebar present,
@@ -101,7 +128,7 @@ export async function newMemberPage(
   // owner storageState!) to browser.newContext — override with a blank
   // state so this really is a first-run identity.
   const context = await browser.newContext({
-    baseURL: "http://localhost:1421",
+    baseURL: APP_URL,
     storageState: { cookies: [], origins: [] },
   });
   const page = await context.newPage();
@@ -181,7 +208,7 @@ async function ensureInviteCode(browser: Browser): Promise<string> {
   if (!cachedInviteCode) {
     cachedInviteCode = (async () => {
       const context = await browser.newContext({
-        baseURL: "http://localhost:1421",
+        baseURL: APP_URL,
         storageState: "e2e/.auth/owner.json",
       });
       try {

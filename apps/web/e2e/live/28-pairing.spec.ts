@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { expectInHub, HUB_URL, OWNER_PUBKEY, hubApi } from "./helpers/live";
+import { expectInHub, HUB_URL, OWNER_PUBKEY, hubApi, APP_URL } from "./helpers/live";
 
 // P28 — multi-device pairing. The owner (existing device) enables multi-device,
 // creates a pairing offer, and approves the new device's claim. A brand-new
@@ -37,7 +37,7 @@ test("pair a new device and resolve it to the owner's identity", async ({ page, 
 
   // New device: a fresh context with no identity.
   const context = await browser.newContext({
-    baseURL: "http://localhost:1421",
+    baseURL: APP_URL,
     storageState: { cookies: [], origins: [] },
   });
   try {

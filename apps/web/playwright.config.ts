@@ -1,5 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// Where the app is served. Overridable so a CI job can bring its own vite,
+// or point the suite at a hub serving its own baked-in client.
+const APP_URL = process.env.WAVVON_E2E_APP_URL ?? "http://localhost:1421";
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -7,7 +11,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
   use: {
-    baseURL: "http://localhost:1421",
+    baseURL: APP_URL,
     trace: "on-first-retry",
   },
   projects: [
@@ -47,7 +51,7 @@ export default defineConfig({
   ],
   webServer: {
     command: "npm run dev",
-    url: "http://localhost:1421",
+    url: APP_URL,
     reuseExistingServer: !process.env.CI,
   },
 });

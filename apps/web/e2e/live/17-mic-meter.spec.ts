@@ -16,8 +16,10 @@ test("mic test meter renders and toggles", async ({ page }) => {
   const meter = page.getByRole("meter", { name: "Microphone level" });
   await expect(meter).toBeVisible();
 
-  await page.getByRole("button", { name: "Test microphone" }).click();
+  // "Test microphone" until the voice tab was localized (clients 5e90ac8):
+  // the label is now settings.voice.mic_test.start.
+  await page.getByRole("button", { name: "Start mic test" }).click();
   await expect(page.getByRole("button", { name: "Stop test" })).toBeVisible({ timeout: 10000 });
   await page.getByRole("button", { name: "Stop test" }).click();
-  await expect(page.getByRole("button", { name: "Test microphone" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start mic test" })).toBeVisible();
 });
