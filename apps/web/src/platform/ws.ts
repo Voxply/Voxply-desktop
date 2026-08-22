@@ -68,6 +68,10 @@ export class HubWebSocket {
   /** Rolling round-trip samples in ms; the window size lives in
    *  connectionStats.ts. Kept here because the socket owns the probe. */
   private rttSamples: number[] = [];
+  /** Outbound voice loss as the relay last reported it, or null when this hub
+   *  does not report it or we are not sending voice. Latest value rather than a
+   *  window: the hub already accumulates over the session. */
+  private outboundLossPct: number | null = null;
   private pingTimer: number | null = null;
   private pendingChunkEnvelope: { stream_id: string; is_init: boolean } | null = null;
 
@@ -172,10 +176,13 @@ export class HubWebSocket {
       // outstanding probes: subtract and done. A pong for a probe sent before
       // a reconnect simply reads as one large sample and ages out of the
       // window.
-      const n = (tagged as unknown as { nonce?: number }).nonce;
-      if (typeof n === "number") {
-        this.rttSamples = pushSample(this.rttSamples, Date.now() - n);
+      const p = tagged as unknown as { nonce?: number; outbound_loss_pct?: number };
+      if (typeof p.nonce === "number") {
+        this.rttSamples = pushSample(this.rttSamples, Date.now() - p.nonce);
       }
+      // Absent on a hub without the `voice.loss` capability, and absent while
+      // not sending voice. Both must read as "no number", never as 0.
+      this.outboundLossPct = typeof p.outbound_loss_pct === "number" ? p.outbound_loss_pct : null;
     } else if (type === "message_pinned" || type === "message_unpinned") {
       this.handlers.onPin?.(tagged);
     } else if (type === "poll_vote_updated") {
@@ -297,6 +304,11 @@ export class HubWebSocket {
   /** Snapshot of the latency figures. Cheap to call — the UI polls it. */
   connectionStats(): RttStats {
     return rttStats(this.rttSamples);
+  }
+
+  /** Outbound voice loss the relay reported on the last pong, or null. */
+  outboundLossPercent(): number | null {
+    return this.outboundLossPct;
   }
 
   /** Starts probing. Called on open; the interval is cleared on close so a

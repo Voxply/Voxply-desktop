@@ -10,6 +10,10 @@ export interface LiveConnection extends RttStats {
   /** Worst inbound voice loss across the senders being heard, or null when
    *  not in voice. */
   inboundLossPercent: number | null;
+  /** Outbound voice loss as measured by the relay, or null when this hub does
+   *  not report it. Only the relay can know this — a sender cannot see which
+   *  of its own datagrams were dropped. */
+  outboundLossPercent: number | null;
 }
 
 /**
@@ -28,12 +32,14 @@ export interface LiveConnection extends RttStats {
 export function useConnectionStats(
   getStats: () => RttStats | null,
   getInboundLoss: () => number | null,
+  getOutboundLoss: () => number | null,
 ): LiveConnection {
   const [live, setLive] = useState<LiveConnection>({
     rttMs: null,
     jitterMs: null,
     samples: 0,
     inboundLossPercent: null,
+    outboundLossPercent: null,
   });
 
   useEffect(() => {
@@ -44,6 +50,7 @@ export function useConnectionStats(
         jitterMs: s?.jitterMs ?? null,
         samples: s?.samples ?? 0,
         inboundLossPercent: getInboundLoss(),
+        outboundLossPercent: getOutboundLoss(),
       });
     }
     sample();

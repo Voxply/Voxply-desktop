@@ -205,6 +205,9 @@ export function ContentArea(props: Props) {
       try { return activeSession().ws?.connectionStats() ?? null; } catch { return null; }
     },
     () => voice.voiceSessionRef.current?.inboundLossPercent() ?? null,
+    () => {
+      try { return activeSession().ws?.outboundLossPercent() ?? null; } catch { return null; }
+    },
   );
   const { selectedConversation } = dms;
 
@@ -281,6 +284,7 @@ export function ContentArea(props: Props) {
             rttMs={conn.rttMs}
             jitterMs={conn.jitterMs}
             inboundLossPercent={conn.inboundLossPercent}
+            outboundLossPercent={conn.outboundLossPercent}
             connected={
               hubLifecycle.activeHubId
                 ? hubConnection.hubConnected[hubLifecycle.activeHubId] !== false

@@ -9,6 +9,10 @@ export interface ConnectionStatusProps {
   /** Worst inbound voice packet loss as a percentage, or null when not in
    *  voice (or in voice but hearing nobody yet). */
   inboundLossPercent: number | null;
+  /** Outbound voice packet loss as the relay measured it, or null when the hub
+   *  does not report it (no `voice.loss` capability) or nothing has been sent
+   *  yet. Omitted entirely rather than shown as a zero — see below. */
+  outboundLossPercent?: number | null;
   /** False while the socket is down — the last numbers are then stale and are
    *  shown as such rather than frozen and passed off as live. */
   connected: boolean;
@@ -33,14 +37,17 @@ function band(value: number, good: number, fair: number): "good" | "fair" | "poo
  * panel gains a packet-loss row instead of the chip moving or changing shape,
  * so there is one fixed home for the control.
  *
- * Outbound loss is not here, and not as an empty row either: a sender cannot
- * measure which of its own packets went missing. That number has to come from
- * the relay, which can see gaps in the cleartext counter, and it does not yet.
+ * Outbound loss now comes from the relay, which is the only party that can
+ * measure it: a sender cannot know which of its own packets went missing. It is
+ * still absent rather than zero whenever the hub does not report it — an older
+ * hub has no `voice.loss` capability, and a reassuring "0.0 %" on a hub that
+ * measures nothing is exactly the fabricated number this panel exists to avoid.
  */
 export function ConnectionStatus({
   rttMs,
   jitterMs,
   inboundLossPercent,
+  outboundLossPercent = null,
   connected,
 }: ConnectionStatusProps) {
   const { t } = useTranslation();
@@ -88,10 +95,21 @@ export function ConnectionStatus({
             </span>
           </div>
 
+          {outboundLossPercent !== null && (
+            <div className="conn-row">
+              <span className="conn-key">{t("connection.loss_out")}</span>
+              <span className={`conn-val ${band(outboundLossPercent, LOSS_GOOD, LOSS_FAIR)}`}>
+                {outboundLossPercent} %
+              </span>
+            </div>
+          )}
+
           <p className="muted conn-note">
             {inboundLossPercent === null
               ? t("connection.loss_needs_voice")
-              : t("connection.loss_inbound_only")}
+              : outboundLossPercent === null
+                ? t("connection.loss_inbound_only")
+                : t("connection.loss_both")}
           </p>
         </div>
       )}
