@@ -45,3 +45,6 @@ jobs:
 
       - name: i18n coverage check
         run: pnpm --filter wavvon-web run check-i18n
+
+      - name: No new hardcoded UI strings
+        run: pnpm --filter wavvon-web run check-hardcoded
