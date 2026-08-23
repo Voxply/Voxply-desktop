@@ -14,7 +14,7 @@ concurrency:
 jobs:
   live:
     runs-on: ubuntu-22.04
-    timeout-minutes: 45
+    timeout-minutes: 90
 
     services:
       postgres:
@@ -53,7 +53,7 @@ jobs:
 
       - name: Build the hub
         working-directory: _server
-        run: cargo build --release -p wavvon-hub
+        run: cargo build -p wavvon-hub
 
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v4
@@ -79,7 +79,7 @@ jobs:
           WAVVON_VOICE_UDP_PORT: ${{ env.HUB_VOICE_UDP_PORT }}
           WAVVON_WEB_CLIENT_DIR: ""
         run: |
-          ./target/release/wavvon-hub > "$RUNNER_TEMP/hub.log" 2>&1 &
+          ./target/debug/wavvon-hub > "$RUNNER_TEMP/hub.log" 2>&1 &
           for i in $(seq 1 60); do
             if curl -fsS -m 2 "http://localhost:$HUB_HTTP_PORT/info" >/dev/null; then
               echo "hub answered /info after ${i}s"
