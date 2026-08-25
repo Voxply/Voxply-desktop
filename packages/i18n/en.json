@@ -23,6 +23,8 @@
   "identity_setup.choose.hint": "Create a new identity or recover an existing one.",
   "identity_setup.choose.create": "Create new identity",
   "identity_setup.choose.recover": "Recover existing identity",
+  "identity_setup.choose.use_user_client_hint": "Already use Wavvon, or want more than one hub?",
+  "identity_setup.choose.use_user_client_link": "Open this hub in the official client",
   "identity_setup.generated.title": "Save your recovery phrase",
   "identity_setup.generated.hint": "Write these 24 words down and store them somewhere safe. Anyone with this phrase can control your identity.",
   "identity_setup.generated.show_hex": "Show seed hex (alternative backup)",

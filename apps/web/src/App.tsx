@@ -28,6 +28,7 @@ import { arrayMove } from "@dnd-kit/sortable";
 import { flattenTree, descendantIds, computeDepth, channelPath, inviteCodeFromPath } from "@wavvon/core";
 import { getScoped, setScoped } from "./utils/accountScope";
 import { DISCOVERY_NEW_HUB_URL, DISCOVERY_URL, HUB_SETUP_COMMAND, MULTI_HUB } from "./constants";
+import { handoffTargetUrl } from "./utils/handoffTarget";
 import type {
   Channel,
   User,
@@ -93,7 +94,7 @@ import {
   getLobbyWelcome,
   submitLobbyPow,
 } from "@platform";
-import { getActiveHubId } from "@platform";
+import { getActiveHubId, redeemInvite } from "@platform";
 import {
   getMessages,
   getUnreadCounts,
@@ -641,6 +642,7 @@ export default function App({ initialView }: AppProps = {}) {
   // (language, theme) take hold; the flag lives in sessionStorage so a
   // reload loop is impossible even if a pull somehow keeps reporting changes.
   const PREFS_RELOAD_FLAG = "wavvon.prefsReloaded";
+  const [hubsRestored, setHubsRestored] = useState(false);
   const prefsSyncRef = useRef<Awaited<ReturnType<typeof startPrefsSync>>>(null);
 
   useEffect(() => {
@@ -655,6 +657,9 @@ export default function App({ initialView }: AppProps = {}) {
         await loadHubData();
         publishDhKey().catch(() => {});
       }
+      // The path-invite effect below needs "restored, and this is what we've
+      // got" — hubs.length alone cannot tell that apart from "not yet run".
+      setHubsRestored(true);
       const globalHomeHub = window.__WAVVON_HOME_HUB__;
       if (typeof globalHomeHub === "string" && globalHomeHub.trim() && loadSavedHubs().length === 0) {
         setHomeHubUrl(globalHomeHub.trim());
@@ -896,24 +901,56 @@ export default function App({ initialView }: AppProps = {}) {
   if (pathInviteRef.current === null) {
     pathInviteRef.current = inviteCodeFromPath(window.location.pathname) ?? "";
   }
+
+  // `?hub=&code=` — a hub build sending someone here to join it with their
+  // real identity (USER_CLIENT_URL). Only ever a hub URL and an invite code:
+  // both are public, both are visible in the address bar, and the add-hub
+  // modal below is where the user confirms. A seed never arrives this way.
+  const handoffRef = useRef<{ hub: string; code: string } | null | undefined>(undefined);
+  if (handoffRef.current === undefined) {
+    const params = new URLSearchParams(window.location.search);
+    const hub = params.get("hub")?.trim() ?? "";
+    handoffRef.current = hub ? { hub, code: params.get("code")?.trim() ?? "" } : null;
+  }
   useEffect(() => {
     const code = pathInviteRef.current;
-    if (!code || pathInviteHandledRef.current || !publicKey) return;
-    pathInviteHandledRef.current = true;
-    window.history.replaceState({}, "", "/");
-    const inviteUrl = `${window.location.origin}/join/${code}`;
+    const handoff = handoffRef.current;
+    if ((!code && !handoff) || pathInviteHandledRef.current || !publicKey) return;
     if (!MULTI_HUB) {
-      // Hub build: there is no add-hub modal to open. The welcome screen
-      // joins the hub serving this page, and parseHubInput lifts the code
-      // out of whatever URL it is handed — so handing it the invite link is
-      // the whole flow. An invite clicked by someone already a member of
-      // this hub is dropped here; see next-up.md.
-      setHomeHubUrl(inviteUrl);
+      // Hub build: no add-hub modal to open, and which path is right depends
+      // on whether we already have a session here — so wait for the restore
+      // to answer rather than racing it.
+      if (!hubsRestored) return;
+      // A `?hub=` handoff is meaningless here — the hub build sends those, it
+      // cannot receive one, because it has no second hub to add.
+      if (!code) return;
+      pathInviteHandledRef.current = true;
+      window.history.replaceState({}, "", "/");
+      if (getActiveHubId()) {
+        // Already a member: re-authenticating is the registration path and
+        // would not apply the invite's role grant. This route is the one
+        // that does.
+        void redeemInvite(code)
+          .then(() => loadHubData())
+          .catch((e: unknown) => showHubError(e instanceof Error ? e.message : String(e)));
+      } else {
+        // No session: the welcome screen joins the hub serving this page, and
+        // parseHubInput lifts the code out of whatever URL it is handed — so
+        // handing it the invite link is the whole flow.
+        setHomeHubUrl(`${window.location.origin}/join/${code}`);
+      }
       return;
     }
-    handleHubUrlInput(inviteUrl);
+    pathInviteHandledRef.current = true;
+    window.history.replaceState({}, "", "/");
+    // Both sources end up as an invite URL because parseHubInput already
+    // knows how to take a code out of one — one shape to handle, not two.
+    const target = handoff
+      ? handoffTargetUrl(handoff.hub, handoff.code)
+      : `${window.location.origin}/join/${code}`;
+    handleHubUrlInput(target);
     setShowAddHub(true);
-  }, [publicKey]);
+  }, [publicKey, hubsRestored]);
 
   async function handleSaveFirstRunName() {
     const name = firstRunName.trim();

@@ -25,15 +25,6 @@ export const MIC_METER_MAX = 0.2;
 // screen. null means the button is hidden — don't ship a dead button.
 export const DEMO_HUB_URL: string | null = null;
 
-// The public hub directory (discovery-v2.md). null means every surface that
-// needs it — browse public hubs, the hub-creation wizard link, the skins
-// gallery, the directory listing form in hub admin — is not rendered at all.
-// Same rule as DEMO_HUB_URL above: don't ship a dead button.
-//
-// It was three different hardcoded hostnames across five files
-// (discovery.wavvon.io, discovery.wavvon.app, hub-directory.wavvon.io), none
-// of which resolves. That is what "the features that don't work because we
-// don't have discovery yet" actually was.
 // Build target. The hub build is what a hub serves from its own origin: one
 // hub and its interconnections, no list — no switcher, no add-hub, no
 // create-hub, no directory, no home-hub editor (decisions.md, "Two web
@@ -46,8 +37,31 @@ export const DEMO_HUB_URL: string | null = null;
 // it was meant to remove.
 export const MULTI_HUB: boolean = import.meta.env.VITE_BUILD_TARGET !== "hub";
 
-/** The directory itself. Gated below rather than read directly, so switching
- *  it on cannot accidentally light up a directory in the hub build. */
+// Where the user build lives — the multi-hub client, hosted next to the
+// directory. The hub build points people at it; the user build has no use for
+// it. null means the invitation to move is not rendered at all: same rule as
+// DEMO_HUB_URL and the directory, don't ship a dead button.
+//
+// Only hub URL and invite code ever travel in that link. They are not secrets
+// and the user can read them in the address bar. A seed never goes in a URL —
+// that handover is a postMessage, see decisions.md 2026-08-25.
+const USER_CLIENT_ORIGIN: string | null = null; // set once the hosted app has a domain
+
+/** null in the user build too, structurally: you are already there. */
+export const USER_CLIENT_URL: string | null = MULTI_HUB ? null : USER_CLIENT_ORIGIN;
+
+// The public hub directory (discovery-v2.md). null means every surface that
+// needs it — browse public hubs, the hub-creation wizard link, the skins
+// gallery, the directory listing form in hub admin — is not rendered at all.
+// Same rule as DEMO_HUB_URL above: don't ship a dead button.
+//
+// It was three different hardcoded hostnames across five files
+// (discovery.wavvon.io, discovery.wavvon.app, hub-directory.wavvon.io), none
+// of which resolves. That is what "the features that don't work because we
+// don't have discovery yet" actually was.
+//
+// Gated through MULTI_HUB rather than read directly, so switching it on
+// cannot accidentally light up a directory in the hub build.
 const DIRECTORY_URL: string | null = null;
 
 export const DISCOVERY_URL: string | null = MULTI_HUB ? DIRECTORY_URL : null;

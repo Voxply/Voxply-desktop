@@ -162,6 +162,15 @@ export async function addHub(
   };
 }
 
+/** Apply an invite to the hub this session is already on. The client has only
+ *  ever handled invites by re-authenticating with the code, which is the
+ *  registration path — for someone already a member the hub has a separate
+ *  route that auto-approves and applies the invite's role grant
+ *  (`routes/invites.rs::join_with_invite`). Answers with a bare status. */
+export async function redeemInvite(code: string): Promise<void> {
+  await hubFetch(`/join/${encodeURIComponent(code)}`, { method: "POST" });
+}
+
 export function listHubs(): Hub[] {
   return allSessions().map((s) => ({
     hub_id: s.hub_id,

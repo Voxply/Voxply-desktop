@@ -993,6 +993,8 @@
   "identity_setup.choose.hint": "Crea una nuova identità o recuperane una esistente.",
   "identity_setup.choose.create": "Crea nuova identità",
   "identity_setup.choose.recover": "Recupera identità esistente",
+  "identity_setup.choose.use_user_client_hint": "Usi già Wavvon, o vuoi più di un hub?",
+  "identity_setup.choose.use_user_client_link": "Apri questo hub nel client ufficiale",
   "identity_setup.generated.title": "Salva la tua frase di recupero",
   "identity_setup.generated.hint": "Scrivi queste 24 parole e conservale in un luogo sicuro. Chiunque possieda questa frase può controllare la tua identità.",
   "identity_setup.generated.show_hex": "Mostra il seed esadecimale (backup alternativo)",

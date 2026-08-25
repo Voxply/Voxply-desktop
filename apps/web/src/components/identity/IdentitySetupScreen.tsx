@@ -18,6 +18,8 @@ import {
 import type { IdentityRecord } from "@identity/index";
 import { ProfileSetupStep } from "@components/onboarding/ProfileSetupStep";
 import { encryptBackup, suggestBackupFilename } from "@wavvon/core";
+import { inviteCodeFromPath } from "@wavvon/core";
+import { USER_CLIENT_URL } from "../../constants";
 import { passphraseStrength } from "@wavvon/ui";
 
 export interface IdentitySetupCompletion {
@@ -34,6 +36,15 @@ interface Props {
   variant?: "initial" | "add";
   onComplete: (result: IdentitySetupCompletion) => void;
   onCancel?: () => void;
+}
+
+/** Where the user build should land: this hub, plus the invite code the
+ *  visitor arrived with so the trip is not a downgrade. Both are public. */
+function userClientJoinUrl(): string {
+  const code = inviteCodeFromPath(window.location.pathname) ?? "";
+  const params = new URLSearchParams({ hub: window.location.origin });
+  if (code) params.set("code", code);
+  return `${USER_CLIENT_URL}/join?${params.toString()}`;
 }
 
 // Identity creation/recovery/pairing flow. Used both for a device's first
@@ -440,6 +451,18 @@ export function IdentitySetupScreen({ variant = "initial", onComplete, onCancel 
       <button className="btn-secondary" style={{ width: "100%" }} onClick={() => setStep("pair")}>
         {t("identity_setup.pair.title")}
       </button>
+      {/* Hub build only (USER_CLIENT_URL is null in the user build). Offered
+          *before* an identity exists on purpose: nothing has to be moved yet,
+          and a passkey made here would be bound to this origin and unusable
+          there — decisions.md 2026-08-25. */}
+      {USER_CLIENT_URL && (
+        <p className="muted" style={{ fontSize: "var(--text-sm)", marginTop: 20 }}>
+          {t("identity_setup.choose.use_user_client_hint")}{" "}
+          <a href={userClientJoinUrl()} style={{ color: "var(--accent)" }}>
+            {t("identity_setup.choose.use_user_client_link")}
+          </a>
+        </p>
+      )}
       {error && <p style={{ color: "var(--danger)", marginTop: 12 }}>{error}</p>}
       {variant === "add" && onCancel && (
         <button className="btn-ghost" style={{ width: "100%", marginTop: 12 }} onClick={onCancel}>

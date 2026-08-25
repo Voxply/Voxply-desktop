@@ -22,6 +22,7 @@ export {
   listHubs,
   setActiveHub,
   removeHub,
+  redeemInvite,
   pingHub,
   reauthorizeHub,
   upgradeActiveHubIdentity,
