@@ -20,6 +20,7 @@ import { ProfileSetupStep } from "@components/onboarding/ProfileSetupStep";
 import { encryptBackup, suggestBackupFilename } from "@wavvon/core";
 import { inviteCodeFromPath } from "@wavvon/core";
 import { USER_CLIENT_URL } from "../../constants";
+import { clearMigrated, migratedPubkey } from "../../utils/migrated";
 import { passphraseStrength } from "@wavvon/ui";
 
 export interface IdentitySetupCompletion {
@@ -86,6 +87,9 @@ export function IdentitySetupScreen({ variant = "initial", onComplete, onCancel 
   }
 
   function finishWithAccount(accountId: string) {
+    // An identity exists on this origin again, by the user's own doing — the
+    // "you moved to the user client" notice has to stop claiming otherwise.
+    clearMigrated();
     if (variant === "add") {
       onComplete({ accountId });
     } else {
@@ -442,6 +446,19 @@ export function IdentitySetupScreen({ variant = "initial", onComplete, onCancel 
     <div style={{ maxWidth: 400, margin: "120px auto", padding: 32, textAlign: "center" }}>
       <h1>{variant === "add" ? t("identity_setup.add.title") : t("app.title")}</h1>
       <p className="muted">{variant === "add" ? t("identity_setup.add.hint") : t("identity_setup.choose.hint")}</p>
+      {/* This origin was left for the user client. Say so instead of
+          silently offering a fresh start, which is how one person ends up
+          as two users on one hub. Not an automatic redirect: sending
+          someone off their own hub's page without asking reads as a
+          hijack. */}
+      {USER_CLIENT_URL && migratedPubkey() && (
+        <p className="muted" style={{ fontSize: "var(--text-sm)", marginBottom: 16 }}>
+          {t("handover.migrated_notice")}{" "}
+          <a href={USER_CLIENT_URL} style={{ color: "var(--accent)" }}>
+            {t("handover.migrated_link")}
+          </a>
+        </p>
+      )}
       <button className="btn-primary" style={{ width: "100%", marginBottom: 12 }} onClick={doGenerate}>
         {t("identity_setup.choose.create")}
       </button>

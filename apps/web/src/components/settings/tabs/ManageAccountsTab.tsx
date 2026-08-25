@@ -10,6 +10,7 @@ import {
 import { FullArchiveSection } from "@components/admin/FullArchiveSection";
 import { HomeHubsSection } from "../HomeHubsSection";
 import { MULTI_HUB } from "../../../constants";
+import { MoveToUserClientSection } from "../MoveToUserClientSection";
 import { AccountsSwitcherSection } from "../AccountsSwitcherSection";
 import { ManagingAccountSelector } from "../ManagingAccountSelector";
 import {
@@ -134,6 +135,7 @@ export function ManageAccountsTab(props: Props) {
         />
       )}
       {MULTI_HUB && props.managing && <HomeHubsSection activeHubUrl={activeHubUrl} account={props.managing} />}
+      {!MULTI_HUB && props.managing && <MoveToUserClientSection account={props.managing} activeHubUrl={activeHubUrl} />}
     </section>
   );
 }
