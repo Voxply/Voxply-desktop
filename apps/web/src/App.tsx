@@ -27,7 +27,7 @@ import type { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { flattenTree, descendantIds, computeDepth, channelPath, inviteCodeFromPath } from "@wavvon/core";
 import { getScoped, setScoped } from "./utils/accountScope";
-import { DISCOVERY_NEW_HUB_URL, DISCOVERY_URL, HUB_SETUP_COMMAND } from "./constants";
+import { DISCOVERY_NEW_HUB_URL, DISCOVERY_URL, HUB_SETUP_COMMAND, MULTI_HUB } from "./constants";
 import type {
   Channel,
   User,
@@ -901,7 +901,17 @@ export default function App({ initialView }: AppProps = {}) {
     if (!code || pathInviteHandledRef.current || !publicKey) return;
     pathInviteHandledRef.current = true;
     window.history.replaceState({}, "", "/");
-    handleHubUrlInput(`${window.location.origin}/join/${code}`);
+    const inviteUrl = `${window.location.origin}/join/${code}`;
+    if (!MULTI_HUB) {
+      // Hub build: there is no add-hub modal to open. The welcome screen
+      // joins the hub serving this page, and parseHubInput lifts the code
+      // out of whatever URL it is handed — so handing it the invite link is
+      // the whole flow. An invite clicked by someone already a member of
+      // this hub is dropped here; see next-up.md.
+      setHomeHubUrl(inviteUrl);
+      return;
+    }
+    handleHubUrlInput(inviteUrl);
     setShowAddHub(true);
   }, [publicKey]);
 
@@ -1355,7 +1365,7 @@ export default function App({ initialView }: AppProps = {}) {
         />
       )}
 
-      {showCreateHub && (
+      {MULTI_HUB && showCreateHub && (
         <CreateHubFork
           knownFarms={knownFarms}
           wsHandlers={stableHandlers}
@@ -1409,8 +1419,8 @@ export default function App({ initialView }: AppProps = {}) {
           setHubNotifyMode((prev) => { const n = { ...prev }; if (mode === "all") delete n[hubId]; else n[hubId] = mode; return n; })
         }
         onHubReorder={handleHubReorder}
-        onAddHub={() => setShowAddHub(true)}
-        onCreateHub={() => setShowCreateHub(true)}
+        onAddHub={MULTI_HUB ? () => setShowAddHub(true) : undefined}
+        onCreateHub={MULTI_HUB ? () => setShowCreateHub(true) : undefined}
         onDiscover={DISCOVERY_URL ? () => setShowDiscover(true) : undefined}
         onFarmSettings={() => { setShowFarmSettings(true); setFarmAdminTab("general"); }}
       />
@@ -1579,7 +1589,7 @@ export default function App({ initialView }: AppProps = {}) {
         />
       )}
 
-      {showAddHub && (
+      {MULTI_HUB && showAddHub && (
         <AddHubModal
           hubUrl={hubUrl}
           onHubUrlChange={handleHubUrlInput}

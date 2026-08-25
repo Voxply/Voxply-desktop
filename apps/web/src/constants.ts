@@ -34,7 +34,23 @@ export const DEMO_HUB_URL: string | null = null;
 // (discovery.wavvon.io, discovery.wavvon.app, hub-directory.wavvon.io), none
 // of which resolves. That is what "the features that don't work because we
 // don't have discovery yet" actually was.
-export const DISCOVERY_URL: string | null = null;
+// Build target. The hub build is what a hub serves from its own origin: one
+// hub and its interconnections, no list — no switcher, no add-hub, no
+// create-hub, no directory, no home-hub editor (decisions.md, "Two web
+// clients: one per hub, one per user"). Set by `vite build --mode hub` via
+// .env.hub; anything else is the user build.
+//
+// Compared against a literal so the bundler folds it: the dropped screens
+// leave the bundle, they are not merely hidden. Never turn this into a
+// runtime value — a `false` that is only known at runtime ships every screen
+// it was meant to remove.
+export const MULTI_HUB: boolean = import.meta.env.VITE_BUILD_TARGET !== "hub";
+
+/** The directory itself. Gated below rather than read directly, so switching
+ *  it on cannot accidentally light up a directory in the hub build. */
+const DIRECTORY_URL: string | null = null;
+
+export const DISCOVERY_URL: string | null = MULTI_HUB ? DIRECTORY_URL : null;
 
 /** The wizard's hub-creation page, or null when there is no directory. */
 export const DISCOVERY_NEW_HUB_URL: string | null =

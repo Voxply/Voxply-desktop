@@ -34,8 +34,10 @@ interface Props {
   /** Per-hub notification mode, set from the icon's right-click menu. */
   onSetHubNotifyMode?: (hubId: string, mode: NotifyMode) => void;
   onHubReorder: (event: DragEndEvent) => void;
-  onAddHub: () => void;
-  onCreateHub: () => void;
+  /** Both unset hides the `+` entirely — the hub build has no second hub to
+   *  add and no wizard to reach. */
+  onAddHub?: () => void;
+  onCreateHub?: () => void;
   /** Absent when no hub directory is configured, and then the ⊕ button is
    *  not rendered at all — the sidebar had a permanent entry to a page that
    *  fetched a hostname which does not resolve. */
@@ -193,14 +195,16 @@ export function HubSidebar({
         </SortableContext>
       </DndContext>
 
-      <button
-        ref={plusButtonRef}
-        className="hub-icon add"
-        onClick={toggleAddMenu}
-        title={t("hub.add_or_create")}
-      >
-        +
-      </button>
+      {(onAddHub || onCreateHub) && (
+        <button
+          ref={plusButtonRef}
+          className="hub-icon add"
+          onClick={toggleAddMenu}
+          title={t("hub.add_or_create")}
+        >
+          +
+        </button>
+      )}
       {addMenuOpen && addMenuPos && (
         <div
           className="context-menu-overlay"
@@ -212,12 +216,16 @@ export function HubSidebar({
             style={{ top: addMenuPos.y, left: addMenuPos.x }}
             onClick={(e) => e.stopPropagation()}
           >
-            <button className="context-menu-item" onClick={() => { setAddMenuOpen(false); onAddHub(); }}>
-              {t("hub.join")}
-            </button>
-            <button className="context-menu-item" onClick={() => { setAddMenuOpen(false); onCreateHub(); }}>
-              {t("hub.create")}
-            </button>
+            {onAddHub && (
+              <button className="context-menu-item" onClick={() => { setAddMenuOpen(false); onAddHub(); }}>
+                {t("hub.join")}
+              </button>
+            )}
+            {onCreateHub && (
+              <button className="context-menu-item" onClick={() => { setAddMenuOpen(false); onCreateHub(); }}>
+                {t("hub.create")}
+              </button>
+            )}
           </div>
         </div>
       )}
