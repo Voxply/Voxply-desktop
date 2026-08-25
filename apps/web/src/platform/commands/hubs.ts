@@ -25,6 +25,7 @@ import { publicKeyHex } from "@wavvon/core";
 import type { Hub } from "@shared/types";
 import { probeSessionScope } from "./lobby";
 import { acquireHubToken as authenticate } from "./hubAuth";
+import { ensureHomeHubDesignation } from "./identity";
 
 interface InfoResponse {
   public_key: string;
@@ -141,6 +142,17 @@ export async function addHub(
   upsertSavedHub(saved);
 
   const isActive = getActiveHubId() === info.public_key;
+
+  // Only for the hub that ends up active: hubFetch inside targets the active
+  // hub, so this reads the designation from — and publishes it to — this very
+  // hub. Fire and forget; a hub too old to serve designations must not fail a
+  // join, and Settings can always publish the list by hand.
+  if (isActive && scope !== "lobby") {
+    void loadIdentity()
+      .then((id) => id && ensureHomeHubDesignation(id, url))
+      .catch(() => {});
+  }
+
   return {
     hub_id: info.public_key,
     hub_name: info.name,

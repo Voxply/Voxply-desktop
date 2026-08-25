@@ -9144,6 +9144,32 @@ a.embed-title:hover {
   color: var(--text);
 }
 
+.faq-entry {
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-sunken);
+  border-radius: var(--r-md);
+  font-size: var(--text-sm);
+}
+
+.faq-entry summary {
+  cursor: pointer;
+  user-select: none;
+  font-weight: var(--weight-medium);
+}
+
+.faq-answer {
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  white-space: pre-line;
+}
+
+.faq-disclaimer {
+  margin-top: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
 .install-game-example {
   background: var(--bg);
   border: 1px solid var(--border);

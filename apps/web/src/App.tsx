@@ -664,6 +664,11 @@ export default function App({ initialView }: AppProps = {}) {
       // theme are read once at boot, so a pull that actually changed
       // something only takes effect after a reload — done once per load, and
       // the steady state reports no change, so it cannot loop.
+      // ponytail: a browser with no saved hub has nothing to sync through, so
+      // this returns null and the first hub added in that session syncs
+      // nothing — including the hub list it would have pulled back. It heals
+      // on the next page load. Restart the sync on the 0->1 hub transition if
+      // that first-run reload ever proves confusing.
       startPrefsSync(() => {
         if (!sessionStorage.getItem(PREFS_RELOAD_FLAG)) {
           sessionStorage.setItem(PREFS_RELOAD_FLAG, "1");

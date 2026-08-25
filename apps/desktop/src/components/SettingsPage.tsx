@@ -11,6 +11,7 @@ import {
   SkinEditor,
   makeSeed,
   SkinsGallery,
+  HelpTab,
   ProfileTab,
   SettingsShell,
   resolveManagingAccount,
@@ -38,7 +39,8 @@ export type SettingsTab =
   | "notifications"
   | "appearance"
   | "voice"
-  | "camera";
+  | "camera"
+  | "help";
 
 export interface SettingsPageProps {
   tab: SettingsTab;
@@ -160,6 +162,7 @@ export function SettingsPage(props: SettingsPageProps) {
     { id: "privacy", label: t("settings.tabs.privacy"), group: G_ACCOUNTS },
     { id: "notifications", label: t("settings.tabs.notifications"), group: G_APP },
     { id: "appearance", label: t("settings.tabs.appearance"), group: G_APP },
+    { id: "help", label: t("settings.tabs.help"), group: G_APP },
     { id: "voice", label: t("settings.tabs.voice"), group: G_AV },
     { id: "camera", label: t("settings.tabs.camera"), group: G_AV },
   ];
@@ -382,6 +385,8 @@ export function SettingsPage(props: SettingsPageProps) {
             </div>
           </section>
         )}
+
+        {props.tab === "help" && <HelpTab />}
 
         {props.tab === "camera" && (
           <CameraTab

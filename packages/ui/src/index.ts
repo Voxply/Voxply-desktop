@@ -325,6 +325,7 @@ export { resolveManagingAccount } from "./utils/resolveManagingAccount";
 export { loadHiddenBadgeSet, saveHiddenBadgeSet } from "./utils/hiddenBadges";
 export { SettingsShell } from "./components/settings/SettingsShell";
 export type { SettingsTabDef } from "./components/settings/SettingsShell";
+export { HelpTab } from "./components/settings/HelpTab";
 export { SoundboardAdminSection } from "./components/admin/SoundboardAdminSection";
 export type { SoundboardAdminSectionActions } from "./components/admin/SoundboardAdminSection";
 export { OnboardingAdminSection } from "./components/admin/OnboardingAdminSection";

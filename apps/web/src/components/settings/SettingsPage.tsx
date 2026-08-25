@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Hub, BlockEntry, IgnoreEntry } from "@shared/types";
 import type { ThemeId, WavvonSkin, ProfileEditorActions, SettingsTabDef } from "@wavvon/ui";
-import { ProfileTab, resolveManagingAccount, SettingsShell } from "@wavvon/ui";
+import { HelpTab, ProfileTab, resolveManagingAccount, SettingsShell } from "@wavvon/ui";
 import type { NamedCustomTheme } from "@shared/utils/customThemes";
 import { listAccountsOrdered, getActiveAccountId, onAccountsChanged, type IdentityRecord } from "@identity/index";
 import { getMyProfileOnHub, updateMyProfileOnHub, NO_HUB_SESSION, listMyCertifications } from "@platform";
@@ -37,7 +37,8 @@ export type SettingsTab =
   | "notifications"
   | "appearance"
   | "voice"
-  | "camera";
+  | "camera"
+  | "help";
 
 interface SettingsPageProps {
   tab: SettingsTab;
@@ -121,6 +122,7 @@ export function SettingsPage(props: SettingsPageProps) {
     { id: "privacy", label: t("settings.tabs.privacy"), group: G_ACCOUNTS },
     { id: "notifications", label: t("settings.tabs.notifications"), group: G_APP },
     { id: "appearance", label: t("settings.tabs.appearance"), group: G_APP },
+    { id: "help", label: t("settings.tabs.help"), group: G_APP },
     { id: "voice", label: t("settings.tabs.voice"), group: G_AV },
     { id: "camera", label: t("settings.tabs.camera"), group: G_AV },
   ];
@@ -193,6 +195,8 @@ export function SettingsPage(props: SettingsPageProps) {
         {props.tab === "voice" && <VoiceTab />}
 
         {props.tab === "camera" && <CameraTab />}
+
+        {props.tab === "help" && <HelpTab />}
     </SettingsShell>
   );
 }

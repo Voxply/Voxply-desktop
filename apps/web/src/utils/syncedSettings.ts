@@ -22,7 +22,13 @@ interface SyncedKey {
 // on this machine — with two identities in one browser, whichever one syncs
 // last wins the theme. Scope them per-account if that ever bites; today they
 // already behave that way locally.
+// ponytail: the hub list rides here as last-writer-wins, like every other
+// synced value. Two browsers open at once, each adding a different hub, and one
+// addition is lost until it is re-added. A union merge would fix that and break
+// removal instead (a hub deleted on one device comes back from the other), so
+// LWW is the honest default — revisit with a tombstone if it bites.
 export const SYNCED_KEYS: SyncedKey[] = [
+  { key: "wavvon:saved_hubs", scoped: true },
   { key: "wavvon:appearance", scoped: false },
   { key: "wavvon_language", scoped: false },
   { key: "wavvon.audio_profile", scoped: false },

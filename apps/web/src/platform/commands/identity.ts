@@ -1,5 +1,6 @@
 import type { HomeHubList, RevocationEntry, SignedPrefsBlob, SubkeyCert } from "@shared/types";
 import type { PairingOffer, PairingClaim, PairingComplete, PairingStatus } from "@wavvon/core";
+import { buildHomeHubList, masterSeedHex, masterPublicKeyHex } from "@wavvon/core";
 import { hubFetch, rawFetch, HubApiError } from "../http";
 
 // Reads and writes for the personal-axis identity envelopes
@@ -24,6 +25,30 @@ export async function putHomeHubDesignation(list: HomeHubList): Promise<void> {
     method: "POST",
     body: JSON.stringify(list),
   });
+}
+
+/** The first hub an account signs in to becomes its home hub. Personal-axis
+ *  state (the prefs blob, the DM inbox) needs a published list to live in, and
+ *  a list only ever created by hand in Settings stays empty for almost
+ *  everyone — which leaves the hub list unsynced and a wiped browser with
+ *  nothing to restore from. No-op once a designation exists, including a
+ *  deliberately emptied one, so this never overrides the user's own choice.
+ *  A paired device is skipped: a subkey cannot sign a HomeHubList. */
+export async function ensureHomeHubDesignation(
+  identity: { seed_hex: string; master_pubkey?: string; subkey_cert?: SubkeyCert },
+  hubUrl: string,
+): Promise<void> {
+  if (identity.subkey_cert) return;
+  const pubkey = masterPublicKeyHex(identity.seed_hex);
+  if (await getHomeHubDesignation(pubkey)) return;
+  const list = buildHomeHubList(
+    masterSeedHex(identity.seed_hex),
+    pubkey,
+    [hubUrl.replace(/\/+$/, "")],
+    Math.floor(Date.now() / 1000),
+    1,
+  );
+  await putHomeHubDesignation(list);
 }
 
 export async function listDeviceCerts(pubkey: string): Promise<SubkeyCert[]> {

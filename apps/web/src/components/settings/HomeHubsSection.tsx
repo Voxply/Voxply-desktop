@@ -106,6 +106,9 @@ export function HomeHubsSection({ activeHubUrl, account }: Props) {
       <p className="muted" style={{ fontSize: "var(--text-sm)" }}>
         {t("settings.account.home_hubs.hint")}
       </p>
+      <p className="muted" style={{ fontSize: "var(--text-sm)" }}>
+        {t("settings.account.home_hubs.auto_hint")}
+      </p>
       <PerAccountHint label={accountLabel} hintKey="settings.account.home_hubs.per_account_hint" />
       {isPairedDevice && (
         <p className="muted" style={{ fontSize: "var(--text-sm)" }}>
