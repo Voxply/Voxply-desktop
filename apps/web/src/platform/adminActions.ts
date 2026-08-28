@@ -33,9 +33,6 @@ import {
   adminGetBotChannelScope, adminSetBotChannelScope,
 } from "./commands/bots";
 import {
-  getFarmSettings, patchFarmSettings, getFarmHubsAdmin, suspendFarmHub, deleteFarmHub,
-  getFarmUsers, revokeFarmUserSessions, getFarmServers, generateFarmServerToken,
-  farmTotpSetup, farmTotpConfirm, farmTotpDisable,
 } from "@platform";
 import { loadDefaultProfile, saveDefaultProfile, loadFollowsDefault } from "../utils/profiles";
 import type {
@@ -44,7 +41,6 @@ import type {
   RolesSectionActions, MemberRoleManagerActions, ServerTagsSectionActions, InviteManagerActions,
   AuditLogSectionActions, CertificationsSectionActions,
   SoundboardAdminSectionActions, OnboardingAdminSectionActions,
-  FarmSettingsActions,
 } from "@wavvon/ui";
 
 // The member profile card's own-profile save also propagates to every other
@@ -148,17 +144,3 @@ export const surveyActions = {
     listRoles().then((roles) => roles.filter((r) => !r.permissions.includes("admin")).map((r) => ({ id: r.id, name: r.name }))),
 };
 
-export const farmSettingsActions: FarmSettingsActions = {
-  getSettings: getFarmSettings,
-  patchSettings: patchFarmSettings,
-  getHubs: getFarmHubsAdmin,
-  suspendHub: suspendFarmHub,
-  deleteHub: deleteFarmHub,
-  getUsers: getFarmUsers,
-  revokeUserSessions: revokeFarmUserSessions,
-  getServers: getFarmServers,
-  generateServerToken: generateFarmServerToken,
-  totpSetup: farmTotpSetup,
-  totpConfirm: farmTotpConfirm,
-  totpDisable: farmTotpDisable,
-};

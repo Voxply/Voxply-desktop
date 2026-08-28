@@ -42,6 +42,32 @@ Commit to **`develop`**. See `CONTRIBUTING.md`.
 
 ---
 
+## A client cannot create a hub, and knows nothing about farms
+
+A hub exists because somebody ran the binary on their own server. There is no
+flow in any client that makes one — no wizard, no bootstrap token, no "create"
+entry beside "join". The `+` in the hub sidebar joins, and that is all it does.
+
+**A farm is a server-side aggregate of hubs and is never a client concept.**
+The farm admin panel, its settings page, quotas, creation policy and the
+provisioning commands are all gone from web, desktop and the Tauri shell. Don't
+add a farm noun back to this repo.
+
+Two things survive that carry the word, and both are deliberate:
+
+- `farm_url` on the hub's `/info` response. That is the hub telling a client
+  its canonical address, and renaming it is a **wire-format change** — three
+  mirrors and the shared test vectors, per the `wire-format-change` skill. Not
+  something to tidy up in passing.
+- `splitHubPathPrefix` in `packages/core/parseHubInput.ts`. One host can serve
+  several hubs under `/hub/<slug>` paths, and a client has to parse that to
+  join them. It handles a URL shape, not a feature.
+
+`recovery.rs` in the Tauri shell used to be `farm.rs`: identity recovery and
+key rotation had only ever been filed there by accident.
+
+---
+
 ## Commands
 
 From the repo root:

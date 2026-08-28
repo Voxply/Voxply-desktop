@@ -37,15 +37,12 @@ import type {
   BotAppLaunchEvent,
   BotAppOpenEvent,
   BotAppCloseEvent,
-  FarmPublicInfo,
-  FarmHubQuota,
-  CreatedFarmHub,
   PublicHubProfile,
   ForumTagDef,
 } from "./types";
 import { ScreenShareModal } from "./components/ScreenShareModal";
 import { ScreenShareOverlay } from "./components/ScreenShareOverlay";
-import { BotAppLaunchCard, CreateHubWizard, KeyboardShortcuts, DiscoverPage, Lobby, FarmSettingsPage, HubSetupWizard, ChannelContextMenu, EventComposer, PollComposer, type CreateEventPayload, type HubEvent, type Poll } from "@wavvon/ui";
+import { BotAppLaunchCard, KeyboardShortcuts, DiscoverPage, Lobby, HubSetupWizard, ChannelContextMenu, EventComposer, PollComposer, type CreateEventPayload, type HubEvent, type Poll } from "@wavvon/ui";
 import { VoiceMoveMenu, VoiceMoveToast, VoiceMovePromptModal, SearchBar, moveChannelOptions, computeDragIntent } from "@wavvon/ui";
 import { useVoiceMoveUx, usePresenceStatus, useHubSetupWizardGate, useSoundboardChips } from "@wavvon/ui";
 import { useWhisperKeybinds, pickReplyPubkey, WhisperInbox } from "@wavvon/ui";
@@ -58,7 +55,6 @@ import { useVideo } from "./hooks/useVideo";
 import { useWhisper } from "./hooks/useWhisper";
 import { useAddHubFlow } from "./hooks/useAddHubFlow";
 import { useChannelCrud } from "./hooks/useChannelCrud";
-import { useFarmAdmin } from "./hooks/useFarmAdmin";
 import { VideoGrid } from "./components/VideoGrid";
 import { type ThemeId, type WavvonSkin, applySkinTokens, clearSkinTokens } from "@wavvon/ui";
 import {
@@ -88,7 +84,6 @@ import { useSlashCommands } from "./hooks/useSlashCommands";
 import { ChannelPalette } from "./components/ChannelPalette";
 import { SettingsPageContainer } from "./components/SettingsPageContainer";
 import { HubAdminContainer } from "./components/HubAdminContainer";
-import { farmSettingsActions } from "./hooks/hubAdminActions";
 import { AddHubModal } from "@wavvon/ui";
 import { QuickInviteModal } from "@wavvon/ui";
 import { ChannelSettingsModal, type BannerSource } from "@wavvon/ui";
@@ -223,8 +218,6 @@ function App() {
     return hubNotifyMode[hubId] ?? "all";
   }
 
-
-
   // Hydrate collapsed-category state on launch.
   useEffect(() => {
     invoke<Record<string, Record<string, boolean>>>("load_collapsed_categories")
@@ -242,7 +235,6 @@ function App() {
       .then((s) => setIgnoredUsers(new Set(s ?? [])))
       .catch(() => {});
   }, []);
-
 
   const [publicKey, setPublicKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -525,7 +517,6 @@ function App() {
     );
   }
 
-
   const {
     userAlliances,
     setUserAlliances,
@@ -717,18 +708,7 @@ function App() {
     }).catch(() => setToast("Not connected"));
   }
 
-  const {
-    showFarmSettings,
-    setShowFarmSettings,
-    farmAdminTab,
-    setFarmAdminTab,
-    farmAdminUrl,
-    isFarmAdmin,
-    showCreateHub,
-    setShowCreateHub,
-    knownFarms,
-  } = useFarmAdmin({ publicKey, hubs });
-
+  
   const settingsProfile = useSettingsProfile({
     setPublicKey,
     setError,
@@ -794,8 +774,6 @@ function App() {
     const t = setTimeout(() => setToast(null), 5000);
     return () => clearTimeout(t);
   }, [toast]);
-
-
 
   useEffect(() => {
     if (voice.shareError) setToast(voice.shareError);
@@ -1153,7 +1131,6 @@ function App() {
     setShowWelcome(false);
   }
 
-
   const channelTree = useMemo(() => {
     return buildChannelTree(channels);
   }, [channels]);
@@ -1454,15 +1431,7 @@ function App() {
         />
       )}
       <>
-        {showFarmSettings ? (
-          <FarmSettingsPage
-            farmUrl={farmAdminUrl}
-            tab={farmAdminTab}
-            onTab={setFarmAdminTab}
-            onClose={() => setShowFarmSettings(false)}
-            actions={farmSettingsActions}
-          />
-        ) : showHubAdmin ? (
+        {showHubAdmin ? (
           <HubAdminContainer
             tab={hubAdminTab}
             onTab={setHubAdminTab}
@@ -1560,10 +1529,7 @@ function App() {
               onSetHubNotifyMode={setHubMode}
               onHubReorder={handleHubReorder}
               onAddHub={() => setShowAddHub(true)}
-              onCreateHub={() => setShowCreateHub(true)}
               onDiscover={() => setShowDiscover((v) => !v)}
-              onFarmSettings={() => { setShowFarmSettings(true); setFarmAdminTab("general"); }}
-              isFarmAdmin={isFarmAdmin}
             />
             {showDiscover && DISCOVERY_URL ? (
               <DiscoverPage
@@ -2081,27 +2047,6 @@ function App() {
           <KeyboardShortcuts onClose={() => setShowKeyboardShortcuts(false)} />
         )}
 
-        {showCreateHub && (
-          <CreateHubWizard
-            knownFarms={knownFarms}
-            onProbeFarm={(farmUrl) => invoke<FarmPublicInfo>("probe_farm", { farmUrl })}
-            onGetFarmHubQuota={(farmUrl) => invoke<FarmHubQuota>("get_farm_hub_quota", { farmUrl })}
-            onCreateHubOnFarm={(farmUrl, name, description, visibility) =>
-              invoke<CreatedFarmHub>("create_hub_on_farm", { farmUrl, name, description, visibility })
-            }
-            onAddHub={(hubUrl) => invoke<Hub>("add_hub_by_url", { hubUrl })}
-            onHubCreated={(hub) => {
-              setHubs((prev) => {
-                if (prev.some((h) => h.hub_id === hub.hub_id)) return prev;
-                return [...prev, hub];
-              });
-              setActiveHubId(hub.hub_id);
-              setShowCreateHub(false);
-              invoke("publish_dh_key").catch(() => {});
-            }}
-            onClose={() => setShowCreateHub(false)}
-          />
-        )}
       </>
     </div>
   );

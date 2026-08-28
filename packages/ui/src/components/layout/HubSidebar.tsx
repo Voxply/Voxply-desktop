@@ -27,7 +27,6 @@ interface Props {
    * has navigated away from. */
   lobbyHubIds?: Set<string>;
   hasActiveHub: boolean;
-  isFarmAdmin: boolean;
   onSwitchToDms: () => void;
   onSwitchHub: (hubId: string) => void;
   onRemoveHub: (hubId: string) => void;
@@ -37,12 +36,10 @@ interface Props {
   /** Both unset hides the `+` entirely — the hub build has no second hub to
    *  add and no wizard to reach. */
   onAddHub?: () => void;
-  onCreateHub?: () => void;
   /** Absent when no hub directory is configured, and then the ⊕ button is
    *  not rendered at all — the sidebar had a permanent entry to a page that
    *  fetched a hostname which does not resolve. */
   onDiscover?: () => void;
-  onFarmSettings: () => void;
 }
 
 interface HubContextMenu {
@@ -53,9 +50,9 @@ interface HubContextMenu {
 
 export function HubSidebar({
   hubs, activeHubId, view, showDiscover, unreadDms, unreadByHub, pingByHub,
-  hubNotifyMode, lobbyHubIds, hasActiveHub, isFarmAdmin,
+  hubNotifyMode, lobbyHubIds, hasActiveHub,
   onSwitchToDms, onSwitchHub, onRemoveHub, onSetHubNotifyMode,
-  onHubReorder, onAddHub, onCreateHub, onDiscover, onFarmSettings,
+  onHubReorder, onAddHub, onDiscover,
 }: Props) {
   const { t } = useTranslation();
   const dndSensors = useSensors(
@@ -63,22 +60,9 @@ export function HubSidebar({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  // Fixed-position popover (matches the channel-list context-menu pattern):
-  // .hub-sidebar clips overflow-x, so a plain position:absolute popover
-  // anchored inside it gets silently clipped and never paints.
-  const [addMenuOpen, setAddMenuOpen] = useState(false);
-  const [addMenuPos, setAddMenuPos] = useState<{ x: number; y: number } | null>(null);
-  const plusButtonRef = useRef<HTMLButtonElement>(null);
   const [focusedIndex, setFocusedIndex] = useState(0);
   const hubButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [hubContextMenu, setHubContextMenu] = useState<HubContextMenu | null>(null);
-
-  function toggleAddMenu() {
-    if (addMenuOpen) { setAddMenuOpen(false); return; }
-    const rect = plusButtonRef.current?.getBoundingClientRect();
-    if (rect) setAddMenuPos({ x: rect.right + 8, y: rect.top });
-    setAddMenuOpen(true);
-  }
 
   const handleHubKeyDown = useCallback((e: React.KeyboardEvent, index: number) => {
     if (e.key === "ArrowDown") {
@@ -195,39 +179,10 @@ export function HubSidebar({
         </SortableContext>
       </DndContext>
 
-      {(onAddHub || onCreateHub) && (
-        <button
-          ref={plusButtonRef}
-          className="hub-icon add"
-          onClick={toggleAddMenu}
-          title={t("hub.add_or_create")}
-        >
+      {onAddHub && (
+        <button className="hub-icon add" onClick={onAddHub} title={t("hub.join")}>
           +
         </button>
-      )}
-      {addMenuOpen && addMenuPos && (
-        <div
-          className="context-menu-overlay"
-          onClick={() => setAddMenuOpen(false)}
-          onContextMenu={(e) => { e.preventDefault(); setAddMenuOpen(false); }}
-        >
-          <div
-            className="context-menu"
-            style={{ top: addMenuPos.y, left: addMenuPos.x }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {onAddHub && (
-              <button className="context-menu-item" onClick={() => { setAddMenuOpen(false); onAddHub(); }}>
-                {t("hub.join")}
-              </button>
-            )}
-            {onCreateHub && (
-              <button className="context-menu-item" onClick={() => { setAddMenuOpen(false); onCreateHub(); }}>
-                {t("hub.create")}
-              </button>
-            )}
-          </div>
-        </div>
       )}
 
       {onDiscover && (
@@ -242,17 +197,6 @@ export function HubSidebar({
           </button>
         </>
       )}
-      {isFarmAdmin && (
-        <button
-          className="hub-icon"
-          onClick={onFarmSettings}
-          title={t("hub.farm_settings")}
-          style={{ fontSize: 14 }}
-        >
-          ⚙
-        </button>
-      )}
-
       {hubContextMenu && contextHub && (
         <div
           className="context-menu-overlay"

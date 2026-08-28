@@ -5,7 +5,7 @@ import { expect, type Browser, type BrowserContext, type Page } from "@playwrigh
 // as builtin-owner. See e2e/live/README.md for the launch recipe.
 // The hub this suite drives, and the app origin it drives it from. Both are
 // overridable so the suite is not tied to one machine: CI starts its own hub
-// and its own vite, and pointing WAVVON_E2E_HUB_URL at a farm-hosted
+// and its own vite, and pointing WAVVON_E2E_HUB_URL at a path-hosted
 // `/hub/<slug>` is how the same 57 specs cover that path too.
 //
 // They were consts, and that is the whole reason the live suite only ever ran

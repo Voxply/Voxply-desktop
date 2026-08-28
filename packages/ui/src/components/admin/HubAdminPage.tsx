@@ -117,7 +117,7 @@ export interface HubAdminPageProps {
   invites: InviteInfo[];
   activeHubUrl: string;
   /** This hub's stable serial (its public key) — embedded in invite links so a
-   *  farm can route the same domain to different hubs. */
+   *  one host can route the same domain to different hubs. */
   onCreateInvite: (maxUses: number | null, expiresInSeconds: number | null, grantRoleId: string | null) => void;
   onRevokeInvite: (code: string) => void;
 

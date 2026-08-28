@@ -8,7 +8,6 @@ import { useHubConnection } from "./hooks/useHubConnection";
 import { useHubAdmin } from "./hooks/useHubAdmin";
 import { useAlliances } from "./hooks/useAlliances";
 import { useSettingsProfile } from "./hooks/useSettingsProfile";
-import { useFarmAdmin } from "./hooks/useFarmAdmin";
 import { useWhisper } from "./hooks/useWhisper";
 import { pickReplyPubkey, useWhisperKeybinds } from "@wavvon/ui";
 import { useScreenShare } from "./hooks/useScreenShare";
@@ -27,7 +26,7 @@ import type { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { flattenTree, descendantIds, computeDepth, channelPath, inviteCodeFromPath } from "@wavvon/core";
 import { getScoped, setScoped } from "./utils/accountScope";
-import { DISCOVERY_NEW_HUB_URL, DISCOVERY_URL, HUB_SETUP_COMMAND, MULTI_HUB } from "./constants";
+import { DISCOVERY_URL, MULTI_HUB } from "./constants";
 import { handoffTargetUrl } from "./utils/handoffTarget";
 import type {
   Channel,
@@ -60,15 +59,13 @@ import { isPasskeySupported } from "@platform";
 import { QuickInviteModal } from "@wavvon/ui";
 import { ChannelSettingsModal } from "@wavvon/ui";
 import { EditDescriptionModal } from "@wavvon/ui";
-import { CreateHubFork } from "@components/hubs/CreateHubFork";
-import { BotAppLaunchCard, EventComposer, PollComposer, FocusTrap, GameModal, KeyboardShortcuts, ChannelContextMenu, VoiceMoveMenu, VoiceMoveToast, VoiceMovePromptModal, SearchBar, DiscoverPage, Lobby, FarmSettingsPage, HubSetupWizard } from "@wavvon/ui";
+import { BotAppLaunchCard, EventComposer, PollComposer, FocusTrap, GameModal, KeyboardShortcuts, ChannelContextMenu, VoiceMoveMenu, VoiceMoveToast, VoiceMovePromptModal, SearchBar, DiscoverPage, Lobby, HubSetupWizard } from "@wavvon/ui";
 import { createEvent, createPoll } from "@platform";
 import { moveChannelOptions, computeDragIntent } from "@wavvon/ui";
 import { useVoiceMoveUx, usePresenceStatus, useHubSetupWizardGate } from "@wavvon/ui";
 import { HubAdminContainer } from "@components/admin/HubAdminContainer";
 import {
   channelPermissionsTabActions, channelBansTabActions, channelTalkPowerTabActions,
-  farmSettingsActions,
 } from "./platform/adminActions";
 import { WelcomeScreenContainer } from "@components/layout/WelcomeScreen";
 import { SettingsPageContainer } from "@components/settings/SettingsPageContainer";
@@ -367,15 +364,6 @@ export default function App({ initialView }: AppProps = {}) {
     fetchAllUsers().then(setUsers).catch(() => {});
   }
 
-  // === Farm admin ===
-  const {
-    showFarmSettings, setShowFarmSettings,
-    farmAdminTab, setFarmAdminTab,
-    farmAdminUrl,
-    isFarmAdmin,
-    showCreateHub, setShowCreateHub,
-    knownFarms,
-  } = useFarmAdmin({ publicKey, hubs });
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
 
   // === New web-only UI state ===
@@ -883,7 +871,7 @@ export default function App({ initialView }: AppProps = {}) {
     handleAddHubWithPasskey,
   } = useAddHubFlow({
     publicKey, stableHandlers, hubsRef, setHubs, setActiveHubIdState, loadHubData,
-    setShowCreateHub, applyDeepLinkTarget, t,
+    applyDeepLinkTarget, t,
   });
 
   // An invite link is `https://hub.example/join/<code>`, and the hub serves
@@ -1189,8 +1177,6 @@ export default function App({ initialView }: AppProps = {}) {
     showKeyboardShortcuts, setShowKeyboardShortcuts,
     showSettings, setShowSettings,
     showHubAdmin, setShowHubAdmin,
-    showFarmSettings, setShowFarmSettings,
-    showCreateHub, setShowCreateHub,
     showAddHub, setShowAddHub,
     showQuickInvite, setShowQuickInvite,
     showSearchBar, setShowSearchBar,
@@ -1392,45 +1378,6 @@ export default function App({ initialView }: AppProps = {}) {
         />
       )}
 
-      {showFarmSettings && (
-        <FarmSettingsPage
-          farmUrl={farmAdminUrl}
-          tab={farmAdminTab}
-          onTab={setFarmAdminTab}
-          onClose={() => setShowFarmSettings(false)}
-          actions={farmSettingsActions}
-        />
-      )}
-
-      {MULTI_HUB && showCreateHub && (
-        <CreateHubFork
-          knownFarms={knownFarms}
-          wsHandlers={stableHandlers}
-          onHubCreated={(hub) => {
-            setHubs((prev) => {
-              if (prev.some((h) => h.hub_id === hub.hub_id)) return prev;
-              return [...prev, hub];
-            });
-            setActiveHubIdState(hub.hub_id);
-            setShowCreateHub(false);
-          }}
-          discoveryNewUrl={DISCOVERY_NEW_HUB_URL}
-          setupCommand={HUB_SETUP_COMMAND}
-          inviteValue={hubUrl}
-          onInviteChange={handleHubUrlInput}
-          inviteLoading={addingHub}
-          inviteError={addHubError}
-          onRedeemInvite={handleAddHub}
-          onClose={() => {
-            setShowCreateHub(false);
-            setHubUrl("");
-            setInviteCode("");
-            setHubPreview({ state: "idle" });
-            setAddHubError(null);
-          }}
-        />
-      )}
-
       <MobileShell
         showHubSidebar
         showChannelSidebar
@@ -1448,7 +1395,6 @@ export default function App({ initialView }: AppProps = {}) {
         hubNotifyMode={hubNotifyMode}
         lobbyHubIds={lobbyHubs}
         hasActiveHub={!!activeHubId}
-        isFarmAdmin={isFarmAdmin}
         onSwitchToDms={() => setView("dms")}
         onSwitchHub={handleSwitchHub}
         onRemoveHub={handleRemoveHub}
@@ -1457,9 +1403,7 @@ export default function App({ initialView }: AppProps = {}) {
         }
         onHubReorder={handleHubReorder}
         onAddHub={MULTI_HUB ? () => setShowAddHub(true) : undefined}
-        onCreateHub={MULTI_HUB ? () => setShowCreateHub(true) : undefined}
         onDiscover={DISCOVERY_URL ? () => setShowDiscover(true) : undefined}
-        onFarmSettings={() => { setShowFarmSettings(true); setFarmAdminTab("general"); }}
       />
 
       <ChannelSidebarContainer

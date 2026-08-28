@@ -66,15 +66,6 @@ const DIRECTORY_URL: string | null = null;
 
 export const DISCOVERY_URL: string | null = MULTI_HUB ? DIRECTORY_URL : null;
 
-/** The wizard's hub-creation page, or null when there is no directory. */
-export const DISCOVERY_NEW_HUB_URL: string | null =
-  DISCOVERY_URL === null ? null : `${DISCOVERY_URL}/new`;
-
-// The offline self-host one-liner (hub-creation-wizard.md §4). Interactive:
-// asks name/preset/domain-or-LAN/TLS, emits compose + env, starts the hub,
-// and prints the one-time owner invite link + QR.
-export const HUB_SETUP_COMMAND = "wavvon-hub setup";
-
 export const ALL_PERMISSIONS: { id: string; label: string }[] = [
   { id: "admin", label: "Administrator (grants everything)" },
   { id: "manage_channels", label: "Manage channels" },

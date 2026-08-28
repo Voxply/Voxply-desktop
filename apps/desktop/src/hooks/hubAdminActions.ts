@@ -7,10 +7,6 @@ import type {
   BotAdminInfo,
   BotDetailInfo,
   BotCreatedResult,
-  FarmSettings,
-  FarmHubEntry,
-  FarmUserEntry,
-  FarmServerEntry,
 } from "../types";
 import type {
   RolesSectionActions,
@@ -25,7 +21,6 @@ import type {
   AlliancesSectionActions,
   HubIconsSectionActions,
   SurveyAdminSectionActions,
-  FarmSettingsActions,
   HubIcon,
   WebhookInfo,
   WebhookCreatedResult,
@@ -178,8 +173,6 @@ export function makeExternalBotActions(getHubUrl: () => string): ExternalBotSect
   };
 }
 
-
-
 export function makeAuditLogActions(getHubUrl: () => string): AuditLogSectionActions {
   return {
     getAuditLog: (opts) =>
@@ -225,21 +218,3 @@ export function makeSurveyActions(getHubUrl: () => string): SurveyAdminSectionAc
   };
 }
 
-// FarmSettingsPage's actions are all parameterized by farmUrl per call —
-// no App state involved either, so this is a stable module-level const too.
-export const farmSettingsActions: FarmSettingsActions = {
-  getSettings: (farmUrl) => invoke<FarmSettings>("get_farm_settings", { farmUrl }),
-  patchSettings: (farmUrl, settings) => invoke<FarmSettings>("patch_farm_settings", { farmUrl, settings }),
-  getHubs: (farmUrl) => invoke<{ hubs: FarmHubEntry[] }>("get_farm_hubs_admin", { farmUrl }),
-  suspendHub: (farmUrl, hubId, suspended, reason) => invoke("suspend_farm_hub", { farmUrl, hubId, suspended, reason }),
-  deleteHub: (farmUrl, hubId) => invoke("delete_farm_hub", { farmUrl, hubId }),
-  getUsers: (farmUrl, page, limit) =>
-    invoke<{ users: FarmUserEntry[]; total: number; page: number; limit: number }>("get_farm_users", { farmUrl, page, limit }),
-  revokeUserSessions: (farmUrl, pubkey) => invoke("revoke_farm_user_sessions", { farmUrl, pubkey }),
-  getServers: (farmUrl) => invoke<{ servers: FarmServerEntry[] }>("get_farm_servers", { farmUrl }),
-  generateServerToken: (farmUrl, name, region) =>
-    invoke<{ server_id: string; token: string }>("generate_farm_server_token", { farmUrl, name, region }),
-  totpSetup: (farmUrl) => invoke<{ secret: string; qr_url: string }>("farm_totp_setup", { farmUrl }),
-  totpConfirm: (farmUrl, secret, code) => invoke("farm_totp_confirm", { farmUrl, secret, code }),
-  totpDisable: (farmUrl, code) => invoke("farm_totp_disable", { farmUrl, code }),
-};

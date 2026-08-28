@@ -37,7 +37,7 @@ interface InfoResponse {
   capabilities?: string[];
   /** Display and "very old hub" warnings only. Not a feature gate. */
   version?: string;
-  /** The address this hub says to use for it. Changes when a farm-hosted hub
+  /** The address this hub says to use for it. Changes when a path-hosted hub
    * is renamed; the client follows it, keyed on the pubkey that doesn't. */
   canonical_url?: string | null;
   farm_url?: string | null;
@@ -208,13 +208,13 @@ export async function refreshHubInfo(
     );
     const capabilities = info.capabilities ?? [];
 
-    // Follow the hub if it has moved. A farm-hosted hub lives at an
+    // Follow the hub if it has moved. A path-hosted hub lives at an
     // owner-chosen name that can change, and `canonical_url` is how it tells
     // us the current one — so a rename costs nobody their session.
     //
     // Safe precisely because we are keyed on the pubkey: we only change *where*
     // we look, never who we believe we are talking to. And we only accept this
-    // from a hub whose key we have already verified, so a farm handing out a
+    // from a hub whose key we have already verified, so a host handing out a
     // bogus address gets caught on the first /info at the new one.
     const movedTo =
       info.canonical_url && info.canonical_url !== s.hub_url ? info.canonical_url : null;

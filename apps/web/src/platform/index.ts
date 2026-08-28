@@ -62,26 +62,6 @@ export type { UnreadCount } from "./commands/messages";
 export { sendComponentInteraction, sendBotAppJoin, listBotCommands, listBots, getBotProfile } from "./commands/bots";
 
 export {
-  probeFarm,
-  getFarmInfo,
-  getFarmHubQuota,
-  getFarmSettings,
-  patchFarmSettings,
-  getFarmHubsAdmin,
-  suspendFarmHub,
-  deleteFarmHub,
-  getFarmUsers,
-  revokeFarmUserSessions,
-  createHubOnFarm,
-  getFarmServers,
-  generateFarmServerToken,
-  farmTotpSetup,
-  farmTotpConfirm,
-  farmTotpDisable,
-} from "./commands/farms";
-export type { FarmServerEntry } from "./commands/farms";
-
-export {
   listConversations,
   createConversation,
   getDmMessages,

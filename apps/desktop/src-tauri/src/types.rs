@@ -553,59 +553,6 @@ pub(crate) struct InviteInfo {
 }
 
 // ---------------------------------------------------------------------------
-// Farm types
-// ---------------------------------------------------------------------------
-
-#[derive(Serialize, Deserialize, Clone)]
-pub(crate) struct FarmPublicInfo {
-    pub kind: Option<String>,
-    pub name: String,
-    pub description: String,
-    pub creation_policy: String,
-    pub hub_count: u32,
-    pub max_hubs_total: u32,
-    pub allow_discovery_listing: bool,
-    pub country: String,
-    pub region: String,
-    pub languages: Vec<String>,
-    pub tags: Vec<String>,
-    pub icon: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub(crate) struct FarmHubQuota {
-    pub hubs_owned_by_user: u32,
-    pub max_hubs_per_user: u32,
-    pub total_hubs: u32,
-    pub max_hubs_total: u32,
-    pub can_create: bool,
-    pub reason: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub(crate) struct FarmSettings {
-    pub name: String,
-    pub description: String,
-    pub creation_policy: String,
-    pub max_hubs_per_user: u32,
-    pub max_hubs_total: u32,
-    pub allow_discovery_listing: bool,
-    pub directory_public: bool,
-    pub languages: Vec<String>,
-    pub tags: Vec<String>,
-    pub country: String,
-    pub region: String,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub(crate) struct CreatedFarmHub {
-    pub id: String,
-    pub url: String,
-    pub hub_pubkey: String,
-    pub name: String,
-    pub visibility: String,
-    pub created_at: i64,
-}
 
 // ---------------------------------------------------------------------------
 // Recovery contacts

@@ -80,7 +80,7 @@ export function updateSavedHub(hubId: string, name: string, icon: string | null)
 /**
  * Follow a hub that has changed address.
  *
- * A farm-hosted hub lives at an owner-chosen name (`/hub/MangiaDaPippo`), and
+ * A hub sharing a host lives at an owner-chosen name (`/hub/MangiaDaPippo`), and
  * that name can change. The hub reports its current one as `canonical_url` on
  * `/info`, so a rename reaches every client that reconnects — no broken
  * sessions, no re-adding the hub by hand.

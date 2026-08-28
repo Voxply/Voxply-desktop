@@ -2,9 +2,9 @@ export interface HubInputResult {
   hubUrl: string;
   inviteCode: string;
   /**
-   * Stable hub identifier (its public key) carried by farm-ready invite links
+   * Stable hub identifier (its public key) carried by invite links
    * of the form `.../i/<hubSerial>/<inviteCode>`. When present the client can
-   * verify it connected to the intended hub (and, in a farm, the same domain
+   * verify it connected to the intended hub (one host can serve several, so the same domain
    * can route to different hubs by serial). Empty for legacy host-only links.
    */
   hubSerial?: string;
@@ -50,17 +50,17 @@ function parseJoinPath(codePart: string): string | null {
 }
 
 /**
- * Split a farm-hosted path into the hub's base and the rest.
+ * Split a path-prefixed hub URL into the hub's base and the rest.
  *
- * A hub on a farm lives *under* a path — `https://farm.example/hub/pippo` —
+ * One host can serve several hubs, each under a path — `https://host.example/hub/pippo` —
  * so its base URL is the origin plus that prefix, and everything after it is
  * the ordinary hub path. Without this, a link like
- * `https://farm.example/hub/pippo/join/abc` parses to the farm's root with no
+ * `https://host.example/hub/pippo/join/abc` parses to the host's root with no
  * invite code: the user gets added to nothing, or to the wrong thing.
  *
- * `/hub/<x>` is not guesswork — it is the farm's one and only proxy route.
+ * `/hub/<x>` is not guesswork — it is the one and only proxy route such a host exposes.
  */
-function splitFarmPath(pathname: string): { prefix: string; rest: string } {
+function splitHubPathPrefix(pathname: string): { prefix: string; rest: string } {
   const segments = pathname.split("/").filter(Boolean);
   if (segments[0] === "hub" && segments[1]) {
     return {
@@ -109,8 +109,8 @@ function parseDeepLinkTarget(codePart: string): HubInputResult["target"] {
  * remains accepted by parseHubInput for old links).
  * Round-trips through parseHubInput.
  *
- * `hubUrl` is a base, not a bare host: a farm-hosted hub lives under
- * `https://farm.example/hub/MangiaDaPippo`, and appending `/join/<code>` to
+ * `hubUrl` is a base, not a bare host: a hub sharing a host with others lives under
+ * `https://host.example/hub/MangiaDaPippo`, and appending `/join/<code>` to
  * that is already the right link. It used to take a separate `hubSerial` for
  * a serial-routed form that this never built — the address the client holds
  * carries the routing now, so the argument is gone rather than ignored.
@@ -137,7 +137,7 @@ export function parseHubInput(raw: string): HubInputResult | null {
     const isLocal =
       hostPart.startsWith("localhost") || hostPart.startsWith("127.");
     const hubUrl = `${isLocal ? "http" : "https"}://${hostPart}`;
-    // Farm-ready invite: wavvon://host/i/<hubSerial>/<inviteCode>
+    // Invite carrying the hub's serial: wavvon://host/i/<hubSerial>/<inviteCode>
     const invite = parseInvitePath(codePart);
     if (invite) {
       return { hubUrl, inviteCode: invite.inviteCode, hubSerial: invite.hubSerial };
@@ -158,12 +158,12 @@ export function parseHubInput(raw: string): HubInputResult | null {
   if (/^https?:\/\//i.test(trimmed)) {
     try {
       const url = new URL(trimmed);
-      // A farm-hosted hub's base URL includes its /hub/<slug> prefix; for a
+      // A path-hosted hub's base URL includes its /hub/<slug> prefix; for a
       // standalone hub the prefix is empty and this is just the origin.
-      const { prefix, rest } = splitFarmPath(url.pathname);
+      const { prefix, rest } = splitHubPathPrefix(url.pathname);
       const hubUrl = `${url.protocol}//${url.host}${prefix}`;
       const fingerprint = extractFingerprint(url);
-      // Farm-ready invite path: https://host/i/<hubSerial>/<inviteCode>
+      // Serial-carrying invite path: https://host/i/<hubSerial>/<inviteCode>
       const invite = parseInvitePath(rest);
       if (invite) {
         return {

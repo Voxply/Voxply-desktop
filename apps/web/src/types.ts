@@ -4,9 +4,6 @@
 // HTTP endpoints. Keep them in sync with the Rust side; a renamed
 // field in src-tauri or server/wavvon-hub means a rename here too.
 
-import type { FarmSettings, FarmHubEntry, FarmUserEntry } from "@wavvon/ui";
-export type { FarmSettings, FarmHubEntry, FarmUserEntry };
-
 export interface Channel {
   id: string;
   name: string;
@@ -444,7 +441,6 @@ export interface BotDetailInfo extends BotAdminInfo {
   commands: BotSlashCommandInfo[];
 }
 
-
 // ---- Bot message types ----
 
 export type {
@@ -452,37 +448,6 @@ export type {
   BotCommandDef, BotProfile,
 } from "@wavvon/ui";
 export type { ExternalBotRow, ExternalBotInviteResult } from "@wavvon/ui";
-
-// ---- Farm ----
-
-export type FarmCreationPolicy = "open" | "admin_only" | "disabled";
-
-export interface FarmUsersResponse {
-  users: FarmUserEntry[];
-  total: number;
-  page: number;
-  limit: number;
-  next_cursor: string | null;
-}
-
-export type { FarmPublicInfo } from "@wavvon/ui";
-
-export interface FarmInfo {
-  kind: "wavvon-farm";
-  name: string;
-  description: string;
-  public_key: string;
-  admin_pubkey: string;
-  directory_public: boolean;
-  policy: {
-    creation_policy: FarmCreationPolicy;
-    max_hubs_per_creator: number;
-    hub_creation_open: boolean;
-    allow_discovery_listing: boolean;
-  };
-}
-
-export type { FarmHubQuota, CreatedFarmHub } from "@wavvon/ui";
 
 // ---- Webhooks ----
 

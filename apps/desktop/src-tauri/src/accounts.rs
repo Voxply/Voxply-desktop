@@ -38,7 +38,7 @@
 // pairing.rs/auth_creds.rs's paired_identity_path(), home_hub.rs's
 // home_hub_list_path(), dm.rs's dr_sessions_path()/group_sender_keys_path(),
 // local_store.rs's per-user path helpers) now delegates to the *_path()
-// functions below, so every existing call site (devices.rs, dm.rs, farm.rs,
+// functions below, so every existing call site (devices.rs, dm.rs, recovery.rs,
 // identity_cmd.rs, pairing.rs, home_hub.rs, local_store.rs) keeps working
 // unchanged, transparently re-targeted at the active account.
 //

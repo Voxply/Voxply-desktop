@@ -6,8 +6,6 @@
 
 // Channel is shared with the channel-tree helpers in @wavvon/utils.
 export type { Channel } from "@wavvon/core";
-import type { FarmSettings, FarmHubEntry, FarmUserEntry, FarmServerEntry } from "@wavvon/ui";
-export type { FarmSettings, FarmHubEntry, FarmUserEntry, FarmServerEntry };
 
 export interface HubIcon {
   id: string;
@@ -56,7 +54,6 @@ export type { Hub } from "@wavvon/ui";
 
 import type { RoleInfo, RoleCategory, Friend, UserProfile, BadgeSummary, FavoriteHub, PublicHubEntry, PublicHubProfile } from "@wavvon/ui";
 export type { RoleInfo, RoleCategory, Friend, UserProfile, BadgeSummary, FavoriteHub, PublicHubEntry, PublicHubProfile };
-
 
 export interface MeInfo {
   public_key: string;
@@ -389,37 +386,6 @@ export interface ExternalBotInviteResult {
   bot_invite_token: string;
   pubkey: string;
 }
-
-// ---- Farm ----
-
-export type FarmCreationPolicy = "open" | "admin_only" | "disabled";
-
-export interface FarmUsersResponse {
-  users: FarmUserEntry[];
-  total: number;
-  page: number;
-  limit: number;
-  next_cursor: string | null;
-}
-
-export type { FarmPublicInfo } from "@wavvon/ui";
-
-export interface FarmInfo {
-  kind: "wavvon-farm";
-  name: string;
-  description: string;
-  public_key: string;
-  admin_pubkey: string;
-  directory_public: boolean;
-  policy: {
-    creation_policy: FarmCreationPolicy;
-    max_hubs_per_creator: number;
-    hub_creation_open: boolean;
-    allow_discovery_listing: boolean;
-  };
-}
-
-export type { FarmHubQuota, CreatedFarmHub } from "@wavvon/ui";
 
 // ---- Webhooks ----
 

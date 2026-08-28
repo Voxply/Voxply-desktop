@@ -14,7 +14,7 @@ mod devices;
 mod discovery;
 mod dm;
 mod events_polls;
-mod farm;
+mod recovery;
 mod home_hub;
 mod hub_session;
 mod identity;
@@ -358,30 +358,14 @@ pub fn run() {
             lobby::survey_admin_get,
             lobby::survey_admin_put,
             lobby::survey_admin_responses,
-            // Farm management + recovery
-            farm::get_hub_info,
-            farm::get_farm_info,
-            farm::probe_farm,
-            farm::get_farm_hub_quota,
-            farm::get_farm_settings,
-            farm::patch_farm_settings,
-            farm::get_farm_hubs_admin,
-            farm::suspend_farm_hub,
-            farm::delete_farm_hub,
-            farm::get_farm_users,
-            farm::revoke_farm_user_sessions,
-            farm::create_hub_on_farm,
-            farm::get_farm_servers,
-            farm::generate_farm_server_token,
-            farm::farm_totp_setup,
-            farm::farm_totp_confirm,
-            farm::farm_totp_disable,
-            farm::get_recovery_contacts,
-            farm::set_recovery_contacts,
-            farm::remove_recovery_contact,
-            farm::submit_rotation_request,
-            farm::get_rotation_request_bundle,
-            farm::attest_rotation_request,
+            // Identity recovery + key rotation
+            recovery::get_hub_info,
+            recovery::get_recovery_contacts,
+            recovery::set_recovery_contacts,
+            recovery::remove_recovery_contact,
+            recovery::submit_rotation_request,
+            recovery::get_rotation_request_bundle,
+            recovery::attest_rotation_request,
             // Events and polls
             events_polls::list_events,
             events_polls::rsvp_event,
