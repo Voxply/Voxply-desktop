@@ -249,6 +249,16 @@ the `run-web` skill; say plainly when you could not verify something visually.
 - Type-only imports for interfaces. One component per file, keep them small.
 - Prefer one fixed home per UI control — avoid context-dependent relocation.
 - Any user-visible string goes through i18n; run `npm run check-i18n` from `apps/web` if you touched catalogs.
+- **Four languages, all four in the bundle, and that is on purpose.** Measured
+  2026-08-29 with two real builds of `apps/web`: the three unused catalogues
+  cost **44.7 KB brotli out of 541 KB — 8%**, about 15 KB brotli per language
+  (much less than the ~25 KB each weighs alone, since the 1,336 keys are
+  identical across catalogues and compress away). Don't split them into
+  per-language chunks yet and don't re-measure: the trigger is the **fifth**
+  language, and at that point it is one line in `initI18n`, which already
+  receives the language before the app mounts. Downloadable packs are a
+  separate, larger thing gated on desktop delivery — see the docs wiki's
+  `future-features.md`.
 - **Two i18n checks, and they catch different things.** `check-i18n` proves
   every key in `en.json` exists in it/es/de. It cannot see a string that never
   became a key, which is how ~1,100 hardcoded English strings accumulated in an
