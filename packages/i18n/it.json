@@ -1230,6 +1230,7 @@
   "hub.admin.certs.trusted.label": "Chiavi pubbliche degli emittenti attendibili",
   "hub.admin.certs.trusted.hint": "Vengono accettate solo le certificazioni di queste chiavi pubbliche.",
   "hub.admin.certs.trusted.placeholder": "Chiave pubblica dell'hub (hex)",
+  "hub.admin.certs.trusted.url_placeholder": "https://emittente.example (facoltativo)",
   "hub.admin.certs.trusted.remove": "Rimuovi",
   "hub.admin.certs.trusted.add": "Aggiungi",
   "hub.admin.certs.auto.label": "Emissione automatica",

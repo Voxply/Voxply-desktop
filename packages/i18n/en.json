@@ -1230,6 +1230,7 @@
   "hub.admin.certs.trusted.label": "Trusted issuer pubkeys",
   "hub.admin.certs.trusted.hint": "Only certifications from these hub pubkeys are accepted.",
   "hub.admin.certs.trusted.placeholder": "Hub pubkey (hex)",
+  "hub.admin.certs.trusted.url_placeholder": "https://issuer.example (optional)",
   "hub.admin.certs.trusted.remove": "Remove",
   "hub.admin.certs.trusted.add": "Add",
   "hub.admin.certs.auto.label": "Auto-issue settings",

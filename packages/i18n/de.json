@@ -1230,6 +1230,7 @@
   "hub.admin.certs.trusted.label": "Öffentliche Schlüssel der vertrauenswürdigen Ausstellenden",
   "hub.admin.certs.trusted.hint": "Es werden nur Zertifizierungen dieser öffentlichen Schlüssel akzeptiert.",
   "hub.admin.certs.trusted.placeholder": "Öffentlicher Hub-Schlüssel (hex)",
+  "hub.admin.certs.trusted.url_placeholder": "https://aussteller.example (optional)",
   "hub.admin.certs.trusted.remove": "Entfernen",
   "hub.admin.certs.trusted.add": "Hinzufügen",
   "hub.admin.certs.auto.label": "Automatische Ausstellung",

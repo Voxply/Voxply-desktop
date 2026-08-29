@@ -137,11 +137,35 @@ export function CertificationsSection({ actions }: Props) {
           <label className="settings-label">{t("hub.admin.certs.trusted.label")}</label>
           <p className="muted">{t("hub.admin.certs.trusted.hint")}</p>
           {settings.cert_trusted_issuers.map((pk) => (
-            <div key={pk} className="settings-row" style={{ marginBottom: 4 }}>
+            <div key={pk} className="settings-row" style={{ marginBottom: 4, gap: 6 }}>
               <code className="pubkey-display">{formatPubkey(pk)}</code>
+              {/* An address is what makes trust usable: without one the hub
+                  can only honour a cert someone pushed, and nothing pushes.
+                  Optional on purpose — an issuer with no URL is still
+                  trusted, just not pullable. */}
+              <input
+                type="text"
+                value={settings.cert_issuer_urls?.[pk] ?? ""}
+                onChange={(e) => {
+                  const urls = { ...(settings.cert_issuer_urls ?? {}) };
+                  const url = e.target.value.trim();
+                  if (url) urls[pk] = url; else delete urls[pk];
+                  setSettings({ ...settings, cert_issuer_urls: urls });
+                }}
+                placeholder={t("hub.admin.certs.trusted.url_placeholder")}
+                style={{ flex: 1 }}
+              />
               <button
                 className="btn-secondary"
-                onClick={() => setSettings({ ...settings, cert_trusted_issuers: settings.cert_trusted_issuers.filter((x) => x !== pk) })}
+                onClick={() => {
+                  const urls = { ...(settings.cert_issuer_urls ?? {}) };
+                  delete urls[pk];
+                  setSettings({
+                    ...settings,
+                    cert_trusted_issuers: settings.cert_trusted_issuers.filter((x) => x !== pk),
+                    cert_issuer_urls: urls,
+                  });
+                }}
               >
                 {t("hub.admin.certs.trusted.remove")}
               </button>

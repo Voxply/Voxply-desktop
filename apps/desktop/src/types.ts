@@ -475,6 +475,11 @@ export interface CertSettings {
   cert_min_age_days: number;
   cert_validity_days: number;
   cert_trusted_issuers: string[];
+  /** issuer pubkey → base URL, for issuers this hub can pull a portfolio
+   *  from (hub-certifications.md §11). Sparse: an issuer without an
+   *  address is still trusted, just not pullable. Absent from hubs that
+   *  predate the field. */
+  cert_issuer_urls?: Record<string, string>;
 }
 
 // ---- Block / Ignore / DND ----
