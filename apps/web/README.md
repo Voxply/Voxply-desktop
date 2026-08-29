@@ -60,14 +60,25 @@ to run one in 2 minutes).
 From the repo root:
 
 ```bash
-pnpm --filter wavvon-web run build       # static bundle in apps/web/dist/
-pnpm --filter wavvon-web run typecheck   # tsc --noEmit
-pnpm --filter wavvon-web run test        # vitest
+pnpm --filter wavvon-web run build            # user build   → apps/web/dist/
+pnpm --filter wavvon-web run build:hub        # hub build    → apps/web/dist-hub/
+pnpm --filter wavvon-web run check-hub-build  # needs both of the above
+pnpm --filter wavvon-web run typecheck        # tsc --noEmit
+pnpm --filter wavvon-web run test             # vitest
 ```
 
-The production build is a static bundle — serve `apps/web/dist/` from
-any web server or CDN, or let a hub self-serve it via
-`WAVVON_WEB_CLIENT_DIR`.
+One codebase, two targets. The **user build** is the multi-hub client:
+add a hub, browse the directory, keep a home-hub list. The **hub build**
+(`VITE_BUILD_TARGET=hub`, from `.env.hub`) is that client minus every
+entry point that implies a second hub — it talks to the one hub that
+served it, and cross-hub features that route through that hub (alliance
+channels, forum, alliance voice) all still work.
+
+A hub self-serving the client via `WAVVON_WEB_CLIENT_DIR` wants
+`dist-hub/`; a general web server or CDN hosting the client for users
+wants `dist/`. `check-hub-build` proves each build actually drops the
+other's screens rather than hiding them — it reads the emitted bundles,
+so run both builds first.
 
 ## Where things live
 

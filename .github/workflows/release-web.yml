@@ -54,6 +54,12 @@ jobs:
       - name: Build web
         run: pnpm --filter wavvon-web build
 
+      - name: Build web (hub target)
+        run: pnpm --filter wavvon-web build:hub
+
+      - name: The two builds do not ship each other's screens
+        run: pnpm --filter wavvon-web run check-hub-build
+
       - name: Upload dist artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -61,10 +67,14 @@ jobs:
           path: apps/web/dist/**
           retention-days: 1
 
-      - name: Package dist as tarball
-        run: tar -czf web-dist.tar.gz -C apps/web dist
+      - name: Package both dists as tarballs
+        run: |
+          tar -czf web-dist.tar.gz -C apps/web dist
+          tar -czf web-dist-hub.tar.gz -C apps/web dist-hub
 
-      - name: Upload web-dist.tar.gz to GitHub Release
+      - name: Upload the tarballs to GitHub Release
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
         with:
-          files: web-dist.tar.gz
+          files: |
+            web-dist.tar.gz
+            web-dist-hub.tar.gz

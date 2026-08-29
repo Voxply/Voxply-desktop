@@ -105,7 +105,10 @@ pnpm --filter wavvon-desktop run tauri build
 # Output: apps/desktop/src-tauri/target/release/bundle/
 
 pnpm --filter wavvon-web run build
-# Output: apps/web/dist/  (static bundle, serve from any host or CDN)
+# Output: apps/web/dist/  (user build — multi-hub, serve from any host or CDN)
+
+pnpm --filter wavvon-web run build:hub
+# Output: apps/web/dist-hub/  (hub build — what a hub serves from its own origin)
 ```
 
 ## Downloads & installer warnings

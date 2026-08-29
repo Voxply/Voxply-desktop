@@ -97,8 +97,11 @@ export function HomeHubsSection({ activeHubUrl, account }: Props) {
     }
   }
 
+  // `home-hubs-section` carries no styling — it is the marker
+  // scripts/check-hub-build.mjs greps for to prove this screen is absent from
+  // the hub bundle. Renaming it turns that check green and meaningless.
   return (
-    <div className="settings-section" style={{ marginTop: 20 }}>
+    <div className="settings-section home-hubs-section" style={{ marginTop: 20 }}>
       <label className="settings-label">
         {t("settings.account.home_hubs.label")}
         <AccountLabelSuffix label={accountLabel} />

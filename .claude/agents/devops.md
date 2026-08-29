@@ -38,7 +38,7 @@ on purpose — don't "fix" it.
 ## Release artifacts
 
 - Desktop installers per platform.
-- A web `dist` tarball attached to the GitHub Release. **There is no central web deployment** — the hub's Docker image bakes `apps/web/dist` into `/web-client` and serves it. Every hub ships its own copy of the client, which is why the client must stay backward-tolerant of hubs (`capabilities`, never version comparisons).
+- Two web tarballs attached to the GitHub Release: `web-dist.tar.gz` (the user build, `apps/web/dist`) and `web-dist-hub.tar.gz` (the hub build, `apps/web/dist-hub`). The hub's Docker image bakes the **hub** build into `/web-client` and serves it; a bare-binary install pointing `WAVVON_WEB_CLIENT_DIR` at the user build would offer add-hub and directory screens on a hub's own origin. Every hub ships its own copy of the client, which is why the client must stay backward-tolerant of hubs (`capabilities`, never version comparisons).
 - Windows code-signing is not currently available to this project; releases ship unsigned with a documented SmartScreen workaround. Don't add a signing step that will fail the release workflow.
 
 ## Conventions

@@ -43,6 +43,12 @@ jobs:
       - name: Web vite build
         run: pnpm --filter wavvon-web build
 
+      - name: Hub-target vite build
+        run: pnpm --filter wavvon-web build:hub
+
+      - name: The two builds do not ship each other's screens
+        run: pnpm --filter wavvon-web run check-hub-build
+
       - name: i18n coverage check
         run: pnpm --filter wavvon-web run check-i18n
 

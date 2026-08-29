@@ -20,10 +20,13 @@ import { join } from "node:path";
 // perfectly clean. (Cost an afternoon; hence this comment.) Class names and
 // literal values work — the CSS lives in its own asset, and this reads only
 // the JS.
+//
+// The directory is not among the markers: `DIRECTORY_URL` is null, so
+// DiscoverPage is dead code in *both* builds and proves nothing. Add one
+// (`discover-search-bar`) the day that constant gets a value.
 const USER_ONLY = [
-  "wavvon-hub setup", // HUB_SETUP_COMMAND — the self-host create-hub flow
   "add-hub-title", // AddHubModal
-  "create-hub-title", // CreateHubSelfHost, reached only through CreateHubFork
+  "home-hubs-section", // HomeHubsSection — the home-hub editor
   "handover-adopt", // AdoptScreen — the user build receives a handover
 ];
 
