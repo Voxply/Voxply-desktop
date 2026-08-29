@@ -49,6 +49,7 @@ function VoiceParticipantRow({
   onSetGain?: (publicKey: string, gainPct: number) => void;
   onContextMenu?: (e: React.MouseEvent) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const label = participant.display_name || participant.public_key.slice(0, 12);
 
@@ -69,6 +70,11 @@ function VoiceParticipantRow({
     >
       <span className="channel-participant-icon" aria-hidden="true">🎙️</span>
       {label}
+      {participant.visiting_from && (
+        <span className="participant-visiting-from" title={t("voice.participant.visiting_from", { hub: participant.visiting_from })}>
+          {" · "}{participant.visiting_from}
+        </span>
+      )}
       {isWhisperingToMe && (
         <span className="participant-whisper-badge" title={`${label} is whispering`}>
           whispering

@@ -1940,6 +1940,12 @@ select,
   margin-top: 2px;
 }
 
+.alliance-voice-join {
+  float: right;
+  padding: 0 4px;
+  line-height: 1;
+}
+
 .channel-item.alliance-category {
   cursor: default;
   font-weight: var(--weight-bold);
@@ -8364,6 +8370,10 @@ a.embed-title:hover {
   color: var(--accent);
 }
 .participant-whisper-badge { font-size: 10px; font-weight: 600; color: #faa61a; margin-left: 4px; text-transform: uppercase; }
+
+/* A visitor from an allied hub. Muted and never badge-styled: the name beside
+   it is hub-asserted, not proven, so it must not read as a verified marker. */
+.participant-visiting-from { font-size: var(--text-xs); color: var(--text-faint); }
 
 .missions-panel { padding: 8px 0; }
 .missions-intro { font-size: 13px; color: var(--text-muted, #96989d); margin-bottom: 16px; line-height: 1.5; }

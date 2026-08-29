@@ -145,6 +145,10 @@ interface Props {
   /** Right-click on a voice-roster participant — the mover's "Move to channel…" surface (events.md §7.1). */
   onParticipantContextMenu?: (e: React.MouseEvent, participant: VoiceParticipant, channelId: string) => void;
   onSelectAllianceChannel: (alliance: AllianceInfo, channel: AllianceSharedChannel) => void;
+  /** Join voice in a channel an allied hub shares (alliances.md). Omitted
+   *  when this hub cannot mint a grant, so the affordance is simply absent
+   *  rather than a button that fails. */
+  onJoinAllianceVoice?: (alliance: AllianceInfo, channel: AllianceSharedChannel) => void;
   onSelectConversation: (conv: Conversation) => void;
   onOpenFriends?: () => void;
   onToggleSelfMute: () => void;
@@ -205,7 +209,7 @@ export function ChannelSidebar({
   onOpenHubAdmin, onOpenHubAdminInvites, onOpenQuickInvite, onOpenCreateChannel,
   onSelectChannel, onChannelContextMenu, onOpenChannelSettings,
   onVoiceJoin, onVoiceLeave, onParticipantContextMenu,
-  onSelectAllianceChannel, onSelectConversation,
+  onSelectAllianceChannel, onJoinAllianceVoice, onSelectConversation,
   onOpenFriends, onToggleSelfMute, onToggleSelfDeafen, onOpenSettings,
   onDragEnd, onToggleHideSilenced, sharing, onScreenShare,
   videoEnabled, onToggleVideo,
@@ -721,6 +725,16 @@ export function ChannelSidebar({
                               title={`Hosted on ${c.hub_name}`}
                             >
                               {allianceChannelIcon(c)} {c.channel_name}
+                              {onJoinAllianceVoice && c.channel_type === "text" && (
+                                <button
+                                  className="btn-icon alliance-voice-join"
+                                  title={t("alliance.voice.join_title", { hub: c.hub_name })}
+                                  aria-label={t("alliance.voice.join_title", { hub: c.hub_name })}
+                                  onClick={(e) => { e.stopPropagation(); onJoinAllianceVoice(a, c); }}
+                                >
+                                  🔊
+                                </button>
+                              )}
                               <span className="alliance-channel-host">{c.hub_name}</span>
                             </li>
                           );

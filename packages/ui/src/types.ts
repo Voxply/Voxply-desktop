@@ -234,6 +234,10 @@ export type NotifyMode = "all" | "mentions" | "silent";
 export interface VoiceParticipant {
   public_key: string;
   display_name: string | null;
+  /** Set only for an alliance-voice visitor: the hub that vouched for them
+   *  (alliances.md). Their name is hub-asserted, not proven, so it is
+   *  rendered as mediated — never as a plain member name. */
+  visiting_from?: string | null;
 }
 
 export interface WhisperTarget {
@@ -468,6 +472,10 @@ export interface SharedChannel {
   parent_id: string | null;
   is_category: boolean;
   forum_remote_write?: "none" | "replies_only" | "posts_and_replies";
+  /** Whether members of allied hubs may join voice here (alliances.md).
+   *  Absent from peers that have not upgraded; treat as "allowed", the
+   *  hub-side column default. */
+  voice_remote_join?: "allowed" | "none";
 }
 
 export interface ExternalBotRow {

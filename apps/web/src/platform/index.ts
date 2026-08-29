@@ -245,6 +245,7 @@ export {
   listAlliances, createAlliance, getAlliance, leaveAlliance,
   listPendingAllianceInvites, acceptAllianceInvite, declineAllianceInvite,
   listAllianceSharedChannels, shareChannelWithAlliance, unshareChannelFromAlliance,
+  setAllianceVoiceRemoteJoin,
   createAllianceInvite, sendAlliancePushInvite, joinAllianceByCode,
 } from "./commands/alliances";
 export type { Alliance, AllianceDetail, AllianceMember, AllianceInvite, PendingAllianceInvite, SharedChannel } from "./commands/alliances";

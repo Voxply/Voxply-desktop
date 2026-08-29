@@ -24,6 +24,7 @@ import {
   listAlliances, createAlliance, leaveAlliance,
   listPendingAllianceInvites, acceptAllianceInvite, declineAllianceInvite,
   listAllianceSharedChannels, shareChannelWithAlliance, unshareChannelFromAlliance,
+  setAllianceVoiceRemoteJoin,
   createAllianceInvite, sendAlliancePushInvite, joinAllianceByCode,
 } from "@platform";
 import { fetchSoundboardAudioBytes } from "@platform";
@@ -131,6 +132,7 @@ export const allianceActions = {
   acceptAllianceInvite: (inviteId: string, ownHubUrl: string) => acceptAllianceInvite(inviteId, ownHubUrl).then(() => {}),
   declineAllianceInvite,
   listAllianceSharedChannels, shareChannelWithAlliance, unshareChannelFromAlliance,
+  setAllianceVoiceRemoteJoin,
   createAllianceInvite, sendAlliancePushInvite,
   joinAllianceByCode: (inviterHubUrl: string, allianceId: string, inviteToken: string, ownHubUrl: string) =>
     joinAllianceByCode(inviterHubUrl, allianceId, inviteToken, ownHubUrl).then(() => {}),

@@ -14,6 +14,11 @@ export interface AlliancesSectionActions {
   listAllianceSharedChannels: (allianceId: string) => Promise<SharedChannel[]>;
   shareChannelWithAlliance: (allianceId: string, channelId: string, includeDescendants?: boolean) => Promise<void>;
   unshareChannelFromAlliance: (allianceId: string, channelId: string) => Promise<void>;
+  /** Allow or refuse voice joins by members of allied hubs, for one leaf
+   *  channel we host (alliances.md "Moderation"). Omitted where the platform
+   *  has no wrapper for it yet, and then no control is rendered — a toggle
+   *  that quietly changes nothing is worse than none. */
+  setAllianceVoiceRemoteJoin?: (allianceId: string, channelId: string, policy: "allowed" | "none") => Promise<void>;
   /** Admin-initiated direct push to another hub's federation endpoint.
    *  Omitted where the platform has no wrapper for it yet. */
   sendAlliancePushInvite?: (allianceId: string, targetHubUrl: string, ownHubUrl: string, message: string | null) => Promise<void>;
@@ -140,6 +145,26 @@ function AllianceRow({ alliance, myChannels, busy, activeHubUrl, onLeave, onErro
                   )}
                   {" "}<span className="muted">({s.hub_name})</span>
                 </span>
+                {/* Only our own leaf rooms: the policy lives on the hosting
+                    hub, and a category's row also carries the recursive-share
+                    flag that re-sharing would rewrite. */}
+                {actions.setAllianceVoiceRemoteJoin
+                  && !s.is_category
+                  && (s.channel_type ?? "text") === "text"
+                  && myChannels.some((c) => c.id === s.channel_id) && (
+                  <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "var(--text-xs)" }}>
+                    <input
+                      type="checkbox"
+                      checked={(s.voice_remote_join ?? "allowed") === "allowed"}
+                      disabled={busy}
+                      onChange={(e) => runGuard(async () => {
+                        await actions.setAllianceVoiceRemoteJoin!(alliance.id, s.channel_id, e.target.checked ? "allowed" : "none");
+                        await loadShared();
+                      })}
+                    />
+                    {t("alliances.share.voice_remote_join")}
+                  </label>
+                )}
                 <button
                   className="btn-small btn-secondary"
                   disabled={busy}

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type React from "react";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { formatPubkey } from "@wavvon/core";
@@ -6,6 +7,7 @@ import type { Channel, TreeNode } from "@wavvon/core";
 import { ChannelSidebar } from "@wavvon/ui";
 import type { WhisperReplyBind } from "@wavvon/ui";
 import { listRoles, listSoundboardClips } from "@platform";
+import { activeHubSupports } from "../../platform/session";
 import { hasDraft } from "../../utils/drafts";
 import type { useVoice } from "../../hooks/useVoice";
 import type { useVideo } from "../../hooks/useVideo";
@@ -90,8 +92,14 @@ export function ChannelSidebarContainer({
   onOpenQuickInvite, onChannelContextMenu, onOpenFriends, onOpenSettings,
   onOpenSearch, onDragEnd,
 }: ChannelSidebarContainerProps) {
+  const { t } = useTranslation();
   const [hubDropdownOpen, setHubDropdownOpen] = useState(false);
   const [showWhisperPanel, setShowWhisperPanel] = useState(false);
+  // Our hub has to sign the grant, so its capability decides whether the
+  // affordance exists at all. The owning hub's half is checked when the grant
+  // is redeemed — asking every allied hub for its /info on every load would be
+  // a request storm for a button almost nobody presses.
+  const allianceVoice = activeHubSupports("voice.alliance");
 
   const { selectedChannel, handleSelectChannel, handleSelectAllianceChannel } = channelMessages;
   const { activeHubId, hubs, activeHubTimezone, pingByHub, handleRemoveHub } = hubLifecycle;
@@ -173,6 +181,13 @@ export function ChannelSidebarContainer({
         });
       } : undefined}
       onSelectAllianceChannel={(a, c) => handleSelectAllianceChannel(a, c as AllianceSharedChannel)}
+      onJoinAllianceVoice={allianceVoice ? (a, c) => void voice.handleAllianceVoiceJoin(
+        a.id,
+        c.channel_id,
+        // The visitor dials the owning hub directly, so its operator sees
+        // this IP. Name the address before anything is minted.
+        (ownerHubUrl, channelName) => window.confirm(t("alliance.voice.confirm", { hub: ownerHubUrl, channel: channelName })),
+      ) : undefined}
       onOpenFriends={onOpenFriends}
       onSelectConversation={dms.handleSelectConversation}
       onToggleSelfMute={voice.handleToggleMute}

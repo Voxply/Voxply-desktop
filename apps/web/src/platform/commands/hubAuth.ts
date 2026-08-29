@@ -35,6 +35,7 @@ export async function acquireHubToken(
   security_level: number,
   invite_code?: string,
   subkey_cert?: unknown,
+  alliance_voice_grant?: unknown,
 ): Promise<HubTokenResult> {
   const challengeRes: ChallengeResponse = await rawFetch(
     `${auth_url}/auth/challenge`,
@@ -55,6 +56,11 @@ export async function acquireHubToken(
   // Multi-device: presenting the cert lets the hub resolve this subkey to the
   // shared canonical identity (see resolve_canonical_identity in the hub).
   if (subkey_cert) body["subkey_cert"] = subkey_cert;
+  // Voice in an alliance channel: a grant our own hub signed, which this hub
+  // redeems for a voice-only session (alliances.md). Ignored by a hub that
+  // already has a users row for us — a member session is strictly better, and
+  // the hub says so by answering with scope "member".
+  if (alliance_voice_grant) body["alliance_voice_grant"] = alliance_voice_grant;
 
   const verifyRes: VerifyResponse = await rawFetch(`${auth_url}/auth/verify`, {
     method: "POST",
