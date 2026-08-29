@@ -55,7 +55,7 @@ import { fetchMemberHistory } from "@platform";
 import { SurveyModal } from "@components/polls/SurveyModal";
 import { HubStreamsPanel } from "@wavvon/ui";
 import { AddHubModal } from "@wavvon/ui";
-import { isPasskeySupported } from "@platform";
+import { passkeysUsableWith } from "@platform";
 import { QuickInviteModal } from "@wavvon/ui";
 import { ChannelSettingsModal } from "@wavvon/ui";
 import { EditDescriptionModal } from "@wavvon/ui";
@@ -1582,7 +1582,7 @@ export default function App({ initialView }: AppProps = {}) {
           fingerprintMatch={fingerprintMatch}
           onAdd={handleAddHub}
           onAddWithPasskey={publicKey ? handleAddHubWithPasskey : undefined}
-          passkeySupported={isPasskeySupported()}
+          passkeySupported={passkeysUsableWith(hubUrl)}
           onClose={() => {
             setShowAddHub(false);
             setHubPreview({ state: "idle" });

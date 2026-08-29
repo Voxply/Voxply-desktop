@@ -267,6 +267,7 @@ export type { RoleCategoryCreateInput, RoleCategoryUpdateInput } from "./command
 
 export {
   isPasskeySupported,
+  passkeysUsableWith,
   registerPasskey,
   authenticateWithPasskey,
   listPasskeys,
