@@ -302,6 +302,16 @@ export type { CertificationsSectionActions } from "./components/admin/Certificat
 export { ProfileTab } from "./components/settings/ProfileTab";
 export { ProfileEditorSection } from "./components/settings/ProfileEditorSection";
 export { MyCertificationsSection } from "./components/settings/MyCertificationsSection";
+export { TrustedIssuersSection } from "./components/settings/TrustedIssuersSection";
+export {
+  parseTrustRoots,
+  serializeTrustRoots,
+  addTrustRoot,
+  removeTrustRoot,
+  isTrustedIssuer,
+  normalizePubkey,
+} from "./utils/trustRoots";
+export type { TrustRoot } from "./utils/trustRoots";
 export { FavoriteHubsEditor } from "./components/settings/FavoriteHubsEditor";
 export { AvatarChooser } from "./components/settings/AvatarChooser";
 export type {

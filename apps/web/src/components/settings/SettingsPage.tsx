@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Hub, BlockEntry, IgnoreEntry } from "@shared/types";
-import type { ThemeId, WavvonSkin, ProfileEditorActions, SettingsTabDef } from "@wavvon/ui";
+import type { ThemeId, WavvonSkin, ProfileEditorActions, SettingsTabDef, TrustRoot } from "@wavvon/ui";
 import { HelpTab, ProfileTab, resolveManagingAccount, SettingsShell } from "@wavvon/ui";
 import type { NamedCustomTheme } from "@shared/utils/customThemes";
 import { listAccountsOrdered, getActiveAccountId, onAccountsChanged, type IdentityRecord } from "@identity/index";
 import { getMyProfileOnHub, updateMyProfileOnHub, NO_HUB_SESSION, listMyCertifications } from "@platform";
 import { loadDefaultProfile, saveDefaultProfile, loadFollowsDefault, saveFollowsDefault } from "@shared/utils/profiles";
+import { addTrustRoot } from "@wavvon/ui";
+import { loadTrustRoots, saveTrustRoots } from "@shared/utils/trustRoots";
 import { NotificationsTab } from "./tabs/NotificationsTab";
 import { AppearanceTab } from "./tabs/AppearanceTab";
 import { VoiceTab } from "./tabs/VoiceTab";
@@ -75,6 +77,14 @@ interface SettingsPageProps {
 
 export function SettingsPage(props: SettingsPageProps) {
   const { t } = useTranslation();
+  // Trust roots are read in two tabs — Privacy edits the list, Profile marks
+  // each badge with it — so the state is owned here rather than in either,
+  // and an issuer trusted from a badge shows up in the list immediately.
+  const [trustRoots, setTrustRoots] = useState<TrustRoot[]>(() => loadTrustRoots());
+  function updateTrustRoots(next: TrustRoot[]) {
+    setTrustRoots(next);
+    saveTrustRoots(next);
+  }
   // Managing-account state is owned here, not per tab, so picking an account
   // in Profile carries over to Devices/Privacy instead of resetting on every
   // tab change. Ephemeral by design: remounts (and re-defaults to the active
@@ -135,6 +145,8 @@ export function SettingsPage(props: SettingsPageProps) {
             publicKey={props.publicKey}
             onHubProfileSaved={props.onHubProfileSaved}
             actions={profileEditorActions}
+            trustRoots={trustRoots}
+            onTrustIssuer={(pubkey, label) => updateTrustRoots(addTrustRoot(trustRoots, pubkey, label))}
             {...perAccount}
           />
         )}
@@ -163,6 +175,8 @@ export function SettingsPage(props: SettingsPageProps) {
             knownNames={props.knownNames}
             hideBirthdays={props.hideBirthdays}
             onToggleHideBirthdays={props.onToggleHideBirthdays}
+            trustRoots={trustRoots}
+            onTrustRootsChange={updateTrustRoots}
             {...perAccount}
           />
         )}

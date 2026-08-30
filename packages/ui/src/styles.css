@@ -8375,6 +8375,10 @@ a.embed-title:hover {
    it is hub-asserted, not proven, so it must not read as a verified marker. */
 .participant-visiting-from { font-size: var(--text-xs); color: var(--text-faint); }
 
+/* A badge whose issuer the viewer chose to believe. Muted, not a seal: the
+   trust is this viewer's own decision, not an attestation anyone else made. */
+.issuer-trusted { font-size: var(--text-xs); color: var(--text-muted); }
+
 .missions-panel { padding: 8px 0; }
 .missions-intro { font-size: 13px; color: var(--text-muted, #96989d); margin-bottom: 16px; line-height: 1.5; }
 .missions-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; }

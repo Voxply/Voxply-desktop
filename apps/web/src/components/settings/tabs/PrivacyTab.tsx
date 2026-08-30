@@ -2,7 +2,8 @@ import { useTranslation } from "react-i18next";
 import type { BlockEntry, IgnoreEntry } from "@shared/types";
 import { AccountBlockIgnoreSection } from "../AccountBlockIgnoreSection";
 import { ManagingAccountSelector } from "../ManagingAccountSelector";
-import type { PerAccountProps } from "@wavvon/ui";
+import type { PerAccountProps, TrustRoot } from "@wavvon/ui";
+import { TrustedIssuersSection } from "@wavvon/ui";
 import type { IdentityRecord } from "@identity/index";
 
 interface Props extends PerAccountProps<IdentityRecord> {
@@ -13,6 +14,8 @@ interface Props extends PerAccountProps<IdentityRecord> {
   knownNames: Record<string, string | null>;
   hideBirthdays: boolean;
   onToggleHideBirthdays: () => void;
+  trustRoots: TrustRoot[];
+  onTrustRootsChange: (roots: TrustRoot[]) => void;
 }
 
 // Who the selected account has blocked or ignored — about other people,
@@ -41,6 +44,7 @@ export function PrivacyTab(props: Props) {
           knownNames={props.knownNames}
         />
       )}
+      <TrustedIssuersSection roots={props.trustRoots} onChange={props.onTrustRootsChange} />
       <div className="settings-section">
         <label className="settings-label">{t("settings.privacy.birthdays.label")}</label>
         <label className="checkbox-label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
