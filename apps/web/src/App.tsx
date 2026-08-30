@@ -42,6 +42,7 @@ import { useSoundboardChips } from "@wavvon/ui";
 import { WhisperInbox } from "@wavvon/ui";
 import { ContentArea } from "@components/layout/ContentArea";
 import { ChannelSidebarContainer } from "@components/layout/ChannelSidebarContainer";
+import { AppModals } from "@components/layout/AppModals";
 import { loadDefaultProfile, saveDefaultProfile, type DefaultProfile } from "./utils/profiles";
 import { startPrefsSync } from "./utils/prefsSync";
 import { listRoles, listUserRoles, assignRoleToUser, removeRoleFromUser, createInvite } from "@platform";
@@ -1555,219 +1556,87 @@ export default function App({ initialView }: AppProps = {}) {
         /></>}
       </MobileShell>
 
-      {showHubAdmin && activeHubId && (
-        <HubAdminContainer
-          hubAdmin={hubAdminState}
-          channels={channels}
-          hubs={hubs}
-          activeHubId={activeHubId}
-          publicKey={publicKey}
-          isAdmin={isAdmin}
-          canManageRoles={canManageRoles}
-          canManageSoundboard={canManageSoundboard}
-          myMaxPriority={myMaxPriority}
-          onClose={() => setShowHubAdmin(false)}
-        />
-      )}
-
-      {MULTI_HUB && showAddHub && (
-        <AddHubModal
-          hubUrl={hubUrl}
-          onHubUrlChange={handleHubUrlInput}
-          hubPreview={hubPreview}
-          inviteCode={inviteCode}
-          onInviteCodeChange={setInviteCode}
-          loading={addingHub}
-          error={addHubError}
-          fingerprintMatch={fingerprintMatch}
-          onAdd={handleAddHub}
-          onAddWithPasskey={publicKey ? handleAddHubWithPasskey : undefined}
-          passkeySupported={passkeysUsableWith(hubUrl)}
-          onClose={() => {
-            setShowAddHub(false);
-            setHubPreview({ state: "idle" });
-            setAddHubError(null);
-            setFingerprintMatch(false);
-          }}
-          onBrowse={DISCOVERY_URL ? () => { setShowAddHub(false); setShowDiscover(true); } : undefined}
-        />
-      )}
-
-      {showQuickInvite && activeHubId && (
-        <QuickInviteModal
-          activeHubUrl={hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? ""}
-          myMaxPriority={myMaxPriority}
-          onClose={() => setShowQuickInvite(false)}
-          actions={{ listRoles, createInvite }}
-        />
-      )}
-
-      {eventComposerChannelId && (
-        <EventComposer
-          channelId={eventComposerChannelId}
-          channels={channels}
-          canHubWide={isAdmin}
-          advancedFieldsSupported
-          onSubmit={createEvent}
-          onCreated={() => {}}
-          onClose={() => setEventComposerChannelId(null)}
-        />
-      )}
-
-      {pollComposerChannelId && (
-        <PollComposer
-          channelId={pollComposerChannelId}
-          onCreatePoll={createPoll}
-          onCreated={() => {}}
-          onClose={() => setPollComposerChannelId(null)}
-        />
-      )}
-
-      {(createChannelCtx || channelSettingsCtx) && (
-        <ChannelSettingsModal
-          channel={channelSettingsCtx}
-          createParentId={createChannelCtx?.parentId ?? null}
-          createParentName={createChannelCtx?.parentId ? (channels.find((c) => c.id === createChannelCtx.parentId)?.name ?? null) : null}
-          createInitialIsCategory={createChannelCtx?.isCategory}
-          saving={channelSettingsCtx ? channelSettingsSaving : createChannelLoading}
-          deleting={channelSettingsDeleting}
-          error={channelSettingsCtx ? channelSettingsError : createChannelError}
-          canManageRoles={canManageRoles}
-          isAdmin={isAdmin}
-          myMaxPriority={myMaxPriority}
-          hubUrl={hubs.find((h) => h.hub_id === activeHubId)?.hub_url}
-          onSave={channelSettingsCtx ? handleSaveChannelSettings : handleCreateChannel}
-          onDelete={handleDeleteChannel}
-          onClose={() => {
-            setCreateChannelCtx(null); setCreateChannelError(null);
-            setChannelSettingsCtx(null); setChannelSettingsError(null);
-          }}
-          permissionsActions={channelPermissionsTabActions}
-          bansActions={channelBansTabActions}
-          bansUsers={users}
-          talkPowerActions={channelTalkPowerTabActions}
-          listHubIcons={listHubIcons}
-          listForumTags={forumListTags}
-          forumTagsActions={{ createTag: forumCreateTag, editTag: forumEditTag, deleteTag: forumDeleteTag }}
-        />
-      )}
-
-      {showHubSetupWizard && activeHubId && (
-        <HubSetupWizard
-          actions={{ onCreateChannel: createChannelForWizard }}
-          onDismiss={() => closeHubSetupWizard(activeHubId)}
-          onComplete={handleHubSetupWizardComplete}
-        />
-      )}
-
-      {channelCtxMenu && (
-        <ChannelContextMenu
-          menu={channelCtxMenu}
-          activeHubId={activeHubId}
-          effectiveNotifyMode={effectiveNotifyMode}
-          onSetNotifyMode={(hubId, channelId, mode) => {
-            setChannelNotifyMode((prev) => {
-              const hubMap = { ...(prev[hubId] ?? {}) };
-              if (mode === "all") delete hubMap[channelId]; else hubMap[channelId] = mode;
-              return { ...prev, [hubId]: hubMap };
-            });
-          }}
-          onClose={() => setChannelCtxMenu(null)}
-          onCopyLink={async (channel) => {
-            const hubUrl = hubs.find((h) => h.hub_id === activeHubId)?.hub_url;
-            if (!hubUrl) return;
-            const link = `wavvon://${hubUrl.replace(/^https?:\/\//, "")}/channel/${channel.id}`;
-            try {
-              await navigator.clipboard.writeText(link);
-              showHubError(t("message.action.link_copied"));
-            } catch (e) {
-              showHubError(String(e));
-            }
-          }}
-          onCreateEvent={isAdmin ? (channel) => setEventComposerChannelId(channel.id) : undefined}
-          onCreatePoll={canSendMessages ? (channel) => setPollComposerChannelId(channel.id) : undefined}
-          onRenameTempRoom={
-            channelCtxMenu.channel.is_temporary && channelCtxMenu.channel.owner_pubkey === publicKey && !isAdmin
-              ? (channel) => {
-                  setRenameRoomCtx(channel);
-                  setRenameRoomName(channel.name);
-                  setRenameRoomError(null);
-                }
-              : undefined
-          }
-          onCreateChannelIn={isAdmin ? (parentId) => { setChannelSettingsCtx(null); setCreateChannelCtx({ parentId, isCategory: false }); setCreateChannelError(null); } : undefined}
-          onCreateChannel={isAdmin ? () => { setChannelSettingsCtx(null); setCreateChannelCtx({ parentId: null, isCategory: false }); setCreateChannelError(null); } : undefined}
-          onCreateCategory={isAdmin ? () => { setChannelSettingsCtx(null); setCreateChannelCtx({ parentId: null, isCategory: true }); setCreateChannelError(null); } : undefined}
-          onEditChannel={isAdmin ? (channel) => { setCreateChannelCtx(null); setChannelSettingsCtx(channel); setChannelSettingsError(null); } : undefined}
-          onDeleteChannel={isAdmin ? (channel) => { setCreateChannelCtx(null); setChannelSettingsCtx(channel); setChannelSettingsError(null); } : undefined}
-        />
-      )}
-
-      {editDescChannel && (
-        <EditDescriptionModal
-          channel={editDescChannel}
-          description={editDescValue}
-          onDescriptionChange={setEditDescValue}
-          onSave={() => void handleSaveDescription()}
-          onClose={() => setEditDescChannel(null)}
-        />
-      )}
-
-      {renameRoomCtx && (
-        <div className="modal-overlay" onClick={() => setRenameRoomCtx(null)}>
-          <FocusTrap>
-            <div className="modal" style={{ maxWidth: 400 }} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-              <h3>{t("channel.temp.rename_title")}</h3>
-              <input
-                type="text"
-                value={renameRoomName}
-                onChange={(e) => setRenameRoomName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") void handleRenameRoom();
-                  if (e.key === "Escape") setRenameRoomCtx(null);
-                }}
-                autoFocus
-                style={{ display: "block", width: "100%", marginBottom: "var(--space-3)" }}
-              />
-              {renameRoomError && <div className="error" style={{ marginBottom: 8 }}>{renameRoomError}</div>}
-              <div className="modal-actions">
-                <button className="btn-secondary" onClick={() => setRenameRoomCtx(null)}>{t("modal.cancel")}</button>
-                <button onClick={() => void handleRenameRoom()} disabled={renameRoomSaving || !renameRoomName.trim()}>
-                  {renameRoomSaving ? "…" : t("modal.save")}
-                </button>
-              </div>
-            </div>
-          </FocusTrap>
-        </div>
-      )}
-
-      {showDisplayNamePrompt && (
-        <div className="modal-overlay" onClick={() => setShowDisplayNamePrompt(false)}>
-          <div className="modal" style={{ maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
-            <h3>{t("onboarding.display_name.title")}</h3>
-            <p className="muted" style={{ marginBottom: 12, fontSize: "var(--text-sm)" }}>
-              {t("onboarding.display_name.hint")}
-            </p>
-            <input
-              type="text"
-              value={firstRunName}
-              onChange={(e) => setFirstRunName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") void handleSaveFirstRunName(); if (e.key === "Escape") setShowDisplayNamePrompt(false); }}
-              placeholder={t("onboarding.display_name.placeholder")}
-              style={{ width: "100%", marginBottom: 12 }}
-              autoFocus
-            />
-            <div className="modal-actions">
-              <button className="btn-secondary" onClick={() => setShowDisplayNamePrompt(false)}>
-                {t("onboarding.display_name.skip")}
-              </button>
-              <button onClick={() => void handleSaveFirstRunName()} disabled={!firstRunName.trim()}>
-                {t("onboarding.display_name.save")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AppModals
+        activeHubId={activeHubId}
+        addHubError={addHubError}
+        addingHub={addingHub}
+        canManageRoles={canManageRoles}
+        canManageSoundboard={canManageSoundboard}
+        canSendMessages={canSendMessages}
+        channelBansTabActions={channelBansTabActions}
+        channelCtxMenu={channelCtxMenu}
+        channelPermissionsTabActions={channelPermissionsTabActions}
+        channelSettingsCtx={channelSettingsCtx}
+        channelSettingsDeleting={channelSettingsDeleting}
+        channelSettingsError={channelSettingsError}
+        channelSettingsSaving={channelSettingsSaving}
+        channelTalkPowerTabActions={channelTalkPowerTabActions}
+        channels={channels}
+        closeHubSetupWizard={closeHubSetupWizard}
+        createChannelCtx={createChannelCtx}
+        createChannelError={createChannelError}
+        createChannelForWizard={createChannelForWizard}
+        createChannelLoading={createChannelLoading}
+        editDescChannel={editDescChannel}
+        editDescValue={editDescValue}
+        effectiveNotifyMode={effectiveNotifyMode}
+        eventComposerChannelId={eventComposerChannelId}
+        fingerprintMatch={fingerprintMatch}
+        firstRunName={firstRunName}
+        handleAddHub={handleAddHub}
+        handleAddHubWithPasskey={handleAddHubWithPasskey}
+        handleCreateChannel={handleCreateChannel}
+        handleDeleteChannel={handleDeleteChannel}
+        handleHubSetupWizardComplete={handleHubSetupWizardComplete}
+        handleHubUrlInput={handleHubUrlInput}
+        handleRenameRoom={handleRenameRoom}
+        handleSaveChannelSettings={handleSaveChannelSettings}
+        handleSaveDescription={handleSaveDescription}
+        handleSaveFirstRunName={handleSaveFirstRunName}
+        hubAdminState={hubAdminState}
+        hubPreview={hubPreview}
+        hubUrl={hubUrl}
+        hubs={hubs}
+        inviteCode={inviteCode}
+        isAdmin={isAdmin}
+        myMaxPriority={myMaxPriority}
+        pollComposerChannelId={pollComposerChannelId}
+        publicKey={publicKey}
+        renameRoomCtx={renameRoomCtx}
+        renameRoomError={renameRoomError}
+        renameRoomName={renameRoomName}
+        renameRoomSaving={renameRoomSaving}
+        setAddHubError={setAddHubError}
+        setChannelCtxMenu={setChannelCtxMenu}
+        setChannelNotifyMode={setChannelNotifyMode}
+        setChannelSettingsCtx={setChannelSettingsCtx}
+        setChannelSettingsError={setChannelSettingsError}
+        setCreateChannelCtx={setCreateChannelCtx}
+        setCreateChannelError={setCreateChannelError}
+        setEditDescChannel={setEditDescChannel}
+        setEditDescValue={setEditDescValue}
+        setEventComposerChannelId={setEventComposerChannelId}
+        setFingerprintMatch={setFingerprintMatch}
+        setFirstRunName={setFirstRunName}
+        setHubPreview={setHubPreview}
+        setInviteCode={setInviteCode}
+        setPollComposerChannelId={setPollComposerChannelId}
+        setRenameRoomCtx={setRenameRoomCtx}
+        setRenameRoomError={setRenameRoomError}
+        setRenameRoomName={setRenameRoomName}
+        setShowAddHub={setShowAddHub}
+        setShowDiscover={setShowDiscover}
+        setShowDisplayNamePrompt={setShowDisplayNamePrompt}
+        setShowHubAdmin={setShowHubAdmin}
+        setShowQuickInvite={setShowQuickInvite}
+        showAddHub={showAddHub}
+        showDisplayNamePrompt={showDisplayNamePrompt}
+        showHubAdmin={showHubAdmin}
+        showHubError={showHubError}
+        showHubSetupWizard={showHubSetupWizard}
+        showQuickInvite={showQuickInvite}
+        users={users}
+      />
     </div>
   );
 }
