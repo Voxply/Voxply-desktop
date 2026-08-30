@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { getDmMessages, sendDm, createConversation, hubFetch, HubApiError } from "@platform";
+import { getDmMessages, sendDm, createConversation, getConversation, HubApiError } from "@platform";
 import type { Conversation, DmMessage } from "@shared/types";
 
 interface UseDmsParams {
@@ -112,7 +112,7 @@ export function useDms({
     const m = raw as { conversation_id?: string; added?: string[]; removed?: string[] };
     if (!m.conversation_id) return;
     const convId = m.conversation_id;
-    hubFetch(`/conversations/${convId}`).then((r) => r.json() as Promise<Conversation>).then((updated) => {
+    getConversation(convId).then((updated) => {
       // Upsert: a brand-new conversation (someone just started a DM with us)
       // arrives via this event too — the hub announces creation since
       // 2026-07-26 — so prepend it when it's not in the list yet.

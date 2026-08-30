@@ -1,4 +1,5 @@
 import { hexToBytes, bytesToHex } from "@wavvon/core";
+import { dmFetch } from "../dmHub";
 import { hubFetch, rawFetch } from "../http";
 import { activeSession } from "../session";
 import { loadIdentity } from "../../identity/store";
@@ -59,14 +60,14 @@ export function resolveDmSendAttribution(
 }
 
 export async function listConversations(): Promise<Conversation[]> {
-  const res = await hubFetch("/conversations");
+  const res = await dmFetch("/conversations");
   return res.json() as Promise<Conversation[]>;
 }
 
 export async function createConversation(member_pubkeys: string[]): Promise<Conversation> {
   // Server contract (hub routes/dms/conversations.rs CreateConversationRequest)
   // names the field `members`.
-  const res = await hubFetch("/conversations", {
+  const res = await dmFetch("/conversations", {
     method: "POST",
     body: JSON.stringify({ members: member_pubkeys }),
   });
@@ -131,7 +132,7 @@ export async function getDmMessages(
 ): Promise<DmMessageFull[]> {
   const params = new URLSearchParams({ limit: String(limit) });
   if (before) params.set("before", before);
-  const res = await hubFetch(`/conversations/${conversation_id}/messages?${params}`);
+  const res = await dmFetch(`/conversations/${conversation_id}/messages?${params}`);
   const raw = (await res.json()) as RawDmMessage[];
 
   const identity = await loadIdentity();
@@ -215,7 +216,7 @@ export async function sendDm(
   const recipientPubkey = members.find((m) => m !== senderPubkey);
 
   if (!recipientPubkey) {
-    await hubFetch(`/conversations/${conversation_id}/messages`, {
+    await dmFetch(`/conversations/${conversation_id}/messages`, {
       method: "POST",
       body: JSON.stringify({ content, attachments }),
     });
@@ -224,7 +225,7 @@ export async function sendDm(
 
   const recipientDhPubHex = await fetchDhKey(recipientPubkey);
   if (!recipientDhPubHex) {
-    await hubFetch(`/conversations/${conversation_id}/messages`, {
+    await dmFetch(`/conversations/${conversation_id}/messages`, {
       method: "POST",
       body: JSON.stringify({ content, attachments }),
     });
@@ -245,7 +246,7 @@ export async function sendDm(
   );
   saveDrSession(conversation_id, updatedSession);
 
-  const res = await hubFetch(`/conversations/${conversation_id}/messages`, {
+  const res = await dmFetch(`/conversations/${conversation_id}/messages`, {
     method: "POST",
     body: JSON.stringify({ encrypted_envelope: drEnvelope, attachments: attachments ?? [] }),
   });
@@ -257,8 +258,15 @@ export async function sendDm(
   } catch {}
 }
 
+/** One conversation as the DM hub has it. Exported because the WS arm that
+ *  reacts to membership changes needs the same hub the list came from. */
+export async function getConversation(conversation_id: string): Promise<Conversation> {
+  const res = await dmFetch(`/conversations/${conversation_id}`);
+  return (await res.json()) as Conversation;
+}
+
 async function getConversationMembers(conversation_id: string): Promise<string[]> {
-  const res = await hubFetch(`/conversations/${conversation_id}`);
+  const res = await dmFetch(`/conversations/${conversation_id}`);
   const conv = (await res.json()) as Conversation;
   return conv.members;
 }
@@ -318,6 +326,10 @@ export async function publishDhKey(): Promise<void> {
   const sigMsg = dhKeySigningBytes(myPubkeyHex, dhPubkeyHex);
   const signatureHex = signBytes(sigMsg, seedHex);
 
+  // The active hub, deliberately, not the DM hub: a sender looks this key up
+  // on *their own* hub, so it has to exist on every hub we actually use.
+  // Publishing it only where our DMs are read would leave someone on a shared
+  // community hub unable to encrypt to us.
   await hubFetch(`/identity/${myPubkeyHex}/dh-key`, {
     method: "PUT",
     body: JSON.stringify({ dh_pubkey_hex: dhPubkeyHex, signature_hex: signatureHex }),

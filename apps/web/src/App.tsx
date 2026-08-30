@@ -77,7 +77,7 @@ import { MobileShell } from "@wavvon/ui";
 import { buildChannelTree } from "@wavvon/core";
 import type { TreeNode } from "@wavvon/core";
 import { ScreenShareSelfPreview } from "@components/voice/ScreenShareSelfPreview";
-import { listBotCommands, updateDmBlocks, getDmBlocks, fetchVoiceRoster, activeSession, sendBotAppJoin } from "@platform";
+import { listBotCommands, updateDmBlocks, getDmBlocks, fetchVoiceRoster, activeSession, sendBotAppJoin, listConversations } from "@platform";
 import { sendSetStatus } from "@platform";
 import {
   restorePersistedHubs,
@@ -710,7 +710,7 @@ export default function App({ initialView }: AppProps = {}) {
         hubFetch("/channels").then((r) => r.json() as Promise<Channel[]>),
         fetchAllUsers(),
         hubFetch("/me").then((r) => r.json() as Promise<MeInfo>),
-        hubFetch("/conversations").then((r) => r.json() as Promise<Conversation[]>),
+        listConversations(),
         listBotCommands().catch(() => [] as Array<{ command: string; description: string; bot_name: string }>),
         fetchVoiceRoster().catch(() => ({} as Record<string, VoiceParticipant[]>)),
         getDmBlocks().catch(() => null),

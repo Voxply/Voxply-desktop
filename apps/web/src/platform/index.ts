@@ -63,6 +63,7 @@ export { sendComponentInteraction, sendBotAppJoin, listBotCommands, listBots, ge
 
 export {
   listConversations,
+  getConversation,
   createConversation,
   getDmMessages,
   sendDm,

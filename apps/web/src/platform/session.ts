@@ -1,5 +1,6 @@
 import { loadSavedHubs } from "./storage";
 import type { HubWebSocket } from "./ws";
+import { resetDmHubCache } from "./dmHub";
 
 export interface HubSession {
   hub_id: string;
@@ -49,6 +50,9 @@ export function allSessions(): HubSession[] {
 // ever closed. Called once by AccountRoot's switch handler, before the new
 // account's App instance mounts.
 export function resetHubSessions(): void {
+  // The DM hub is resolved from this map; a stale entry would point the next
+  // account's DMs at the previous one's hub.
+  resetDmHubCache();
   for (const s of sessions.values()) {
     s.ws?.close();
   }
