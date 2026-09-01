@@ -1,5 +1,5 @@
 {
-  "total": 758,
+  "total": 718,
   "files": {
     "apps/desktop/src/AccountRoot.tsx": 8,
     "apps/desktop/src/App.tsx": 17,
@@ -61,8 +61,7 @@
     "packages/ui/src/components/admin/InviteManager.tsx": 16,
     "packages/ui/src/components/admin/MemberRoleManager.tsx": 8,
     "packages/ui/src/components/admin/OnboardingAdminSection.tsx": 17,
-    "packages/ui/src/components/admin/SoundboardAdminSection.tsx": 19,
-    "packages/ui/src/components/admin/SurveyAdminSection.tsx": 22,
+    "packages/ui/src/components/admin/SoundboardAdminSection.tsx": 1,
     "packages/ui/src/components/Attachments.tsx": 3,
     "packages/ui/src/components/AudioProfileSection.tsx": 1,
     "packages/ui/src/components/Avatar.tsx": 1,
