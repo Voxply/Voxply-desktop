@@ -81,7 +81,9 @@ export async function onboardWithSeed(
     await page.getByRole("button", { name: "Save name" }).click();
   }
   await expectInHub(page);
-  await dismissHubSetupWizard(page);
+  // Only the owner is an admin here, and only an admin is offered the wizard —
+  // so only the owner pays the wait for it.
+  await dismissHubSetupWizard(page, seedHex === OWNER_SEED_HEX ? 10000 : 0);
 }
 
 // A hub with no channels greets whoever can create them with the first-boot
@@ -93,10 +95,21 @@ export async function onboardWithSeed(
 // click with "modal-overlay intercepts pointer events". Dismissing it here
 // rather than per spec means the "don't nag again" flag lands in the owner
 // storageState that live-setup saves, so the rest of the suite never meets it.
-export async function dismissHubSetupWizard(page: Page): Promise<void> {
+//
+// `waitMs` is why the first CI run never finished: the gate cannot decide
+// until the channel list arrives, so on a loaded runner the dialog lands a beat
+// after the header that `expectInHub` waits for. Sampling `isVisible()` once
+// missed it, the flag never reached the saved storageState, and every spec then
+// met an overlay that swallows clicks — 30 to 120 seconds of timeout each until
+// the job hit its 90-minute cap. The neighbouring prompts in this file wait for
+// exactly this reason. Zero for anyone who cannot be offered it.
+export async function dismissHubSetupWizard(page: Page, waitMs = 0): Promise<void> {
   const wizard = page
     .getByRole("dialog")
     .filter({ hasText: "How do you want to use this hub?" });
+  if (waitMs > 0) {
+    await wizard.waitFor({ state: "visible", timeout: waitMs }).catch(() => {});
+  }
   if (!(await wizard.isVisible().catch(() => false))) return;
   await wizard.getByRole("button", { name: /Start blank/ }).click();
   await expect(wizard).toBeHidden({ timeout: 15000 });
