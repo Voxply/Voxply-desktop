@@ -1,5 +1,5 @@
 {
-  "total": 948,
+  "total": 878,
   "files": {
     "apps/desktop/src/AccountRoot.tsx": 8,
     "apps/desktop/src/App.tsx": 17,
@@ -94,7 +94,7 @@
     "packages/ui/src/components/events/EventSlotList.tsx": 2,
     "packages/ui/src/components/events/EventsPanel.tsx": 6,
     "packages/ui/src/components/forum/ForumComposer.tsx": 10,
-    "packages/ui/src/components/forum/ForumPostDetail.tsx": 34,
+    "packages/ui/src/components/forum/ForumPostDetail.tsx": 1,
     "packages/ui/src/components/forum/ForumPostList.tsx": 11,
     "packages/ui/src/components/forum/ForumTagManager.tsx": 11,
     "packages/ui/src/components/forum/ForumTagPicker.tsx": 1,
@@ -119,7 +119,6 @@
     "packages/ui/src/components/ScreenShareViewer.tsx": 6,
     "packages/ui/src/components/settings/FavoriteHubsEditor.tsx": 1,
     "packages/ui/src/components/settings/ProfileEditorSection.tsx": 3,
-    "packages/ui/src/components/settings/RecoveryContactsSection.tsx": 37,
     "packages/ui/src/components/settings/SettingsShell.tsx": 3,
     "packages/ui/src/components/SkinEditor.tsx": 16,
     "packages/ui/src/components/SkinsGallery.tsx": 12,

@@ -12,5 +12,8 @@
   "scripts": {
     "check-hardcoded": "node find-hardcoded.mjs",
     "baseline-hardcoded": "node find-hardcoded.mjs --baseline"
+  },
+  "devDependencies": {
+    "intl-messageformat": "^11.2.8"
   }
 }
