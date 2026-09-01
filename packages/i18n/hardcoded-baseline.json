@@ -1,5 +1,5 @@
 {
-  "total": 878,
+  "total": 797,
   "files": {
     "apps/desktop/src/AccountRoot.tsx": 8,
     "apps/desktop/src/App.tsx": 17,
@@ -71,7 +71,6 @@
     "packages/ui/src/components/BotCard.tsx": 1,
     "packages/ui/src/components/channels/ChannelBansTab.tsx": 11,
     "packages/ui/src/components/channels/ChannelContextMenu.tsx": 2,
-    "packages/ui/src/components/channels/ChannelIconPicker.tsx": 2,
     "packages/ui/src/components/channels/ChannelSettingsModal.tsx": 23,
     "packages/ui/src/components/channels/ChannelTalkPowerTab.tsx": 4,
     "packages/ui/src/components/channels/EditDescriptionModal.tsx": 3,
@@ -104,10 +103,9 @@
     "packages/ui/src/components/hubs/AddHubModal.tsx": 1,
     "packages/ui/src/components/hubs/DiscoverPage.tsx": 6,
     "packages/ui/src/components/HubStreamsPanel.tsx": 6,
-    "packages/ui/src/components/Icons.tsx": 27,
     "packages/ui/src/components/IdentityBackupSection.tsx": 2,
     "packages/ui/src/components/ImagePicker.tsx": 2,
-    "packages/ui/src/components/KeyboardShortcuts.tsx": 30,
+    "packages/ui/src/components/KeyboardShortcuts.tsx": 7,
     "packages/ui/src/components/layout/ChannelSidebar.tsx": 3,
     "packages/ui/src/components/layout/HubSidebar.tsx": 3,
     "packages/ui/src/components/layout/SearchBar.tsx": 5,
@@ -130,7 +128,7 @@
     "packages/ui/src/components/users/UserListGrouped.tsx": 10,
     "packages/ui/src/components/users/UserProfileCard.tsx": 7,
     "packages/ui/src/components/voice/WhisperInbox.tsx": 6,
-    "packages/ui/src/components/voice/WhisperPanel.tsx": 32,
+    "packages/ui/src/components/voice/WhisperPanel.tsx": 3,
     "packages/ui/src/components/VoiceMoveMenu.tsx": 1
   }
 }

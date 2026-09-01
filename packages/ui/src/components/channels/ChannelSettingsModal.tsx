@@ -553,12 +553,12 @@ export function ChannelSettingsModal({
                       type="button"
                       className={`icon-picker-tile ${icon === def.id ? "selected" : ""}`}
                       onClick={() => { setIcon(def.id); setCustomIconSvg(null); }}
-                      title={def.label}
+                      title={t(`channel.icon.${def.id}`)}
                     >
                       <span className="icon-picker-glyph">
                         <ChannelIconGlyph icon={def.id} size={18} />
                       </span>
-                      <span className="icon-picker-label">{def.label}</span>
+                      <span className="icon-picker-label">{t(`channel.icon.${def.id}`)}</span>
                     </button>
                   ))}
                 </div>
