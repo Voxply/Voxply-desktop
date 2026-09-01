@@ -144,7 +144,7 @@ export function ChannelMessageList({
                 <p>
                   {selectedChannelDescription
                     ? selectedChannelDescription
-                    : "This is the start of the channel — say hello!"}
+                    : t("channel.start_hint")}
                 </p>
                 <ul className="channel-empty-tips">
                   <li dangerouslySetInnerHTML={{ __html: t("channel.empty.tip_voice") }} />

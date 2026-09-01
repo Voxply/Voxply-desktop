@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   miniAppUrl: string;
@@ -25,6 +26,7 @@ export function GameModal({
   requiresCamera,
   onClose,
 }: Props) {
+  const { t } = useTranslation();
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -51,7 +53,7 @@ export function GameModal({
       <div className="game-modal">
         <div className="game-modal-titlebar">
           <span className="game-modal-title">{title}</span>
-          <button className="game-modal-close" onClick={onClose} aria-label="Close">
+          <button className="game-modal-close" onClick={onClose} aria-label={t("modal.close")}>
             &#x2715;
           </button>
         </div>

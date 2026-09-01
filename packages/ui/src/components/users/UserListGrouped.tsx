@@ -161,7 +161,7 @@ export function UserListGrouped({
                   <Avatar src={u.avatar} name={u.display_name || u.public_key} pubkey={u.public_key} size={24} />
                   <span
                     className={`status-dot ${u.status === "away" ? "away" : u.status === "dnd" ? "dnd" : "online"}`}
-                    title={u.status === "away" ? "Away" : u.status === "dnd" ? "Do Not Disturb" : "Online"}
+                    title={u.status === "away" ? t("presence.away") : u.status === "dnd" ? t("presence.dnd") : t("presence.online")}
                   />
                   <span
                     className={`user-name${safeRoleColor(u.name_color) ? " name-colored" : ""}`}

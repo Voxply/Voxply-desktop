@@ -72,7 +72,7 @@ export function ChannelHeader({
           <h3>
             # {selectedChannel.name}
             {selectedChannel.nsfw && (
-              <span className="channel-temp-badge" style={{ marginLeft: 8 }} title="NSFW / mature content">NSFW</span>
+              <span className="channel-temp-badge" style={{ marginLeft: 8 }} title={t("channel.sidebar.nsfw_badge")}>NSFW</span>
             )}
           </h3>
           {selectedChannel.description ? (

@@ -165,7 +165,7 @@ export function DiscoverPage({ onClose, onJoinHub, fetchUrl, directoryUrl }: Pro
             {t("discover.unavailable_body")}
           </p>
           <button className="btn-secondary" onClick={() => fetchPage(q, language, tagFilter, 1, true)}>
-            Retry
+            {t("modal.retry")}
           </button>
         </div>
       )}

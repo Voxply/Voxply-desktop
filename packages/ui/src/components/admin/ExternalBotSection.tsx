@@ -254,7 +254,7 @@ export function ExternalBotSection({ channels, actions, renderCapabilities }: Pr
                       </button>
                       {renderCapabilities && (
                         <button className="btn-small btn-secondary" onClick={() => toggleCaps(bot.public_key)}>
-                          {capsExpanded.has(bot.public_key) ? "Hide capabilities" : "Capabilities"}
+                          {capsExpanded.has(bot.public_key) ? t("ext_bot.capabilities.hide") : t("ext_bot.capabilities.show")}
                         </button>
                       )}
                       <button className="btn-small btn-secondary danger" onClick={() => handleRemove(bot.public_key)}>

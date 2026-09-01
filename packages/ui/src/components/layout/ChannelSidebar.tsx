@@ -476,7 +476,7 @@ export function ChannelSidebar({
             className="hub-header-button"
             onClick={() => onHubDropdownOpenChange(!hubDropdownOpen)}
           >
-            <span className="hub-header-name">{activeHub?.hub_name ?? "Hub"}</span>
+            <span className="hub-header-name">{activeHub?.hub_name ?? t("hub.placeholder_name")}</span>
             <HubClock timezone={hubTimezone} />
             <span className="hub-header-chevron">{hubDropdownOpen ? "▴" : "▾"}</span>
           </button>
@@ -681,7 +681,7 @@ export function ChannelSidebar({
                 )}
               </DragOverlay>
             </DndContext>
-            {channels.length === 0 && <p className="muted">No channels yet</p>}
+            {channels.length === 0 && <p className="muted">{t("channel.no_channels")}</p>}
 
             {userAlliances.length > 0 && (
               <div className="sidebar-alliances">

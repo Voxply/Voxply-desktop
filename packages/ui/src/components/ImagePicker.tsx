@@ -90,7 +90,7 @@ export function ImagePicker({
       <span className="muted image-picker-hint">{t("image_picker.drop_hint")}</span>
       {hasValue && (
         <button type="button" onClick={onClear} className="btn-secondary">
-          Clear
+          {t("image_picker.clear")}
         </button>
       )}
     </div>

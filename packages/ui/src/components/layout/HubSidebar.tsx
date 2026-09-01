@@ -98,7 +98,7 @@ export function HubSidebar({
     : "all";
 
   return (
-    <nav className="hub-sidebar" aria-label="Hubs">
+    <nav className="hub-sidebar" aria-label={t("hub.sidebar.aria")}>
       <div className="hub-icon-box">
         <button
           className={`hub-icon dm ${view === "dms" ? "active" : ""}`}
@@ -117,7 +117,7 @@ export function HubSidebar({
       <div className="hub-sidebar-divider" />
       <DndContext sensors={dndSensors} onDragEnd={onHubReorder}>
         <SortableContext items={hubs.map((h) => h.hub_id)} strategy={verticalListSortingStrategy}>
-          <div role="tablist" aria-label="Hub list" aria-orientation="vertical">
+          <div role="tablist" aria-label={t("hub.sidebar.list_aria")} aria-orientation="vertical">
             {hubs.map((h, index) => {
               const unread = unreadByHub[h.hub_id] || 0;
               const ping = pingByHub[h.hub_id];

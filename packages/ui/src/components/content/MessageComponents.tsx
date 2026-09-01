@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import type { ComponentRow, BotButton, BotSelect } from "../../types";
 
 interface Props {
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export function MessageComponents({ rows, messageId, onInteract }: Props) {
+  const { t } = useTranslation();
   const [disabledIds, setDisabledIds] = useState<Set<string>>(new Set());
 
   const fireInteraction = useCallback(
@@ -60,7 +62,7 @@ export function MessageComponents({ rows, messageId, onInteract }: Props) {
                     if (e.target.value) fireInteraction(sel.custom_id, [e.target.value]);
                   }}
                 >
-                  <option value="" disabled>{sel.placeholder ?? "Select…"}</option>
+                  <option value="" disabled>{sel.placeholder ?? t("message.component.select")}</option>
                   {sel.options.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}

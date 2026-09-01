@@ -567,8 +567,8 @@ export function ContentArea({
                 <button
                   onClick={() => setShowEventsModal(true)}
                   className="btn-icon-header"
-                  title="Events"
-                  aria-label="Events"
+                  title={t("events.open_panel")}
+                  aria-label={t("events.open_panel")}
                 >
                   📅
                 </button>
@@ -751,7 +751,7 @@ export function ContentArea({
         <div className="modal-overlay" onClick={() => setShowEventsModal(false)}>
           <div className="modal" style={{ maxWidth: 640, maxHeight: "80vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <button className="btn-ghost" onClick={() => setShowEventsModal(false)} aria-label="Close">✕</button>
+              <button className="btn-ghost" onClick={() => setShowEventsModal(false)} aria-label={t("modal.close")}>✕</button>
             </div>
             {eventsPanel}
           </div>

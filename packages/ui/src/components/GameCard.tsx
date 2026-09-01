@@ -1,4 +1,5 @@
 import type { GameLaunchCard } from "@wavvon/core";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   game: GameLaunchCard;
@@ -11,6 +12,7 @@ interface Props {
  *  §2, §6 Phase 1 item 3). The Play button rejoins through the ordinary
  *  `bot_app_join` path -- same flow as the inline BotAppLaunchCard. */
 export function GameCard({ game, botId, channelId, onPlay }: Props) {
+  const { t } = useTranslation();
   return (
     <div className="message-embeds">
       <div className="embed-card">
@@ -20,7 +22,7 @@ export function GameCard({ game, botId, channelId, onPlay }: Props) {
             <div className="embed-title">{game.name}</div>
             {game.description && <div className="embed-description">{game.description}</div>}
             <button className="btn-secondary" style={{ marginTop: "var(--space-2)" }} onClick={() => onPlay(botId, channelId)}>
-              Play
+              {t("games.play")}
             </button>
           </div>
         </div>

@@ -76,7 +76,7 @@ export function AllianceView({
         })}
         {allianceMessages.length === 0 && (
           <p className="muted" style={{ padding: "1rem" }}>
-            No messages yet in this alliance channel.
+            {t("alliance.view.empty")}
           </p>
         )}
       </div>
