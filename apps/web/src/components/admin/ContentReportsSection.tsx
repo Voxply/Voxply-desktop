@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { Report } from "@shared/types";
 import { listReports, reviewReport } from "../../platform/commands/moderation";
 import { formatRelative } from "@wavvon/core";
@@ -9,6 +10,7 @@ function truncate(s: string | null, max: number): string {
 }
 
 export function ContentReportsSection() {
+  const { t } = useTranslation();
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,21 +44,21 @@ export function ContentReportsSection() {
 
   return (
     <div className="settings-section">
-      <h2>Content Reports</h2>
+      <h2>{t("hub.admin.reports.title")}</h2>
       {error && <p className="error-text">{error}</p>}
-      {loading && <p className="muted">Loading…</p>}
+      {loading && <p className="muted">{t("hub.admin.reports.loading")}</p>}
       {!loading && reports.length === 0 && (
-        <p className="muted">No pending reports.</p>
+        <p className="muted">{t("hub.admin.reports.empty")}</p>
       )}
       {!loading && reports.length > 0 && (
         <table className="members-table">
           <thead>
             <tr>
-              <th>Message preview</th>
-              <th>Reporter</th>
-              <th>Reason</th>
-              <th>Reported</th>
-              <th>Actions</th>
+              <th>{t("hub.admin.reports.col.preview")}</th>
+              <th>{t("hub.admin.reports.col.reporter")}</th>
+              <th>{t("hub.admin.reports.col.reason")}</th>
+              <th>{t("hub.admin.reports.col.reported")}</th>
+              <th>{t("hub.admin.reports.col.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -77,19 +79,19 @@ export function ContentReportsSection() {
                     className="btn-small btn-secondary"
                     onClick={() => handleReview(r.id, "dismiss")}
                   >
-                    Dismiss
+                    {t("hub.admin.reports.dismiss")}
                   </button>
                   <button
                     className="btn-small btn-secondary danger"
                     onClick={() => handleReview(r.id, "delete_message")}
                   >
-                    Delete message
+                    {t("hub.admin.reports.delete_message")}
                   </button>
                   <button
                     className="btn-small btn-secondary danger"
                     onClick={() => handleReview(r.id, "ban_user")}
                   >
-                    Ban user
+                    {t("hub.admin.reports.ban_user")}
                   </button>
                 </td>
               </tr>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { ModerationSettings } from "@shared/types";
 import { getModerationSettings, patchModerationSettings } from "../../platform/commands/moderation";
 
@@ -7,6 +8,7 @@ function formatTimestamp(ts: number): string {
 }
 
 export function AutomodWebhookSection() {
+  const { t } = useTranslation();
   const [settings, setSettings] = useState<ModerationSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,37 +69,37 @@ export function AutomodWebhookSection() {
 
   return (
     <div className="settings-section">
-      <h2>Auto-moderation Webhook</h2>
+      <h2>{t("hub.admin.automod.title")}</h2>
       {error && <p className="error-text">{error}</p>}
-      {loading && <p className="muted">Loading…</p>}
+      {loading && <p className="muted">{t("hub.admin.automod.loading")}</p>}
       {!loading && settings && (
         <>
           <div className="settings-row">
-            <span className="settings-label">Current URL</span>
-            <span className="muted">{settings.webhook_url || "Not configured"}</span>
+            <span className="settings-label">{t("hub.admin.automod.current_url")}</span>
+            <span className="muted">{settings.webhook_url || t("hub.admin.automod.not_configured")}</span>
           </div>
           <div className="settings-row">
-            <span className="settings-label">Secret</span>
-            <span className="muted">{settings.webhook_secret_set ? "Set" : "Not set"}</span>
+            <span className="settings-label">{t("hub.admin.automod.secret")}</span>
+            <span className="muted">{settings.webhook_secret_set ? t("hub.admin.automod.secret_set") : t("hub.admin.automod.secret_unset")}</span>
           </div>
           <div className="settings-row">
-            <span className="settings-label">Circuit breaker</span>
+            <span className="settings-label">{t("hub.admin.automod.circuit")}</span>
             {settings.circuit_open ? (
               <span
                 className="badge-chip"
                 style={{ borderColor: "var(--warning)", color: "var(--warning)" }}
               >
-                Circuit open
+                {t("hub.admin.automod.circuit_open")}
                 {settings.circuit_open_until
-                  ? ` — until ${formatTimestamp(settings.circuit_open_until)}`
+                  ? t("hub.admin.automod.circuit_open_until", { time: formatTimestamp(settings.circuit_open_until) })
                   : ""}
               </span>
             ) : (
-              <span className="badge-chip">Circuit closed</span>
+              <span className="badge-chip">{t("hub.admin.automod.circuit_closed")}</span>
             )}
           </div>
           <div className="settings-section">
-            <label className="settings-label" htmlFor="automod-url">Webhook URL</label>
+            <label className="settings-label" htmlFor="automod-url">{t("hub.admin.automod.url_label")}</label>
             <input
               id="automod-url"
               type="url"
@@ -108,11 +110,11 @@ export function AutomodWebhookSection() {
             />
           </div>
           <div className="settings-section">
-            <label className="settings-label" htmlFor="automod-secret">Secret</label>
+            <label className="settings-label" htmlFor="automod-secret">{t("hub.admin.automod.secret")}</label>
             <input
               id="automod-secret"
               type="password"
-              placeholder={settings.webhook_secret_set ? "••••••••" : "Enter secret…"}
+              placeholder={settings.webhook_secret_set ? "••••••••" : t("hub.admin.automod.secret_placeholder")}
               value={secretInput}
               onChange={(e) => setSecretInput(e.target.value)}
               style={{ width: "100%" }}
@@ -120,11 +122,11 @@ export function AutomodWebhookSection() {
           </div>
           <div className="settings-row">
             <button onClick={handleSave} disabled={saving}>
-              {saving ? "Saving…" : saved ? "Saved!" : "Save"}
+              {saving ? t("hub.admin.automod.saving") : saved ? t("hub.admin.automod.saved") : t("hub.admin.automod.save")}
             </button>
             {settings.webhook_url && (
               <button className="btn-secondary" onClick={handleClear} disabled={saving}>
-                Clear (disable webhook)
+                {t("hub.admin.automod.clear")}
               </button>
             )}
           </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { BotCapabilityGrants } from "@wavvon/core";
 import { toggleBotCapability } from "@wavvon/core";
 import { adminGetBotCapabilities, adminSetBotCapabilities } from "../../platform/commands/bots";
@@ -7,46 +8,23 @@ interface Props {
   pubkey: string;
 }
 
-interface CapabilityInfo {
-  label: string;
-  risk: "medium" | "high";
-  unlocks: string;
-  note?: string;
-}
-
 // Registry copy per bot-capability-layer.md §1 "Capability registry". Baseline
 // UI (components, embeds, the launch card) is ungated and never appears here.
-const CAPABILITY_INFO: Record<string, CapabilityInfo> = {
-  can_read_message_content: {
-    label: "Read message content",
-    risk: "medium",
-    unlocks: "Full message bodies, not just previews.",
-  },
-  can_use_interactive_ui: {
-    label: "Interactive UI",
-    risk: "medium",
-    unlocks: "Opening a mini-app or game-modal webview.",
-  },
-  can_speak_voice: {
-    label: "Speak in voice",
-    risk: "medium",
-    unlocks: "Inject audio into the voice relay.",
-  },
-  can_inject_video: {
-    label: "Inject video",
-    risk: "high",
-    unlocks: "Push video/canvas frames into the screen-share relay.",
-    note: "Also requires the hub operator's WAVVON_BOTS_ALLOW_VIDEO setting; concurrent bot streams are budget-capped.",
-  },
-  can_use_camera: {
-    label: "Use camera",
-    risk: "high",
-    unlocks: "Mini-app camera access (getUserMedia).",
-    note: "Also requires the hub operator's \"Allow bot camera\" setting.",
-  },
+// Risk and the presence of a note are the only per-capability facts left here;
+// the words live in the catalogs as `bot.cap.<id>.label` / `.unlocks` / `.note`,
+// so a capability the hub knows and this build does not still renders its id.
+const CAPABILITY_RISK: Record<string, "medium" | "high"> = {
+  can_read_message_content: "medium",
+  can_use_interactive_ui: "medium",
+  can_speak_voice: "medium",
+  can_inject_video: "high",
+  can_use_camera: "high",
 };
 
+const CAPABILITIES_WITH_NOTE = new Set(["can_inject_video", "can_use_camera"]);
+
 export function BotCapabilitiesPanel({ pubkey }: Props) {
+  const { t } = useTranslation();
   const [data, setData] = useState<BotCapabilityGrants | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savingCap, setSavingCap] = useState<string | null>(null);
@@ -78,10 +56,10 @@ export function BotCapabilitiesPanel({ pubkey }: Props) {
   }
 
   if (error && !data) return <p className="error-text">{error}</p>;
-  if (!data) return <p className="muted">Loading…</p>;
+  if (!data) return <p className="muted">{t("bot.cap.loading")}</p>;
 
   if (data.requested.length === 0) {
-    return <p className="muted">This bot hasn't requested any capabilities.</p>;
+    return <p className="muted">{t("bot.cap.none_requested")}</p>;
   }
 
   return (
@@ -90,23 +68,25 @@ export function BotCapabilitiesPanel({ pubkey }: Props) {
       <table className="members-table">
         <thead>
           <tr>
-            <th>Capability</th>
-            <th>Risk</th>
-            <th>Unlocks</th>
-            <th>Granted</th>
+            <th>{t("bot.cap.col.capability")}</th>
+            <th>{t("bot.cap.col.risk")}</th>
+            <th>{t("bot.cap.col.unlocks")}</th>
+            <th>{t("bot.cap.col.granted")}</th>
           </tr>
         </thead>
         <tbody>
           {data.requested.map((cap) => {
-            const info = CAPABILITY_INFO[cap];
+            const risk = CAPABILITY_RISK[cap];
             const granted = data.granted.includes(cap);
             return (
               <tr key={cap}>
-                <td>{info?.label ?? cap}</td>
-                <td className={info?.risk === "high" ? "error-text" : undefined}>{info?.risk ?? "unknown"}</td>
+                <td>{t(`bot.cap.${cap}.label`, { defaultValue: cap })}</td>
+                <td className={risk === "high" ? "error-text" : undefined}>
+                  {t(`bot.cap.risk.${risk ?? "unknown"}`)}
+                </td>
                 <td>
-                  {info?.unlocks ?? "—"}
-                  {info?.note && <div className="muted">{info.note}</div>}
+                  {t(`bot.cap.${cap}.unlocks`, { defaultValue: "—" })}
+                  {CAPABILITIES_WITH_NOTE.has(cap) && <div className="muted">{t(`bot.cap.${cap}.note`)}</div>}
                 </td>
                 <td>
                   <label className="checkbox-label">
@@ -116,7 +96,7 @@ export function BotCapabilitiesPanel({ pubkey }: Props) {
                       disabled={savingCap === cap}
                       onChange={(e) => handleToggle(cap, e.target.checked)}
                     />
-                    {savingCap === cap ? "Saving…" : granted ? "Granted" : "Not granted"}
+                    {savingCap === cap ? t("bot.cap.saving") : granted ? t("bot.cap.granted") : t("bot.cap.not_granted")}
                   </label>
                 </td>
               </tr>

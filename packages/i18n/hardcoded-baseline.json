@@ -1,5 +1,5 @@
 {
-  "total": 627,
+  "total": 583,
   "files": {
     "apps/desktop/src/AccountRoot.tsx": 8,
     "apps/desktop/src/App.tsx": 17,
@@ -31,9 +31,7 @@
     "apps/desktop/src/components/UpdateBanner.tsx": 4,
     "apps/desktop/src/components/VideoGrid.tsx": 2,
     "apps/web/src/App.tsx": 11,
-    "apps/web/src/components/admin/AutomodWebhookSection.tsx": 14,
-    "apps/web/src/components/admin/BotCapabilitiesPanel.tsx": 20,
-    "apps/web/src/components/admin/ContentReportsSection.tsx": 11,
+    "apps/web/src/components/admin/BotCapabilitiesPanel.tsx": 1,
     "apps/web/src/components/admin/FullArchiveSection.tsx": 1,
     "apps/web/src/components/admin/ModerationTab.tsx": 1,
     "apps/web/src/components/events/EventSubscriptionEditor.tsx": 2,
