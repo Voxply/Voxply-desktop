@@ -39,6 +39,18 @@ function looksHuman(s) {
   // Type syntax a text-node regex can still catch a fragment of.
   if (/^(Promise|Array|Record|Map|Set|ReactNode|void|string|number|boolean)\b/.test(t)) return false;
   if (/[;=]/.test(t)) return false;
+  // Noise that survived long enough to be worth naming, because a count made
+  // mostly of it stops meaning anything: CSS shorthand and functions, request
+  // paths, keyboard bindings, and the fragments a text-node regex tears out of
+  // JSX it cannot parse. Each of these was a "remaining string" nobody could
+  // ever translate.
+  if (/^-?[\d.]+(px|rem|em|%|s|ms|vh|vw|fr|deg)?( -?[\d.]+(px|rem|em|%|s|ms|vh|vw|fr|deg)?){0,3}$/.test(t)) return false;
+  if (/^(repeat|minmax|calc|translate|translateX|translateY|scale|scaleX|scaleY|rotate|linear-gradient|auto-fill)\(/.test(t)) return false;
+  if (/^#[0-9a-fA-F]{3,8}$/.test(t)) return false;            // a colour
+  if (/^-?[\d.]+(px|rem|em|%)? +(auto|center|top|bottom|left|right)$/.test(t)) return false;
+  if (/^\//.test(t)) return false;                            // an API path, not a sentence
+  if (/^(Cmd|Ctrl|Alt|Shift|Meta|Esc|Enter|Tab|Space|Home|End)\b[\s+/↑↓←→A-Za-z,]*$/.test(t)) return false;
+  if (/^[)}]\s|&&|\|\||=>|\?\s*\($/.test(t)) return false;    // torn-out JSX, not text
   return true;
 }
 
