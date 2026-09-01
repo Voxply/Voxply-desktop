@@ -260,13 +260,22 @@ the `run-web` skill; say plainly when you could not verify something visually.
   separate, larger thing gated on desktop delivery — see the docs wiki's
   `future-features.md`.
 - **Two i18n checks, and they catch different things.** `check-i18n` proves
-  every key in `en.json` exists in it/es/de. It cannot see a string that never
+  three things about the catalogs: every key in `en.json` exists in it/es/de,
+  every message parses as ICU, and every translation carries the same
+  placeholder names as its English original. It cannot see a string that never
   became a key, which is how ~1,100 hardcoded English strings accumulated in an
   app advertising four locales — every catalog "complete", most of the UI
   English. `check-hardcoded` scans the tracked `.tsx` files instead, against a
   per-file baseline in `packages/i18n/hardcoded-baseline.json`: a file may not
   gain a literal, and the count only ratchets down. Translated a batch? Re-run
   `node packages/i18n/find-hardcoded.mjs --baseline` to bank it.
+- **Messages are ICU: `{name}`, one brace.** The app initialises i18next with
+  i18next-icu, so `{{name}}` — i18next's own interpolation — is a malformed ICU
+  argument and renders as its own braces on screen. Two keys shipped that way
+  and neither check could see it until the ICU parse landed. Plurals are ICU
+  too: `{count, plural, one {# reply} other {# replies}}`, never a
+  `=== 1 ? "reply" : "replies"` ternary, which no translator can fix for a
+  language with three plural forms.
 - Translating a file, the parts no scan-and-replace handles: a local
   `const t = …` silently shadows the translator inside its own callback (and
   TypeScript is happy either way); a second component in the same file needs
