@@ -1,5 +1,5 @@
 {
-  "total": 718,
+  "total": 668,
   "files": {
     "apps/desktop/src/AccountRoot.tsx": 8,
     "apps/desktop/src/App.tsx": 17,
@@ -58,9 +58,7 @@
     "packages/ui/src/components/admin/ColorSwatchPicker.tsx": 2,
     "packages/ui/src/components/admin/ExternalBotSection.tsx": 2,
     "packages/ui/src/components/admin/HubIconsSection.tsx": 14,
-    "packages/ui/src/components/admin/InviteManager.tsx": 16,
     "packages/ui/src/components/admin/MemberRoleManager.tsx": 8,
-    "packages/ui/src/components/admin/OnboardingAdminSection.tsx": 17,
     "packages/ui/src/components/admin/SoundboardAdminSection.tsx": 1,
     "packages/ui/src/components/Attachments.tsx": 3,
     "packages/ui/src/components/AudioProfileSection.tsx": 1,
@@ -118,7 +116,7 @@
     "packages/ui/src/components/settings/SettingsShell.tsx": 3,
     "packages/ui/src/components/SkinEditor.tsx": 16,
     "packages/ui/src/components/SkinsGallery.tsx": 12,
-    "packages/ui/src/components/SortableItems.tsx": 18,
+    "packages/ui/src/components/SortableItems.tsx": 1,
     "packages/ui/src/components/StagingPanel.tsx": 1,
     "packages/ui/src/components/StagingSlotGroup.tsx": 3,
     "packages/ui/src/components/users/FriendsModal.tsx": 1,
