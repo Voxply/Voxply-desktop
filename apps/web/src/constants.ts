@@ -66,24 +66,6 @@ const DIRECTORY_URL: string | null = null;
 
 export const DISCOVERY_URL: string | null = MULTI_HUB ? DIRECTORY_URL : null;
 
-export const ALL_PERMISSIONS: { id: string; label: string }[] = [
-  { id: "admin", label: "Administrator (grants everything)" },
-  { id: "manage_channels", label: "Manage channels" },
-  { id: "manage_roles", label: "Manage roles" },
-  { id: "manage_messages", label: "Manage messages" },
-  { id: "kick_members", label: "Kick members" },
-  { id: "ban_members", label: "Ban members" },
-  { id: "mute_members", label: "Mute members" },
-  { id: "timeout_members", label: "Timeout members" },
-  { id: "manage_hub_icons", label: "Manage hub icon library (upload / rename / delete)" },
-  { id: "manage_channel_icons", label: "Set icons and colors on channels" },
-  { id: "manage_bots", label: "Manage bots (create / delete / rotate token)" },
-  { id: "read_messages", label: "Read messages" },
-  { id: "send_messages", label: "Send messages" },
-  { id: "manage_soundboard", label: "Manage soundboard (upload / delete clips)" },
-  { id: "move_members", label: "Move members between voice channels" },
-];
-
 // Small preset palette for role/role-category color pickers. Free hex input
 // is offered alongside these for anything more specific.
 export const ROLE_ACCENT_COLORS: string[] = [

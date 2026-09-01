@@ -1,5 +1,5 @@
 {
-  "total": 1011,
+  "total": 948,
   "files": {
     "apps/desktop/src/AccountRoot.tsx": 8,
     "apps/desktop/src/App.tsx": 17,
@@ -53,7 +53,6 @@
     "apps/web/src/components/settings/TrustedDevicesSection.tsx": 2,
     "apps/web/src/components/voice/MicLevelMeter.tsx": 1,
     "apps/web/src/components/voice/VideoPipWindow.tsx": 4,
-    "packages/ui/src/components/admin/AlliancesSection.tsx": 18,
     "packages/ui/src/components/admin/AuditLogSection.tsx": 9,
     "packages/ui/src/components/admin/ChallengePreviewModal.tsx": 7,
     "packages/ui/src/components/admin/ColorSwatchPicker.tsx": 2,
@@ -62,8 +61,6 @@
     "packages/ui/src/components/admin/InviteManager.tsx": 16,
     "packages/ui/src/components/admin/MemberRoleManager.tsx": 8,
     "packages/ui/src/components/admin/OnboardingAdminSection.tsx": 17,
-    "packages/ui/src/components/admin/RoleCategoryManager.tsx": 12,
-    "packages/ui/src/components/admin/RolesSection.tsx": 33,
     "packages/ui/src/components/admin/ServerTagsSection.tsx": 22,
     "packages/ui/src/components/admin/SoundboardAdminSection.tsx": 19,
     "packages/ui/src/components/admin/SurveyAdminSection.tsx": 22,

@@ -21,22 +21,6 @@ export const DISCOVERY_URL: string | null = null;
 
 export const MIC_METER_MAX = 0.2;
 
-export const ALL_PERMISSIONS: { id: string; label: string }[] = [
-  { id: "admin", label: "Administrator (grants everything)" },
-  { id: "manage_channels", label: "Manage channels" },
-  { id: "manage_roles", label: "Manage roles" },
-  { id: "manage_messages", label: "Manage messages" },
-  { id: "kick_members", label: "Kick members" },
-  { id: "ban_members", label: "Ban members" },
-  { id: "mute_members", label: "Mute members" },
-  { id: "timeout_members", label: "Timeout members" },
-  { id: "manage_hub_icons", label: "Manage hub icon library (upload / rename / delete)" },
-  { id: "manage_channel_icons", label: "Set icons and colors on channels" },
-  { id: "manage_bots", label: "Manage bots (create / delete / rotate token)" },
-  { id: "read_messages", label: "Read messages" },
-  { id: "send_messages", label: "Send messages" },
-];
-
 export const EXPIRY_OPTIONS: { label: string; seconds: number | null }[] = [
   { label: "Never", seconds: null },
   { label: "30 minutes", seconds: 30 * 60 },

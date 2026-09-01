@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { RoleCategory, RoleInfo } from "../../types";
 import { groupRolesByCategory, roleTintStyle, safeRoleColor } from "../../utils/roleAppearance";
 import { EmojiPicker } from "../content/EmojiPicker";
@@ -6,22 +7,25 @@ import { ErrorRetry } from "../ErrorRetry";
 import { ColorSwatchPicker } from "./ColorSwatchPicker";
 import { RoleCategoryManager, type RoleCategoryManagerActions } from "./RoleCategoryManager";
 
-export const ALL_PERMISSIONS: { id: string; label: string }[] = [
-  { id: "admin", label: "Administrator (grants everything)" },
-  { id: "manage_channels", label: "Manage channels" },
-  { id: "manage_roles", label: "Manage roles" },
-  { id: "manage_messages", label: "Manage messages" },
-  { id: "kick_members", label: "Kick members" },
-  { id: "ban_members", label: "Ban members" },
-  { id: "mute_members", label: "Mute members" },
-  { id: "timeout_members", label: "Timeout members" },
-  { id: "manage_hub_icons", label: "Manage hub icon library (upload / rename / delete)" },
-  { id: "manage_channel_icons", label: "Set icons and colors on channels" },
-  { id: "manage_bots", label: "Manage bots (create / delete / rotate token)" },
-  { id: "read_messages", label: "Read messages" },
-  { id: "send_messages", label: "Send messages" },
-  { id: "manage_soundboard", label: "Manage soundboard (upload / delete clips)" },
-  { id: "move_members", label: "Move members between voice channels" },
+/** Permission ids, in display order. Each label is the catalog key
+ *  `hub.admin.roles.perm.<id>`, so a new permission is one id here plus one
+ *  key in the four catalogs. */
+export const ALL_PERMISSIONS: string[] = [
+  "admin",
+  "manage_channels",
+  "manage_roles",
+  "manage_messages",
+  "kick_members",
+  "ban_members",
+  "mute_members",
+  "timeout_members",
+  "manage_hub_icons",
+  "manage_channel_icons",
+  "manage_bots",
+  "read_messages",
+  "send_messages",
+  "manage_soundboard",
+  "move_members",
 ];
 
 export interface RoleUpdateInput {
@@ -57,6 +61,7 @@ interface Props {
 const isBuiltin = (role: RoleInfo) => role.id.startsWith("builtin-");
 
 export function RolesSection({ actions }: Props) {
+  const { t } = useTranslation();
   const [roles, setRoles] = useState<RoleInfo[] | null>(null);
   const [categories, setCategories] = useState<RoleCategory[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -134,7 +139,7 @@ export function RolesSection({ actions }: Props) {
   }
 
   async function handleDelete(role: RoleInfo) {
-    if (!window.confirm(`Delete role "${role.name}"? Members keep their other roles.`)) return;
+    if (!window.confirm(t("hub.admin.roles.delete_confirm", { name: role.name }))) return;
     setError(null);
     try {
       await actions.deleteRole(role.id);
@@ -148,24 +153,24 @@ export function RolesSection({ actions }: Props) {
     if (error) {
       return (
         <section>
-          <h1>Roles</h1>
+          <h1>{t("hub.admin.roles.title")}</h1>
           <ErrorRetry message={error} onRetry={load} />
         </section>
       );
     }
-    return <p className="muted">Loading…</p>;
+    return <p className="muted">{t("hub.admin.roles.loading")}</p>;
   }
 
   const groups = groupRolesByCategory(roles, categories, { includeEmptyCategories: true });
 
   return (
     <section>
-      <h1>Roles</h1>
-      <p className="muted">Roles grant permissions. Higher priority ranks above lower priority for moderation and role-assignment guards.</p>
+      <h1>{t("hub.admin.roles.title")}</h1>
+      <p className="muted">{t("hub.admin.roles.hint")}</p>
       {error && <p className="error-text">{error}</p>}
 
       {!showCreate ? (
-        <button type="button" onClick={() => setShowCreate(true)}>New role</button>
+        <button type="button" onClick={() => setShowCreate(true)}>{t("hub.admin.roles.new")}</button>
       ) : (
         <div className="settings-section" style={{ border: "1px solid var(--border)", borderRadius: "var(--r-md)", padding: "var(--space-3)" }}>
           <div className="settings-row" style={{ gap: "var(--space-2)" }}>
@@ -173,8 +178,8 @@ export function RolesSection({ actions }: Props) {
               type="text"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="Role name"
-              aria-label="Role name"
+              placeholder={t("hub.admin.roles.name_placeholder")}
+              aria-label={t("hub.admin.roles.name_placeholder")}
               autoFocus
             />
             <input
@@ -182,36 +187,36 @@ export function RolesSection({ actions }: Props) {
               value={newPriority}
               onChange={(e) => setNewPriority(Number(e.target.value))}
               style={{ maxWidth: 90 }}
-              title="Priority (higher = ranked above)"
-              aria-label="Priority"
+              title={t("hub.admin.roles.priority_title")}
+              aria-label={t("hub.admin.roles.priority_aria")}
             />
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)", margin: "var(--space-2) 0" }}>
-            {ALL_PERMISSIONS.map((p) => (
-              <label key={p.id} className="checkbox-label" style={{ fontSize: "var(--text-sm)" }}>
+            {ALL_PERMISSIONS.map((perm) => (
+              <label key={perm} className="checkbox-label" style={{ fontSize: "var(--text-sm)" }}>
                 <input
                   type="checkbox"
-                  checked={newPerms.has(p.id)}
+                  checked={newPerms.has(perm)}
                   onChange={() => setNewPerms((prev) => {
                     const n = new Set(prev);
-                    if (n.has(p.id)) n.delete(p.id); else n.add(p.id);
+                    if (n.has(perm)) n.delete(perm); else n.add(perm);
                     return n;
                   })}
                 />
-                {p.label}
+                {t(`hub.admin.roles.perm.${perm}`)}
               </label>
             ))}
           </div>
           <label className="checkbox-label" style={{ fontSize: "var(--text-sm)" }}>
             <input type="checkbox" checked={newHoist} onChange={(e) => setNewHoist(e.target.checked)} />
-            Show members of this role separately in the list
+            {t("hub.admin.roles.hoist")}
           </label>
           <div className="settings-row" style={{ marginTop: "var(--space-2)" }}>
             <button type="button" onClick={handleCreate} disabled={creating || !newName.trim()}>
-              {creating ? "Creating…" : "Create role"}
+              {creating ? t("hub.admin.roles.creating") : t("hub.admin.roles.create")}
             </button>
             <button type="button" className="btn-secondary" onClick={() => setShowCreate(false)} disabled={creating}>
-              Cancel
+              {t("hub.admin.roles.cancel")}
             </button>
           </div>
         </div>
@@ -236,11 +241,11 @@ export function RolesSection({ actions }: Props) {
             style={roleTintStyle(group.category?.color)}
           >
             {group.category?.icon && <span>{group.category.icon}</span>}
-            <span>{group.category?.name ?? "Uncategorized"}</span>
+            <span>{group.category?.name ?? t("hub.admin.roles.uncategorized")}</span>
           </div>
 
           {group.roles.length === 0 && (
-            <p className="muted" style={{ marginLeft: "var(--space-2)" }}>No roles in this category.</p>
+            <p className="muted" style={{ marginLeft: "var(--space-2)" }}>{t("hub.admin.role_categories.category_empty")}</p>
           )}
 
           {group.roles.map((role) => (
@@ -260,9 +265,9 @@ export function RolesSection({ actions }: Props) {
                     <select
                       value={role.category_id ?? ""}
                       onChange={(e) => applyUpdate(role.id, { category_id: e.target.value || null })}
-                      title="Category"
+                      title={t("hub.admin.roles.category_label")}
                     >
-                      <option value="">No category</option>
+                      <option value="">{t("hub.admin.roles.category_none")}</option>
                       {categories
                         .slice()
                         .sort((a, b) => a.position - b.position)
@@ -280,7 +285,7 @@ export function RolesSection({ actions }: Props) {
                         className="btn-small btn-secondary"
                         onClick={() => applyUpdate(role.id, { icon: null })}
                       >
-                        Clear
+                        {t("hub.admin.roles.clear_icon")}
                       </button>
                     )}
 
@@ -292,7 +297,7 @@ export function RolesSection({ actions }: Props) {
                         border: safeRoleColor(role.color) ? undefined : "1px solid var(--border)",
                       }}
                       onClick={() => setColorPickerFor(colorPickerFor === role.id ? null : role.id)}
-                      title="Role color"
+                      title={t("hub.admin.roles.color_label")}
                     />
                   </>
                 )}
@@ -304,7 +309,7 @@ export function RolesSection({ actions }: Props) {
                     aria-expanded={permsOpenFor === role.id}
                     onClick={() => setPermsOpenFor(permsOpenFor === role.id ? null : role.id)}
                   >
-                    Permissions {permsOpenFor === role.id ? "▴" : "▾"}
+                    {t("hub.admin.roles.permissions")} {permsOpenFor === role.id ? "▴" : "▾"}
                   </button>
                 )}
                 {!isBuiltin(role) && (
@@ -313,7 +318,7 @@ export function RolesSection({ actions }: Props) {
                     className="btn-small btn-secondary danger"
                     onClick={() => handleDelete(role)}
                   >
-                    Delete
+                    {t("hub.admin.roles.delete")}
                   </button>
                 )}
               </div>
@@ -321,21 +326,21 @@ export function RolesSection({ actions }: Props) {
               {colorPickerFor === role.id && (
                 <ColorSwatchPicker
                   value={role.color}
-                  noColorLabel="No color"
+                  noColorLabel={t("hub.admin.roles.no_color")}
                   onChange={(color) => applyUpdate(role.id, { color })}
                 />
               )}
 
               {permsOpenFor === role.id && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)", padding: "var(--space-2) 0 var(--space-3) var(--space-4)" }}>
-                  {ALL_PERMISSIONS.map((p) => (
-                    <label key={p.id} className="checkbox-label" style={{ fontSize: "var(--text-sm)" }}>
+                  {ALL_PERMISSIONS.map((perm) => (
+                    <label key={perm} className="checkbox-label" style={{ fontSize: "var(--text-sm)" }}>
                       <input
                         type="checkbox"
-                        checked={role.permissions.includes(p.id)}
-                        onChange={() => toggleRolePerm(role, p.id)}
+                        checked={role.permissions.includes(perm)}
+                        onChange={() => toggleRolePerm(role, perm)}
                       />
-                      {p.label}
+                      {t(`hub.admin.roles.perm.${perm}`)}
                     </label>
                   ))}
                 </div>
