@@ -300,7 +300,7 @@ export function MessageRow({
           >
             {senderLabel}
           </span>
-          {showBirthdayBadge && <span title="Birthday today" aria-label="Birthday today">🎂</span>}
+          {showBirthdayBadge && <span title={t("message.birthday")} aria-label={t("message.birthday")}>🎂</span>}
           <span className="action-text">
             <MessageContent content={actionText} knownNames={knownDisplayNames} myName={myDisplayName} hubEmojiMap={hubEmojiMap} hubBaseUrl={hubBaseUrl ?? activeHub?.hub_url} />
           </span>
@@ -350,7 +350,7 @@ export function MessageRow({
         >
           {senderLabel}
         </span>
-        {showBirthdayBadge && <span title="Birthday today" aria-label="Birthday today">🎂</span>}
+        {showBirthdayBadge && <span title={t("message.birthday")} aria-label={t("message.birthday")}>🎂</span>}
         {senderUser?.is_bot && !senderUser?.is_webhook && (
           <span className="bot-badge" aria-hidden="true">{t("bot.badge")}</span>
         )}
@@ -426,8 +426,8 @@ export function MessageRow({
                 <button
                   className="message-action"
                   onClick={() => void togglePin()}
-                  title={pinnedMessageIds.has(m.id) ? "Unpin message" : "Pin message"}
-                  aria-label={pinnedMessageIds.has(m.id) ? "Unpin message" : "Pin message"}
+                  title={pinnedMessageIds.has(m.id) ? t("message.action.unpin") : t("message.action.pin")}
+                  aria-label={pinnedMessageIds.has(m.id) ? t("message.action.unpin") : t("message.action.pin")}
                 >
                   📌
                 </button>
@@ -450,13 +450,13 @@ export function MessageRow({
               {!isMine && actions.reportMessage && (
                 reported ? (
                   <span className="message-action muted" style={{ fontSize: "var(--text-xs)" }}>
-                    Reported
+                    {t("message.report.reported")}
                   </span>
                 ) : (
                   <button
                     className="message-action"
-                    title="Report message"
-                    aria-label="Report message"
+                    title={t("message.report.button")}
+                    aria-label={t("message.report.button")}
                     onClick={() => setReporting((v) => !v)}
                   >
                     ⚑
@@ -468,7 +468,7 @@ export function MessageRow({
               <div className="settings-row" style={{ marginTop: "var(--space-1)" }}>
                 <input
                   type="text"
-                  placeholder="Reason for report…"
+                  placeholder={t("message.report.placeholder")}
                   value={reportDraft}
                   onChange={(e) => setReportDraft(e.target.value)}
                   style={{ flex: 1 }}
@@ -489,13 +489,13 @@ export function MessageRow({
                     }
                   }}
                 >
-                  Submit
+                  {t("message.report.submit")}
                 </button>
                 <button
                   className="btn-small btn-secondary"
                   onClick={() => { setReporting(false); setReportDraft(""); }}
                 >
-                  Cancel
+                  {t("message.report.cancel")}
                 </button>
               </div>
             )}
