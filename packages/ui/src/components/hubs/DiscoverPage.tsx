@@ -122,7 +122,7 @@ export function DiscoverPage({ onClose, onJoinHub, fetchUrl, directoryUrl }: Pro
         />
         <input
           type="text"
-          placeholder="Tag filter"
+          placeholder={t("discover.tag_placeholder")}
           value={tagFilter}
           onChange={(e) => setTagFilter(e.target.value)}
           className="discover-tag-input"
@@ -135,7 +135,7 @@ export function DiscoverPage({ onClose, onJoinHub, fetchUrl, directoryUrl }: Pro
         )}
       </form>
 
-      <div className="discover-tag-chips" aria-label="Filter by tag">
+      <div className="discover-tag-chips" aria-label={t("discover.tag_filter_aria")}>
         {POPULAR_TAGS.map((tag) => (
           <button
             key={tag}
@@ -151,7 +151,7 @@ export function DiscoverPage({ onClose, onJoinHub, fetchUrl, directoryUrl }: Pro
       <div className="discover-filters">
         <label className="checkbox-label">
           <input type="checkbox" checked={hideNsfw} onChange={(e) => setHideNsfw(e.target.checked)} />
-          Hide NSFW
+          {t("discover.hide_nsfw")}
         </label>
       </div>
 
@@ -160,9 +160,9 @@ export function DiscoverPage({ onClose, onJoinHub, fetchUrl, directoryUrl }: Pro
           className="discover-unavailable"
           style={{ textAlign: "center", padding: "var(--space-5)", opacity: 0.75 }}
         >
-          <p style={{ fontSize: "var(--text-lg)" }}>📡 Service not available</p>
+          <p style={{ fontSize: "var(--text-lg)" }}>{t("discover.unavailable_title")}</p>
           <p className="muted" style={{ fontSize: "var(--text-sm)", marginBottom: "var(--space-3)" }}>
-            The community directory couldn't be reached. It may be offline — try again later.
+            {t("discover.unavailable_body")}
           </p>
           <button className="btn-secondary" onClick={() => fetchPage(q, language, tagFilter, 1, true)}>
             Retry

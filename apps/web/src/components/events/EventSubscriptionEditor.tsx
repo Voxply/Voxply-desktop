@@ -1,4 +1,5 @@
 import type { Channel, EventSubscription } from "@shared/types";
+import { useTranslation } from "react-i18next";
 
 const EVENT_TYPES = [
   "member.joined",
@@ -50,6 +51,7 @@ export function eventSubscriptionsAreValid(subscriptions: EventSubscription[]): 
 }
 
 export function EventSubscriptionEditor({ channels, value, onChange }: EventSubscriptionEditorProps) {
+  const { t } = useTranslation();
   const textChannels = channels.filter((c) => !c.is_category);
   const byEvent = new Map(value.map((s) => [s.event, s]));
 
@@ -89,7 +91,7 @@ export function EventSubscriptionEditor({ channels, value, onChange }: EventSubs
             {enabled && needsChannels && (
               <div className="event-subscription-channels">
                 {textChannels.length === 0 ? (
-                  <span className="muted">No channels available.</span>
+                  <span className="muted">{t("events.subscription.no_channels")}</span>
                 ) : (
                   textChannels.map((ch) => (
                     <label key={ch.id} className="checkbox-label">
@@ -104,7 +106,7 @@ export function EventSubscriptionEditor({ channels, value, onChange }: EventSubs
                 )}
                 {invalid && (
                   <p className="muted" style={{ color: "var(--danger)" }}>
-                    Select at least one channel for this event.
+                    {t("events.subscription.pick_one")}
                   </p>
                 )}
               </div>
