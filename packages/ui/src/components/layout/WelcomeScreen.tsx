@@ -66,7 +66,7 @@ export function WelcomeScreen({
               value={hubUrl}
               onChange={(e) => onHubUrlChange(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") onJoin(); }}
-              placeholder="hub.example.com  or  wavvon://…"
+              placeholder={t("welcome.url_placeholder")}
               autoFocus
               style={{ flex: 1 }}
             />
@@ -164,7 +164,7 @@ export function WelcomeScreen({
         )}
         {onCheckHubUrl && (
           <button className="btn-secondary" onClick={onCheckHubUrl}>
-            Check a hub URL
+            {t("welcome.check_hub_url")}
           </button>
         )}
       </div>
@@ -191,7 +191,7 @@ export function WelcomeScreen({
 
       {onDismiss && (
         <button className="welcome-settings-link muted" onClick={onDismiss}>
-          Skip for now
+          {t("onboarding.display_name.skip")}
         </button>
       )}
 

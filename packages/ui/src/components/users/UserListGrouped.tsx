@@ -123,7 +123,7 @@ export function UserListGrouped({
         <span className="user-list-total">
           {humans.length} {humans.length === 1 ? "member" : "members"}
         </span>
-        <span className="user-list-online" title="Online">
+        <span className="user-list-online" title={t("presence.online")}>
           <span className="status-dot online" />
           {onlineCount}
         </span>
@@ -131,12 +131,12 @@ export function UserListGrouped({
       <div className="user-list-filter">
         <input
           type="text"
-          placeholder="Filter members…"
+          placeholder={t("users.list.filter_placeholder")}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
         {filter && matched.length === 0 && (
-          <p className="muted user-list-empty">No matches</p>
+          <p className="muted user-list-empty">{t("users.list.no_matches")}</p>
         )}
       </div>
       {onlineBuckets.map(([title, list]) => (
@@ -170,7 +170,7 @@ export function UserListGrouped({
                   >
                     {u.display_name || u.public_key.slice(0, 16)}
                     {!hideBirthdays && isBirthdayToday(u.birthday) && (
-                      <span title="Birthday today" aria-label="Birthday today"> 🎂</span>
+                      <span title={t("message.birthday")} aria-label={t("message.birthday")}> 🎂</span>
                     )}
                     {u.status_custom && (
                       <span className="user-custom-status"> — {u.status_custom}</span>
@@ -218,7 +218,7 @@ export function UserListGrouped({
                   >
                     {u.display_name || u.public_key.slice(0, 16)}
                     {!hideBirthdays && isBirthdayToday(u.birthday) && (
-                      <span title="Birthday today" aria-label="Birthday today"> 🎂</span>
+                      <span title={t("message.birthday")} aria-label={t("message.birthday")}> 🎂</span>
                     )}
                     {isSelfInvisible && (
                       <span className="user-custom-status"> — {t("presence.invisible")}</span>
