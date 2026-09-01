@@ -259,7 +259,7 @@ export function ChannelSettingsModal({
           <h3 id="channel-settings-title">
             {isCreate
               ? (isCategory ? t("channel.create.title_category") : t("channel.create.title_channel"))
-              : channel.is_category ? "Category Settings" : "Channel Settings"}
+              : channel.is_category ? t("channel.settings.title_category") : t("channel.settings.title_channel")}
           </h3>
 
           {!isCreate && canManageRoles && (
@@ -285,7 +285,7 @@ export function ChannelSettingsModal({
                   className={tab === "bans" ? "btn-primary" : "btn-secondary"}
                   onClick={() => setTab("bans")}
                 >
-                  Bans
+                  {t("channel.settings.tab_bans")}
                 </button>
               )}
               {isAdmin && talkPowerActions && !channel.is_category && (
@@ -336,7 +336,7 @@ export function ChannelSettingsModal({
               )}
 
               <label style={{ display: "block", marginBottom: "var(--space-2)" }}>
-                <span className="label-text">Name</span>
+                <span className="label-text">{t("channel.settings.name")}</span>
                 <input
                   type="text"
                   value={name}
@@ -375,13 +375,13 @@ export function ChannelSettingsModal({
 
               {!isCategory && !isSpawner && (
                 <label style={{ display: "block", marginBottom: "var(--space-3)" }}>
-                  <span className="label-text">Description (optional)</span>
+                  <span className="label-text">{t("channel.settings.description_label")}</span>
                   <input
                     type="text"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}
-                    placeholder="What's this channel for?"
+                    placeholder={t("channel.settings.description_placeholder")}
                     style={{ display: "block", width: "100%", marginTop: 4 }}
                   />
                 </label>
@@ -395,7 +395,7 @@ export function ChannelSettingsModal({
                       checked={nsfw}
                       onChange={(e) => setNsfw(e.target.checked)}
                     />
-                    NSFW / mature content
+                    {t("channel.settings.nsfw")}
                   </label>
                 </div>
               )}
@@ -408,7 +408,7 @@ export function ChannelSettingsModal({
                       checked={requireTag}
                       onChange={(e) => setRequireTag(e.target.checked)}
                     />
-                    Require a tag on new posts
+                    {t("channel.settings.require_tag")}
                   </label>
                   {!isCreate && forumTagsActions && (
                     <ForumTagManager
@@ -562,10 +562,7 @@ export function ChannelSettingsModal({
                     </button>
                   ))}
                 </div>
-                <p className="muted">
-                  Upload your own .svg file. Scripts and external references are
-                  stripped automatically.
-                </p>
+                <p className="muted">{t("channel.settings.svg_hint")}</p>
                 {uploadError && (
                   <p style={{ color: "var(--danger)", marginTop: "4px" }}>{uploadError}</p>
                 )}
@@ -575,13 +572,13 @@ export function ChannelSettingsModal({
                 {!isCreate && confirmDelete ? (
                   <>
                     <span style={{ marginRight: "auto", color: "var(--danger)", fontSize: "var(--text-sm)" }}>
-                      Delete <strong>{channel.name}</strong>? This cannot be undone.
+                      {t("channel.settings.delete_confirm", { name: channel.name })}
                     </span>
                     <button className="btn-secondary" onClick={() => setConfirmDelete(false)}>
-                      Cancel
+                      {t("modal.cancel")}
                     </button>
                     <button className="btn-danger" disabled={deleting} onClick={onDelete}>
-                      {deleting ? "Deleting…" : "Yes, delete"}
+                      {deleting ? t("channel.settings.deleting") : t("channel.settings.delete_yes")}
                     </button>
                   </>
                 ) : (
@@ -592,17 +589,19 @@ export function ChannelSettingsModal({
                         style={{ marginRight: "auto" }}
                         onClick={() => setConfirmDelete(true)}
                       >
-                        Delete {channel.is_category ? "category" : "channel"}…
+                        {t("channel.settings.delete_button", {
+                          type: channel.is_category ? t("channel.ctx.type_category") : t("channel.ctx.type_channel"),
+                        })}
                       </button>
                     )}
-                    <button onClick={onClose} className="btn-secondary">Cancel</button>
+                    <button onClick={onClose} className="btn-secondary">{t("modal.cancel")}</button>
                     <button
                       onClick={handleSubmit}
                       disabled={saving || !canSubmit}
                     >
                       {isCreate
                         ? (saving ? t("modal.creating") : t("modal.create"))
-                        : (saving ? "Saving…" : "Save")}
+                        : (saving ? t("channel.settings.saving") : t("modal.save"))}
                     </button>
                   </>
                 )}

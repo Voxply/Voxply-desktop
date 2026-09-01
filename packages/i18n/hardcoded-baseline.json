@@ -1,5 +1,5 @@
 {
-  "total": 797,
+  "total": 758,
   "files": {
     "apps/desktop/src/AccountRoot.tsx": 8,
     "apps/desktop/src/App.tsx": 17,
@@ -61,7 +61,6 @@
     "packages/ui/src/components/admin/InviteManager.tsx": 16,
     "packages/ui/src/components/admin/MemberRoleManager.tsx": 8,
     "packages/ui/src/components/admin/OnboardingAdminSection.tsx": 17,
-    "packages/ui/src/components/admin/ServerTagsSection.tsx": 22,
     "packages/ui/src/components/admin/SoundboardAdminSection.tsx": 19,
     "packages/ui/src/components/admin/SurveyAdminSection.tsx": 22,
     "packages/ui/src/components/Attachments.tsx": 3,
@@ -71,7 +70,7 @@
     "packages/ui/src/components/BotCard.tsx": 1,
     "packages/ui/src/components/channels/ChannelBansTab.tsx": 11,
     "packages/ui/src/components/channels/ChannelContextMenu.tsx": 2,
-    "packages/ui/src/components/channels/ChannelSettingsModal.tsx": 23,
+    "packages/ui/src/components/channels/ChannelSettingsModal.tsx": 6,
     "packages/ui/src/components/channels/ChannelTalkPowerTab.tsx": 4,
     "packages/ui/src/components/channels/EditDescriptionModal.tsx": 3,
     "packages/ui/src/components/content/AllianceView.tsx": 1,
