@@ -152,7 +152,7 @@ export function EventComposer({
       }}
       role="dialog"
       aria-modal="true"
-      aria-label="Create event"
+      aria-label={t("events.composer.title")}
     >
       {/* .modal, not the undefined .modal-box (same fix as UserProfileCard) —
           without it the composer has no max-height/overflow, so Phase 3's
@@ -164,43 +164,43 @@ export function EventComposer({
         onClick={(e) => e.stopPropagation()}
       >
         <h2 style={{ margin: "0 0 16px", fontSize: "var(--text-md)", fontWeight: 600 }}>
-          Create event
+          {t("events.composer.title")}
         </h2>
 
         <form onSubmit={handleSubmit}>
           <div className="settings-section" style={{ marginBottom: 10 }}>
-            <label className="settings-label" htmlFor="event-title">Title</label>
+            <label className="settings-label" htmlFor="event-title">{t("events.composer.title_label")}</label>
             <input
               id="event-title"
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Event title"
+              placeholder={t("events.composer.title_placeholder")}
               style={{ width: "100%" }}
               autoFocus
             />
           </div>
 
           <div className="settings-section" style={{ marginBottom: 10 }}>
-            <label className="settings-label" htmlFor="event-description">Description</label>
+            <label className="settings-label" htmlFor="event-description">{t("events.composer.description_label")}</label>
             <textarea
               id="event-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Optional description"
+              placeholder={t("events.composer.description_placeholder")}
               rows={3}
               style={{ width: "100%", resize: "vertical" }}
             />
           </div>
 
           <div className="settings-section" style={{ marginBottom: 10 }}>
-            <label className="settings-label" htmlFor="event-location">Location</label>
+            <label className="settings-label" htmlFor="event-location">{t("events.composer.location_label")}</label>
             <input
               id="event-location"
               type="text"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
-              placeholder="Optional location"
+              placeholder={t("events.composer.location_placeholder")}
               style={{ width: "100%" }}
             />
           </div>
@@ -258,7 +258,7 @@ export function EventComposer({
               and renders wider than the single-column fields above. */}
           <div className="settings-row" style={{ display: "flex", gap: 12, marginBottom: 10 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <label className="settings-label" htmlFor="event-start">Start</label>
+              <label className="settings-label" htmlFor="event-start">{t("events.composer.start")}</label>
               <input
                 id="event-start"
                 type="datetime-local"
@@ -268,7 +268,7 @@ export function EventComposer({
               />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <label className="settings-label" htmlFor="event-end">End (optional)</label>
+              <label className="settings-label" htmlFor="event-end">{t("events.composer.end")}</label>
               <input
                 id="event-end"
                 type="datetime-local"
@@ -307,10 +307,10 @@ export function EventComposer({
 
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <button type="button" className="btn-secondary" onClick={onClose}>
-              Cancel
+              {t("events.composer.cancel")}
             </button>
             <button type="submit" className="btn-primary" disabled={saving}>
-              {saving ? "Creating…" : "Create event"}
+              {saving ? t("events.composer.creating") : t("events.composer.submit")}
             </button>
           </div>
         </form>

@@ -829,7 +829,7 @@ export default function App({ initialView }: AppProps = {}) {
       await loadHubData();
       publishDhKey().catch(() => {});
     }
-    const hubName = hubsRef.current.find((h) => h.hub_id === hubId)?.hub_name ?? "the hub";
+    const hubName = hubsRef.current.find((h) => h.hub_id === hubId)?.hub_name ?? t("app.the_hub");
     showHubError(t("lobby.welcome", { hub: hubName }));
   }
 
@@ -1187,7 +1187,7 @@ export default function App({ initialView }: AppProps = {}) {
   // === Render ===
 
   if (ready === "checking") {
-    return <div style={{ padding: 32 }}>Loading…</div>;
+    return <div style={{ padding: 32 }}>{t("app.loading")}</div>;
   }
 
   if (ready === "setup") {
@@ -1451,7 +1451,7 @@ export default function App({ initialView }: AppProps = {}) {
           channelId={activeOpenApp.event.channel_id}
           botId={activeOpenApp.event.bot_id}
           hubUrl={activeOpenApp.hubUrl}
-          title={activeBotApps.get(activeOpenApp.event.bot_id)?.title ?? "Game"}
+          title={activeBotApps.get(activeOpenApp.event.bot_id)?.title ?? t("bot.app.default_title")}
           requiresCamera={activeOpenApp.event.requires_camera}
           onClose={() => setActiveOpenApp(null)}
         />
@@ -1495,11 +1495,11 @@ export default function App({ initialView }: AppProps = {}) {
       ) : activeHubId && pendingApprovalHubs.has(activeHubId) ? (
         <main className="content" style={{ display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
           <div style={{ fontSize: 40 }}>⏳</div>
-          <h2 style={{ margin: 0 }}>Waiting for approval</h2>
+          <h2 style={{ margin: 0 }}>{t("app.approval.title")}</h2>
           <p className="muted" style={{ margin: 0, textAlign: "center", maxWidth: 320 }}>
-            Your membership request is pending. A hub admin will review your request shortly.
+            {t("app.approval.body")}
           </p>
-          <button className="btn-secondary" onClick={() => loadHubData()}>Check again</button>
+          <button className="btn-secondary" onClick={() => loadHubData()}>{t("app.approval.check_again")}</button>
         </main>
       ) : <>
         {(() => {
