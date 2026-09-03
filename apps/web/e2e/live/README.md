@@ -54,6 +54,29 @@ $env:DATABASE_URL='postgres://postgres:postgres@localhost:5432/wavvon_e2e'
 $env:WAVVON_DATABASE_URL='postgres://postgres:postgres@localhost:5432/wavvon_e2e'
 ```
 
+## Driving the hub build
+
+The suite normally runs the **user** build behind Vite, which is a different
+origin from the hub. Anything that only exists when the hub serves the client
+itself — an invite link at `/join/<code>`, the locked hub address on the
+welcome screen, passkeys — cannot be reached that way. Point both overrides at
+a hub that serves `dist-hub` instead:
+
+```powershell
+npm run build:hub                       # from clients/apps/web
+$env:WAVVON_WEB_CLIENT_DIR='C:path	oclientsappswebdist-hub'
+# ...start the hub as above, then:
+$env:WAVVON_E2E_HUB_URL='http://localhost:3010'
+$env:WAVVON_E2E_APP_URL='http://localhost:3010'
+npx playwright test --project=live --no-deps --workers=1 e2e/live/<spec>.spec.ts
+```
+
+`--no-deps` skips `live.setup.ts`, which drives the user build's welcome
+screen and cannot onboard here — a spec run this way brings its own contexts.
+The hub reads `index.html` once at startup, so **restart it after every
+`build:hub`** or it serves an index pointing at asset files the rebuild
+deleted.
+
 **Locally Playwright serves the dev server; in CI it builds and previews.**
 The dev server transforms each module on first request, and on a two-core
 runner that put seconds in front of the first click on any menu or modal —
