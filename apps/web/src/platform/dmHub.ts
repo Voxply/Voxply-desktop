@@ -80,7 +80,3 @@ export async function dmFetch(path: string, init?: RequestInit): Promise<Respons
   return hubFetchWithToken(hub_url, token, path, init);
 }
 
-/** The hub DMs are being read from, for anything that has to say so. */
-export async function dmHubName(): Promise<string> {
-  return (await dmSession()).hub_name;
-}

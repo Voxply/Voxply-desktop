@@ -14,6 +14,5 @@ export * from "./identity/recovery";
 export * from "./identity/master";
 export * from "./identity/wire";
 export * from "./identity/ecies";
-export * from "./identity/prf";
 export * from "./identity/backup";
 export * from "./identity/voice";

@@ -1,10 +1,9 @@
 {
-  "total": 223,
+  "total": 210,
   "files": {
     "apps/desktop/src/AccountRoot.tsx": 7,
     "apps/desktop/src/App.tsx": 14,
     "apps/desktop/src/components/AccountSwitcherSection.tsx": 12,
-    "apps/desktop/src/components/AvatarEditor.tsx": 1,
     "apps/desktop/src/components/BannerEditModal.tsx": 5,
     "apps/desktop/src/components/BotChallenge.tsx": 1,
     "apps/desktop/src/components/ChannelPalette.tsx": 3,
@@ -12,7 +11,6 @@
     "apps/desktop/src/components/HomeHubSection.tsx": 10,
     "apps/desktop/src/components/HubBotsSection.tsx": 14,
     "apps/desktop/src/components/HubBrowser.tsx": 9,
-    "apps/desktop/src/components/IdentityCertificationsSection.tsx": 5,
     "apps/desktop/src/components/Lightbox.tsx": 2,
     "apps/desktop/src/components/PairingSection.tsx": 40,
     "apps/desktop/src/components/PasskeySection.tsx": 9,
@@ -20,7 +18,6 @@
     "apps/desktop/src/components/RestoreIdentitySection.tsx": 5,
     "apps/desktop/src/components/ScreenShareModal.tsx": 10,
     "apps/desktop/src/components/ScreenShareOverlay.tsx": 2,
-    "apps/desktop/src/components/ScreenSharePicker.tsx": 7,
     "apps/desktop/src/components/settings/ManageAccountsTab.tsx": 2,
     "apps/desktop/src/components/settings/PrivacyTab.tsx": 2,
     "apps/desktop/src/components/SettingsPage.tsx": 4,

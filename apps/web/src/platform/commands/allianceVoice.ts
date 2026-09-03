@@ -120,7 +120,3 @@ export async function openAllianceVoiceVisit(
   };
 }
 
-/** A refusal the owning hub named, e.g. `voice_remote_join` set to `none`. */
-export function allianceVoiceRefusal(e: unknown): string | null {
-  return e instanceof HubApiError && (e.status === 403 || e.status === 409) ? e.message : null;
-}

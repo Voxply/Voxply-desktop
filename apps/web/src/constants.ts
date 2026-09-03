@@ -21,10 +21,6 @@ export const GAME_ACTIVITY_EMOJI: string[] = ["🎮", "🕹️", "⚔️", "🏹
 
 export const MIC_METER_MAX = 0.2;
 
-// Set to a hub URL to enable the "Try a demo hub" button on the welcome
-// screen. null means the button is hidden — don't ship a dead button.
-export const DEMO_HUB_URL: string | null = null;
-
 // Build target. The hub build is what a hub serves from its own origin: one
 // hub and its interconnections, no list — no switcher, no add-hub, no
 // create-hub, no directory, no home-hub editor (decisions.md, "Two web
@@ -40,7 +36,7 @@ export const MULTI_HUB: boolean = import.meta.env.VITE_BUILD_TARGET !== "hub";
 // Where the user build lives — the multi-hub client, hosted next to the
 // directory. The hub build points people at it; the user build has no use for
 // it. null means the invitation to move is not rendered at all: same rule as
-// DEMO_HUB_URL and the directory, don't ship a dead button.
+// the directory below, don't ship a dead button.
 //
 // Only hub URL and invite code ever travel in that link. They are not secrets
 // and the user can read them in the address bar. A seed never goes in a URL —
@@ -53,7 +49,7 @@ export const USER_CLIENT_URL: string | null = MULTI_HUB ? null : USER_CLIENT_ORI
 // The public hub directory (discovery-v2.md). null means every surface that
 // needs it — browse public hubs, the hub-creation wizard link, the skins
 // gallery, the directory listing form in hub admin — is not rendered at all.
-// Same rule as DEMO_HUB_URL above: don't ship a dead button.
+// Same rule as USER_CLIENT_URL above: don't ship a dead button.
 //
 // It was three different hardcoded hostnames across five files
 // (discovery.wavvon.io, discovery.wavvon.app, hub-directory.wavvon.io), none
