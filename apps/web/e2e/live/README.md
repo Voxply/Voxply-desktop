@@ -79,5 +79,16 @@ The skip is `54-ttt-game`, which needs `TTT_BOT_PUBKEY` and a running
 `server/crates/ttt-bot`. It skips silently, so a run reporting green has
 covered 85 of 86 — the CI job included.
 
+Two failure shapes worth recognising before chasing them as product bugs.
+**The specs share one hub in file order**, so "element(s) not found" often means
+an earlier spec changed the state this one assumed — P57 matched the owner's
+display name against the seed constant, which P24 renames without putting back;
+read the name from `/me` instead. And **the app reloads itself once per page
+load** when the prefs pull brings back a boot-time setting (App.tsx
+`PREFS_RELOAD_FLAG`), which closes menus and kills in-flight
+`page.evaluate` calls; `expectInHub` and `onboardWithSeed` claim that flag
+so it cannot fire mid-spec, and anything opening a page without them should do
+the same.
+
 Run with `--workers=1` (the `test:e2e:live` script does) — specs share one hub
 and are not isolated from each other.
