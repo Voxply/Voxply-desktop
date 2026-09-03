@@ -26,6 +26,22 @@ export function uniqueName(prefix: string): string {
 
 // Walk the first-run flow with a recovered identity, join the local hub,
 // and dismiss the display-name prompt if it appears.
+// The app reloads itself once per page load when the prefs pull brings back a
+// setting that is only read at boot (App.tsx PREFS_RELOAD_FLAG, language and
+// theme). The pull lands a few round trips after the hub header renders, so
+// under a spec that reload arrives mid-interaction: a menu opened a moment
+// earlier closes under the test, and an in-flight page.evaluate loses its
+// execution context. Claiming the flag first means the app finds the reload
+// already done and skips it — addInitScript so it survives the reloads the
+// specs themselves perform.
+export async function claimPrefsReload(page: Page): Promise<void> {
+  const claim = () => {
+    try { sessionStorage.setItem("wavvon.prefsReloaded", "1"); } catch { /* no storage */ }
+  };
+  await page.addInitScript(claim);
+  await page.evaluate(claim).catch(() => { /* nothing loaded yet */ });
+}
+
 export async function onboardWithSeed(
   page: Page,
   seedHex: string,
@@ -33,6 +49,7 @@ export async function onboardWithSeed(
   inviteCode?: string,
 ): Promise<void> {
   await page.goto("/");
+  await claimPrefsReload(page);
   try {
     await page
       .getByRole("button", { name: "Recover existing identity" })
@@ -119,6 +136,7 @@ export async function dismissHubSetupWizard(page: Page, waitMs = 0): Promise<voi
 // and the hub session actually restored (the header shows the real hub
 // name, not the "Hub" placeholder used while no hub is connected).
 export async function expectInHub(page: Page): Promise<void> {
+  await claimPrefsReload(page);
   await expect(page.getByRole("button", { name: "Join hub" })).toBeHidden({
     timeout: 15000,
   });
@@ -162,6 +180,25 @@ export function channelButton(page: Page, name: string) {
 // token. For test SETUP only (e.g. creating a custom role where the web UI
 // has no creation surface yet) — assertions should go through the UI.
 export async function hubApi<T = unknown>(
+  page: Page,
+  path: string,
+  init?: { method?: string; body?: unknown },
+): Promise<T> {
+  // One retry past a navigation: an evaluate racing a page load dies as
+  // "Execution context was destroyed" and its fetch as "Failed to fetch",
+  // neither of which says anything about the hub. A second failure is real
+  // and is thrown.
+  try {
+    return await hubApiOnce<T>(page, path, init);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    if (!/Execution context was destroyed|Failed to fetch/.test(message)) throw e;
+    await page.waitForLoadState("domcontentloaded");
+    return await hubApiOnce<T>(page, path, init);
+  }
+}
+
+async function hubApiOnce<T>(
   page: Page,
   path: string,
   init?: { method?: string; body?: unknown },
