@@ -24,21 +24,43 @@ to `e2e/.auth/owner.json`; the `live` project reuses it.
 
 ## Launch recipe
 
+The suite wants a hub with an empty database, and the shortest way to one is
+the hub's own bundled PostgreSQL: leave `WAVVON_DATABASE_URL` unset and the
+hub installs and starts a server under its working directory. A new directory
+is therefore a new hub with a new identity and an empty database, and deleting
+it is the whole cleanup.
+
 ```powershell
-# 1. Postgres (from server/)
+# 1. A throwaway hub, from an empty directory (no docker, no CREATE DATABASE)
+$env:WAVVON_OWNER_PUBKEY='03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8'
+$env:WAVVON_HTTP_PORT='3010'
+$env:WAVVON_VOICE_UDP_PORT='3011'
+C:\path\to\server\target\debug\wavvon-hub.exe
+
+# 2. Run the tests (from clients/apps/web/) — vite is started by Playwright
+$env:WAVVON_E2E_HUB_URL='http://localhost:3010'
+npm run test:e2e:live
+```
+
+Against an external PostgreSQL instead, point `WAVVON_DATABASE_URL` at a
+database created for the run (`migrate` reads the unprefixed `DATABASE_URL`),
+and drop it afterwards:
+
+```powershell
 docker compose -f docker-compose.dev.yml up -d
 docker exec server-postgres-1 psql -U postgres -c "CREATE DATABASE wavvon_e2e"
-
-# 2. Migrate + run the hub (note: `migrate` reads unprefixed DATABASE_URL)
 $env:DATABASE_URL='postgres://postgres:postgres@localhost:5432/wavvon_e2e'
 .\target\debug\wavvon-hub.exe migrate
 $env:WAVVON_DATABASE_URL='postgres://postgres:postgres@localhost:5432/wavvon_e2e'
-$env:WAVVON_OWNER_PUBKEY='03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8'
-.\target\debug\wavvon-hub.exe
-
-# 3. Run the tests (from clients/apps/web/) — vite is started by Playwright
-npm run test:e2e:live
 ```
+
+**Locally Playwright serves the dev server; in CI it builds and previews.**
+The dev server transforms each module on first request, and on a two-core
+runner that put seconds in front of the first click on any menu or modal —
+65 of 85 specs flaky there while every one of them stayed green locally.
+`webServer` runs `npm run build && npm run preview` when `CI` is set for that
+reason; locally the dev server stays, since nothing waits on it on a fast
+machine.
 
 The owner pubkey above is derived from the fixed seed in
 `helpers/live.ts` (`000102…1e1f`); seeding it as `WAVVON_OWNER_PUBKEY`
