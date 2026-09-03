@@ -21,6 +21,7 @@ import {
   type IdentityRecord,
 } from "@identity/index";
 import type { PerAccountProps } from "@wavvon/ui";
+import { isIdentityBackedUp, markIdentityBackedUp } from "../../../utils/identityBackup";
 
 interface Props extends PerAccountProps<IdentityRecord> {
   hubs: Hub[];
@@ -123,6 +124,8 @@ export function ManageAccountsTab(props: Props) {
         recoveryPhrase={props.recoveryPhrase}
         onRevealPhrase={props.onShowRecovery}
         actions={backupActions}
+        needsBackup={!isIdentityBackedUp(props.activeId)}
+        onSavedOffDevice={markIdentityBackedUp}
       />
       {activeHubUrl && <RecoveryContactsSection isAdmin={false} actions={recoveryActions} />}
       <FullArchiveSection publicKey={props.publicKey} />

@@ -154,6 +154,11 @@ interface Props {
   onToggleSelfMute: () => void;
   onToggleSelfDeafen: () => void;
   onOpenSettings: () => void;
+  /** The active identity has no copy off this browser yet. Marks the gear
+   *  rather than raising anything of its own: the gear is always on screen and
+   *  never moves, so the reminder cannot be dismissed into nowhere, and it
+   *  goes away the moment the phrase is revealed or a backup exported. */
+  settingsNeedsAttention?: boolean;
   onDragEnd: (event: DragEndEvent) => void;
   onToggleHideSilenced?: () => void;
   sharing?: boolean;
@@ -210,7 +215,7 @@ export function ChannelSidebar({
   onSelectChannel, onChannelContextMenu, onOpenChannelSettings,
   onVoiceJoin, onVoiceLeave, onParticipantContextMenu,
   onSelectAllianceChannel, onJoinAllianceVoice, onSelectConversation,
-  onOpenFriends, onToggleSelfMute, onToggleSelfDeafen, onOpenSettings,
+  onOpenFriends, onToggleSelfMute, onToggleSelfDeafen, onOpenSettings, settingsNeedsAttention,
   onDragEnd, onToggleHideSilenced, sharing, onScreenShare,
   videoEnabled, onToggleVideo,
   voiceGains, onSetVoiceGain, inboundWhispers, hasDraft,
@@ -1012,8 +1017,15 @@ export function ChannelSidebar({
               </div>
             )}
           </div>
-          <button onClick={onOpenSettings} className="btn-icon-gear" title={t("settings.title")}>
+          <button
+            onClick={onOpenSettings}
+            className="btn-icon-gear"
+            title={settingsNeedsAttention ? t("settings.identity_backup.badge") : t("settings.title")}
+          >
             ⚙
+            {settingsNeedsAttention && (
+              <span className="gear-attention-dot" aria-label={t("settings.identity_backup.badge")} />
+            )}
           </button>
         </div>
       </div>

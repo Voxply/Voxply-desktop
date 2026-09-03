@@ -46,6 +46,12 @@ export interface AppModalsProps {
   handleAddHubWithPasskey: () => void | Promise<void>;
   setShowDiscover: (v: boolean) => void;
 
+  // Identity backup — one prompt at the first message an unsaved identity
+  // sends (utils/identityBackup.ts).
+  showBackupPrompt: boolean;
+  onBackupPromptShowPhrase: () => void;
+  onBackupPromptLater: () => void;
+
   // Invites
   showQuickInvite: boolean;
   setShowQuickInvite: (v: boolean) => void;

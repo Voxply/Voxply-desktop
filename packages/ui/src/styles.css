@@ -9780,3 +9780,17 @@ a.embed-title:hover {
   font-size: var(--text-xs);
   max-width: 34ch;
 }
+
+/* Unsaved-identity marker on the settings gear. Position only — the gear
+   itself is styled above. */
+.btn-icon-gear { position: relative; }
+.gear-attention-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--danger);
+  pointer-events: none;
+}

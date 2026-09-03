@@ -27,6 +27,8 @@ export interface UseChannelMessagesParams {
   clearSelectedAllianceChannel: () => void;
   selectAllianceChannel: (alliance: AllianceInfo, channel: AllianceSharedChannel) => Promise<void>;
   sendAllianceMessage: (content: string) => Promise<void>;
+  /** A message of the user's own just reached the hub. */
+  onMessageSent?: () => void;
 }
 
 // Channel message state (composer, edit/reply/attachment drafts, search,
@@ -38,6 +40,7 @@ export interface UseChannelMessagesParams {
 export function useChannelMessages({
   activeHubId, setView, clearConversationSelection, clearUnread,
   selectedAllianceChannel, clearSelectedAllianceChannel, selectAllianceChannel, sendAllianceMessage,
+  onMessageSent,
 }: UseChannelMessagesParams) {
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   const selectedChannelRef = useRef<Channel | null>(null);
@@ -180,6 +183,7 @@ export function useChannelMessages({
       }
       setPendingAttachments([]);
       setReplyTarget(null);
+      onMessageSent?.();
     } catch {
       // Nothing here can raise a toast, so put the text back rather than
       // dropping it silently — a rejected send (rate limit, hub down) left

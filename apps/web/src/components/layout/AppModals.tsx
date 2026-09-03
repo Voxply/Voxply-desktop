@@ -25,6 +25,7 @@ import { passkeysUsableWith } from "@platform";
 import { DISCOVERY_URL, MULTI_HUB } from "../../constants";
 import { HubAdminContainer } from "../admin/HubAdminContainer";
 import type { AppModalsProps } from "./appModalsProps";
+import { IdentityBackupPrompt } from "@components/identity/IdentityBackupPrompt";
 
 // Every modal and context menu the app can put over itself.
 //
@@ -115,6 +116,9 @@ export function AppModals(p: AppModalsProps) {
     showHubAdmin,
     showHubError,
     showHubSetupWizard,
+    showBackupPrompt,
+    onBackupPromptShowPhrase,
+    onBackupPromptLater,
     showQuickInvite,
     users,
   } = p;
@@ -157,6 +161,13 @@ export function AppModals(p: AppModalsProps) {
             setFingerprintMatch(false);
           }}
           onBrowse={DISCOVERY_URL ? () => { setShowAddHub(false); setShowDiscover(true); } : undefined}
+        />
+      )}
+
+      {showBackupPrompt && (
+        <IdentityBackupPrompt
+          onShowPhrase={onBackupPromptShowPhrase}
+          onLater={onBackupPromptLater}
         />
       )}
 

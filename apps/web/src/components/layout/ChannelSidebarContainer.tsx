@@ -74,6 +74,7 @@ export interface ChannelSidebarContainerProps {
   onChannelContextMenu: (e: React.MouseEvent, channel: Channel) => void;
   onOpenFriends: () => void;
   onOpenSettings: () => void;
+  settingsNeedsAttention?: boolean;
   onOpenSearch: () => void;
   onDragEnd: (event: DragEndEvent) => void;
 }
@@ -89,7 +90,7 @@ export function ChannelSidebarContainer({
   view, channels, channelTree, users, publicKey, isAdmin, canCreateInvites,
   canManageRoles, canMoveMembers, canUseSoundboard, silencedChannelIds,
   soundboardChipsByChannel, whisperReplyBind, onSetWhisperReplyBind,
-  onOpenQuickInvite, onChannelContextMenu, onOpenFriends, onOpenSettings,
+  onOpenQuickInvite, onChannelContextMenu, onOpenFriends, onOpenSettings, settingsNeedsAttention,
   onOpenSearch, onDragEnd,
 }: ChannelSidebarContainerProps) {
   const { t } = useTranslation();
@@ -193,6 +194,7 @@ export function ChannelSidebarContainer({
       onToggleSelfMute={voice.handleToggleMute}
       onToggleSelfDeafen={voice.handleToggleDeafen}
       onOpenSettings={onOpenSettings}
+      settingsNeedsAttention={settingsNeedsAttention}
       onDragEnd={onDragEnd}
       voiceGains={voice.voiceGains}
       onSetVoiceGain={voice.handleSetVoiceGain}

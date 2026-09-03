@@ -43,6 +43,7 @@ import { WhisperInbox } from "@wavvon/ui";
 import { ContentArea } from "@components/layout/ContentArea";
 import { ChannelSidebarContainer } from "@components/layout/ChannelSidebarContainer";
 import { AppModals } from "@components/layout/AppModals";
+import { isIdentityBackedUp, wasBackupPrompted, markBackupPrompted } from "./utils/identityBackup";
 import { loadDefaultProfile, saveDefaultProfile, type DefaultProfile } from "./utils/profiles";
 import { startPrefsSync } from "./utils/prefsSync";
 import { listRoles, listUserRoles, assignRoleToUser, removeRoleFromUser, createInvite } from "@platform";
@@ -123,12 +124,37 @@ export default function App({ initialView }: AppProps = {}) {
   const [ready, setReady] = useState<"checking" | "setup" | "ok">("checking");
   const [publicKey, setPublicKey] = useState<string | null>(null);
 
+  // An identity created from an invite link never met the phrase screen, so
+  // the only copy of its key is this browser's. That fact gets a marker on the
+  // settings gear until it stops being true, and one prompt at the first
+  // message — see utils/identityBackup.ts. Recomputed rather than watched:
+  // the two places that can change it are the settings panel and this prompt,
+  // and both close.
+  const [identityNeedsBackup, setIdentityNeedsBackup] = useState(false);
+  const [showBackupPrompt, setShowBackupPrompt] = useState(false);
+  function refreshIdentityBackupState() {
+    setIdentityNeedsBackup(!isIdentityBackedUp());
+  }
+  function handleOwnMessageSent() {
+    if (isIdentityBackedUp() || wasBackupPrompted()) return;
+    markBackupPrompted();
+    setShowBackupPrompt(true);
+  }
+
   // Captured wholesale (not just destructured) so it can be passed straight
   // through to SettingsPageContainer/ChannelSidebarContainer as one grouped
   // prop (state-access-design.md Phase 1) — App still pulls out the handful
   // of fields it needs directly (useAppKeybinds, the mention-ping ref).
   const settingsProfile = useSettingsProfile(setPublicKey, initialView);
   const { showSettings, setShowSettings, mentionPingEnabled } = settingsProfile;
+
+  // Closing the settings panel is when revealing the phrase or exporting a
+  // backup could have happened, and a fresh identity is the other moment the
+  // answer changes.
+  useEffect(() => {
+    refreshIdentityBackupState();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [publicKey, showSettings]);
 
   // === Hubs ===
   const hubLifecycle = useHubLifecycle({ loadHubData, resetChannelSelectionState, goToChannelsView });
@@ -194,6 +220,7 @@ export default function App({ initialView }: AppProps = {}) {
     clearSelectedAllianceChannel,
     selectAllianceChannel,
     sendAllianceMessage,
+    onMessageSent: handleOwnMessageSent,
   });
   const {
     selectedChannel, setSelectedChannel, selectedChannelRef, selectedChannelIdRef,
@@ -1440,6 +1467,7 @@ export default function App({ initialView }: AppProps = {}) {
         onChannelContextMenu={(e, channel) => { e.preventDefault(); setChannelCtxMenu({ channel, x: e.clientX, y: e.clientY }); }}
         onOpenFriends={() => setShowFriends(true)}
         onOpenSettings={() => setShowSettings(true)}
+        settingsNeedsAttention={identityNeedsBackup}
         onOpenSearch={() => setShowSearchBar(true)}
         onDragEnd={handleChannelDragEnd}
       />
@@ -1557,6 +1585,13 @@ export default function App({ initialView }: AppProps = {}) {
       </MobileShell>
 
       <AppModals
+        showBackupPrompt={showBackupPrompt}
+        onBackupPromptShowPhrase={() => {
+          setShowBackupPrompt(false);
+          settingsProfile.setSettingsTab("accounts");
+          setShowSettings(true);
+        }}
+        onBackupPromptLater={() => setShowBackupPrompt(false)}
         activeHubId={activeHubId}
         addHubError={addHubError}
         addingHub={addingHub}

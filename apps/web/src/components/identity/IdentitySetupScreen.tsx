@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { postPairingClaim, getPairingStatus } from "@platform";
+import { postPairingClaim, getPairingStatus, previewHubInfo } from "@platform";
 import {
   generateSubkeySeed,
   publicKeyHex,
@@ -19,8 +19,9 @@ import type { IdentityRecord } from "@identity/index";
 import { ProfileSetupStep } from "@components/onboarding/ProfileSetupStep";
 import { encryptBackup, suggestBackupFilename } from "@wavvon/core";
 import { inviteCodeFromPath } from "@wavvon/core";
-import { USER_CLIENT_URL } from "../../constants";
+import { MULTI_HUB, USER_CLIENT_URL } from "../../constants";
 import { clearMigrated, migratedPubkey } from "../../utils/migrated";
+import { markIdentityBackedUp } from "../../utils/identityBackup";
 import { passphraseStrength } from "@wavvon/ui";
 
 export interface IdentitySetupCompletion {
@@ -74,6 +75,21 @@ export function IdentitySetupScreen({ variant = "initial", onComplete, onCancel 
   const [backupWorking, setBackupWorking] = useState(false);
   const [backupError, setBackupError] = useState<string | null>(null);
   const [backupDone, setBackupDone] = useState(false);
+  const [invitedToHub, setInvitedToHub] = useState<string | null>(null);
+
+  // Someone arriving on an invite link is here because of a place, not
+  // because of Wavvon. Name the place. Only the hub build can: it is served by
+  // the hub itself, so its own origin answers /info — on the user build the
+  // path carries a code and no hub to ask.
+  useEffect(() => {
+    if (MULTI_HUB || variant !== "initial") return;
+    if (!inviteCodeFromPath(window.location.pathname)) return;
+    let cancelled = false;
+    previewHubInfo(window.location.origin)
+      .then((info) => { if (!cancelled && info.name) setInvitedToHub(info.name); })
+      .catch(() => { /* unreachable or too old to say — keep the plain title */ });
+    return () => { cancelled = true; };
+  }, [variant]);
 
   // Snapshot the device's account count once, before this flow adds a row —
   // it feeds the "Account N" label suggestion without counting the very
@@ -86,10 +102,16 @@ export function IdentitySetupScreen({ variant = "initial", onComplete, onCancel 
     return t("identity_setup.label.suggestion", { n: existingAccountCount + 1 });
   }
 
-  function finishWithAccount(accountId: string) {
+  // `backedUp` records whether the user has actually been handed their key.
+  // True for every path here: the create flow shows the phrase and asks them
+  // to confirm it, recover means they typed it, and a paired device holds a
+  // subkey it can never reveal a phrase for, so nagging it would be a lie.
+  // The one false is the invite fast path, which skips the phrase screen.
+  function finishWithAccount(accountId: string, backedUp = true) {
     // An identity exists on this origin again, by the user's own doing — the
     // "you moved to the user client" notice has to stop claiming otherwise.
     clearMigrated();
+    if (backedUp) markIdentityBackedUp(accountId);
     if (variant === "add") {
       onComplete({ accountId });
     } else {
@@ -194,7 +216,26 @@ export function IdentitySetupScreen({ variant = "initial", onComplete, onCancel 
     }
   }
 
+  // Someone who followed an invite link came to read a room, not to be handed
+  // 24 words and a warning about losing them — at that moment they have
+  // nothing to lose yet, which is exactly when nobody writes anything down.
+  // Create the identity, go straight in, and let the unsaved-key state on the
+  // settings gear (utils/identityBackup.ts) ask afterwards, when it means
+  // something. The phrase is not gone: it is one click away in Settings, and
+  // the seed is the same seed either way.
+  async function doGenerateForInvite() {
+    const seedHex = generateSubkeySeed();
+    const { account } = await resolveOrCreateAccount(seedHex);
+    const labelled = { ...account, account_label: suggestedLabel() };
+    await saveIdentity(labelled);
+    finishWithAccount(labelled.id, false);
+  }
+
   async function doGenerate() {
+    if (variant === "initial" && inviteCodeFromPath(window.location.pathname)) {
+      await doGenerateForInvite();
+      return;
+    }
     const seedHex = generateSubkeySeed();
     const { account } = await resolveOrCreateAccount(seedHex);
     setGeneratedSeed(account.seed_hex);
@@ -228,6 +269,7 @@ export function IdentitySetupScreen({ variant = "initial", onComplete, onCancel 
       a.click();
       URL.revokeObjectURL(url);
 
+      markIdentityBackedUp(pendingAccount.id);
       setShowBackupForm(false);
       setBackupPassphrase("");
       setBackupConfirm("");
@@ -444,7 +486,13 @@ export function IdentitySetupScreen({ variant = "initial", onComplete, onCancel 
 
   return (
     <div style={{ maxWidth: 400, margin: "120px auto", padding: 32, textAlign: "center" }}>
-      <h1>{variant === "add" ? t("identity_setup.add.title") : t("app.title")}</h1>
+      <h1 style={{ marginBottom: 12 }}>
+        {variant === "add"
+          ? t("identity_setup.add.title")
+          : invitedToHub
+            ? t("identity_setup.choose.invited_to", { name: invitedToHub })
+            : t("app.title")}
+      </h1>
       <p className="muted">{variant === "add" ? t("identity_setup.add.hint") : t("identity_setup.choose.hint")}</p>
       {/* This origin was left for the user client. Say so instead of
           silently offering a fresh start, which is how one person ends up
