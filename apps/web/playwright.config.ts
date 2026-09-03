@@ -3,6 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 // Where the app is served. Overridable so a CI job can bring its own vite,
 // or point the suite at a hub serving its own baked-in client.
 const APP_URL = process.env.WAVVON_E2E_APP_URL ?? "http://localhost:1421";
+const APP_PORT = new URL(APP_URL).port || "1421";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -12,7 +13,10 @@ export default defineConfig({
   reporter: process.env.CI ? "github" : "list",
   use: {
     baseURL: APP_URL,
-    trace: "on-first-retry",
+    // Every failed attempt keeps its trace. "on-first-retry" recorded the
+    // retry instead, so a spec that failed once and passed on retry left a
+    // trace of the run that passed and the failure itself was undiagnosable.
+    trace: "retain-on-failure",
   },
   projects: [
     // Mock-API tests (no real hub needed). The capture dir is the
@@ -49,9 +53,16 @@ export default defineConfig({
       },
     },
   ],
+  // CI serves a production build. Under the dev server the first interaction
+  // with any not-yet-transformed module waits on Vite compiling it, which on a
+  // two-core runner is seconds per menu or modal and is what turned 65 of 85
+  // live specs flaky there while they stayed green on a fast local machine.
   webServer: {
-    command: "npm run dev",
+    command: process.env.CI
+      ? `npm run build && npm run preview -- --port ${APP_PORT} --strictPort`
+      : "npm run dev",
     url: APP_URL,
     reuseExistingServer: !process.env.CI,
+    timeout: process.env.CI ? 300_000 : 60_000,
   },
 });
