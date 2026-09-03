@@ -43,7 +43,10 @@ export interface HubsApi {
 
 export interface MessagesApi {
   getMessages(channel_id: string, before?: string, limit?: number): Promise<unknown[]>;
-  sendMessage(channel_id: string, content: string, attachments?: unknown[], reply_to?: string): Promise<void>;
+  // Resolves to the stored message when the hub created one (the caller
+  // renders it rather than waiting for the socket echo), null on the
+  // slash-command path where the reply arrives over the socket.
+  sendMessage(channel_id: string, content: string, attachments?: unknown[], reply_to?: string): Promise<unknown | null>;
   editMessage(channel_id: string, message_id: string, content: string): Promise<void>;
   deleteMessage(channel_id: string, message_id: string): Promise<void>;
   addReaction(channel_id: string, message_id: string, emoji: string): Promise<void>;
