@@ -77,6 +77,7 @@ jobs:
           WAVVON_OWNER_PUBKEY: ${{ env.OWNER_PUBKEY }}
           WAVVON_HTTP_PORT: ${{ env.HUB_HTTP_PORT }}
           WAVVON_VOICE_UDP_PORT: ${{ env.HUB_VOICE_UDP_PORT }}
+          WAVVON_PUBLIC_URL: http://localhost:${{ env.HUB_HTTP_PORT }}
           WAVVON_WEB_CLIENT_DIR: ""
         run: |
           ./target/debug/wavvon-hub > "$RUNNER_TEMP/hub.log" 2>&1 &
