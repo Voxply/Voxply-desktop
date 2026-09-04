@@ -47,7 +47,23 @@ interface InfoResponse {
   lan_fingerprint?: string | null;
 }
 
-function authBaseUrl(info: InfoResponse, hub_url: string): string {
+/** Where this identity's `/auth/*` calls go.
+ *
+ * A farm-managed hub tells clients to authenticate at the farm
+ * (`/info.farm_url`; the hub's health.rs says so in as many words), and for an
+ * ordinary identity that is the point: one farm token works on every hub of
+ * the farm.
+ *
+ * A **paired device is the exception.** Resolving a subkey to the identity it
+ * actually speaks for happens in the *hub's* `/auth/verify` — off the cert the
+ * client presents, or off the device the pairing flow registered with that hub
+ * — and the farm has neither. Sending a paired device to the farm made it land
+ * on every farm-hosted hub as a brand-new stranger, with no error anywhere:
+ * the join succeeded and the device was simply somebody else. Authenticating
+ * at the hub costs that one device farm SSO and is otherwise identical.
+ */
+function authBaseUrl(info: InfoResponse, hub_url: string, subkeyCert?: unknown): string {
+  if (subkeyCert) return hub_url;
   return info.farm_url ?? hub_url;
 }
 
@@ -78,7 +94,7 @@ export async function addHub(
     if (!identity) throw new Error("No identity — generate one first");
 
     const res = await authenticate(
-      authBaseUrl(info, url),
+      authBaseUrl(info, url, identity.subkey_cert),
       publicKeyHex(identity.seed_hex),
       identity.seed_hex,
       identity.security_nonce,
@@ -291,7 +307,7 @@ export async function upgradeActiveHubIdentity(): Promise<void> {
     (r) => r.json() as Promise<InfoResponse>,
   );
   const res = await authenticate(
-    authBaseUrl(info, s.hub_url),
+    authBaseUrl(info, s.hub_url, identity.subkey_cert),
     publicKeyHex(identity.seed_hex),
     identity.seed_hex,
     identity.security_nonce,
@@ -327,7 +343,7 @@ export async function reauthorizeHub(
   const seedHex = identity.seed_hex;
   const pubkeyHex = publicKeyHex(seedHex);
   const { token, scope } = await authenticate(
-    authBaseUrl(info, s.hub_url),
+    authBaseUrl(info, s.hub_url, identity.subkey_cert),
     pubkeyHex,
     seedHex,
     identity.security_nonce,
@@ -425,7 +441,7 @@ export async function restorePersistedHubs(handlers: WsHandlers): Promise<Hub[]>
           (r) => r.json() as Promise<InfoResponse>,
         );
         const authRes = await authenticate(
-          authBaseUrl(hubInfo, hub.hub_url),
+          authBaseUrl(hubInfo, hub.hub_url, identity.subkey_cert),
           pubkeyHex,
           seedHex,
           identity.security_nonce,
