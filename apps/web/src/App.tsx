@@ -447,6 +447,7 @@ export default function App({ initialView }: AppProps = {}) {
     disposeVideo: () => {},
     stopVideoSessionOnly: () => {},
     stopWhisperIfActive: () => {},
+    setVoiceChannelNameHint: () => {},
     clearVoiceChannelNameHint: () => {},
   });
   const voice = useVoice({
@@ -460,6 +461,7 @@ export default function App({ initialView }: AppProps = {}) {
     disposeVideo: video.disposeVideo,
     stopVideoSessionOnly: video.stopVideoSessionOnly,
     stopWhisperIfActive: () => { if (whisper.isWhispering) whisper.stopWhisper(); },
+    setVoiceChannelNameHint: (name) => voiceMoveUx.setVoiceChannelNameHint(name),
     clearVoiceChannelNameHint: () => voiceMoveUx.setVoiceChannelNameHint(null),
   };
   const whisperOptoutRef = useRef(whisper.whisperOptout);

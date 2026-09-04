@@ -110,6 +110,17 @@ export async function openAllianceVoiceVisit(
   );
 
   const ws = new HubWebSocket(minted.owner_hub_url, token, minted.owner_hub_pubkey, handlers);
+  // Not returned until it is open. The caller sends `voice_join` on the next
+  // microtask and `HubWebSocket.send` drops frames on a socket that is still
+  // CONNECTING — so before this wait, alliance voice minted a grant, redeemed
+  // it, opened the socket, threw the join away and reported "Voice join timed
+  // out" ten seconds later. Every time, on every hub.
+  try {
+    await ws.whenOpen();
+  } catch (e) {
+    ws.close();
+    throw e;
+  }
   return {
     hubUrl: minted.owner_hub_url,
     hubPubkey: minted.owner_hub_pubkey,

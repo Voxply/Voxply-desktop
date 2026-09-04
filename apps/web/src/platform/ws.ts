@@ -250,6 +250,40 @@ export class HubWebSocket {
     this.backoff = Math.min(this.backoff * 2, BACKOFF_CAP);
   }
 
+  /** Resolves once this socket is open, rejects if it never gets there.
+   *
+   * `send` below drops anything handed to it while the socket is still
+   * CONNECTING. On the app's own socket that is invisible — it has been open
+   * since boot — but a socket opened *in answer to a click* has not connected
+   * yet on the next microtask, and the frame goes nowhere silently. That is
+   * what alliance voice did: it built a socket to the allied hub and sent
+   * `voice_join` immediately, so the join could only ever time out. Anyone
+   * opening a socket and sending on it straight away wants this first.
+   */
+  whenOpen(timeoutMs = 15_000): Promise<void> {
+    const socket = this.ws;
+    if (!socket) return Promise.reject(new Error("WebSocket was never created"));
+    if (socket.readyState === WebSocket.OPEN) return Promise.resolve();
+    return new Promise<void>((resolve, reject) => {
+      const done = (fn: () => void) => {
+        clearTimeout(timer);
+        socket.removeEventListener("open", onOpen);
+        socket.removeEventListener("close", onFail);
+        socket.removeEventListener("error", onFail);
+        fn();
+      };
+      const onOpen = () => done(resolve);
+      const onFail = () => done(() => reject(new Error("WebSocket closed before it opened")));
+      const timer = setTimeout(
+        () => done(() => reject(new Error("WebSocket did not open in time"))),
+        timeoutMs,
+      );
+      socket.addEventListener("open", onOpen);
+      socket.addEventListener("close", onFail);
+      socket.addEventListener("error", onFail);
+    });
+  }
+
   send(msg: object): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msg));

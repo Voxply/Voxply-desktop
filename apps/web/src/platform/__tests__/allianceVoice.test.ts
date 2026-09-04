@@ -122,10 +122,27 @@ describe("openAllianceVoiceVisit", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const opened: string[] = [];
+    // Opens on a later task, like a real one. That gap is the whole point:
+    // `send` drops frames on a CONNECTING socket, so the visit must not be
+    // handed back before the socket is open — alliance voice used to send
+    // `voice_join` into that gap and time out.
     class FakeWebSocket {
       static OPEN = 1;
       readyState = 0;
-      constructor(url: string) { opened.push(url); }
+      private listeners: Record<string, (() => void)[]> = {};
+      constructor(url: string) {
+        opened.push(url);
+        setTimeout(() => {
+          this.readyState = 1;
+          (this.listeners.open ?? []).forEach((fn) => fn());
+        }, 5);
+      }
+      addEventListener(type: string, fn: () => void) {
+        (this.listeners[type] ??= []).push(fn);
+      }
+      removeEventListener(type: string, fn: () => void) {
+        this.listeners[type] = (this.listeners[type] ?? []).filter((f) => f !== fn);
+      }
       close() {}
     }
     vi.stubGlobal("WebSocket", FakeWebSocket);
@@ -139,5 +156,43 @@ describe("openAllianceVoiceVisit", () => {
     // touches its own hub.
     expect(opened[0]).toBe("wss://owner.example/ws?token=visit-token");
     visit.close();
+  });
+
+  // Before the fix this resolved with a socket still connecting; the caller
+  // then sent `voice_join` into a socket that drops what it is handed while
+  // CONNECTING, and reported "Voice join timed out" ten seconds later. A
+  // socket that never opens has to fail here, where the reason is known.
+  it("fails when the owner's socket never opens", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (url === `${OWNER_URL}/info`) {
+        return new Response(
+          JSON.stringify({ public_key: "owner-pub-key", capabilities: ["voice.alliance"] }),
+          { status: 200 },
+        );
+      }
+      if (url === `${OWNER_URL}/auth/challenge`) {
+        return new Response(JSON.stringify({ challenge: "aa".repeat(32) }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ token: "visit-token" }), { status: 200 });
+    }));
+
+    class ClosingWebSocket {
+      static OPEN = 1;
+      readyState = 0;
+      private listeners: Record<string, (() => void)[]> = {};
+      constructor(_url: string) {
+        setTimeout(() => (this.listeners.close ?? []).forEach((fn) => fn()), 5);
+      }
+      addEventListener(type: string, fn: () => void) {
+        (this.listeners[type] ??= []).push(fn);
+      }
+      removeEventListener(type: string, fn: () => void) {
+        this.listeners[type] = (this.listeners[type] ?? []).filter((f) => f !== fn);
+      }
+      close() {}
+    }
+    vi.stubGlobal("WebSocket", ClosingWebSocket);
+
+    await expect(openAllianceVoiceVisit(MINTED, {})).rejects.toThrow(/never|closed/i);
   });
 });

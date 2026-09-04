@@ -72,6 +72,9 @@ export interface VoiceExtDeps {
   disposeVideo: () => void;
   stopVideoSessionOnly: () => void;
   stopWhisperIfActive: () => void;
+  /** Name the voice bar shows for a channel the local list does not hold —
+   *  a voice move's destination, or a channel on an allied hub. */
+  setVoiceChannelNameHint: (name: string | null) => void;
   clearVoiceChannelNameHint: () => void;
 }
 
@@ -369,6 +372,11 @@ export function useVoice({ publicKey, publicKeyRef, meInfoRef, showHubError, ref
     try {
       const minted = await mintAllianceVoiceGrant(allianceId, channelId);
       if (!confirmJoin(minted.owner_hub_url, minted.channel_name)) return;
+
+      // The channel belongs to the other hub, so the local list cannot name
+      // it and the voice bar would read a bare "#" for the whole session.
+      // The grant carries the name — the same one the prompt above showed.
+      extRef.current.setVoiceChannelNameHint(minted.channel_name);
 
       // Only now: the old room goes down before the new one comes up, because
       // the hub enforces one session per identity *per hub* and would happily
