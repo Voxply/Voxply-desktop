@@ -99,46 +99,6 @@ pub(crate) async fn list_users(
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
-pub(crate) async fn update_display_name(
-    display_name: String,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
-    let (hub_url, token) = active_session(&state)?;
-    let client = state.http_client.clone();
-    let resp = client
-        .patch(format!("{hub_url}/me"))
-        .bearer_auth(&token)
-        .json(&serde_json::json!({ "display_name": display_name }))
-        .send()
-        .await
-        .map_err(|e| format!("Failed: {e}"))?;
-    if !resp.status().is_success() {
-        return Err(resp.text().await.unwrap_or_default());
-    }
-    Ok(())
-}
-
-#[tauri::command]
-pub(crate) async fn update_avatar(
-    avatar: String,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
-    let (hub_url, token) = active_session(&state)?;
-    let client = state.http_client.clone();
-    let resp = client
-        .patch(format!("{hub_url}/me"))
-        .bearer_auth(&token)
-        .json(&serde_json::json!({ "avatar": avatar }))
-        .send()
-        .await
-        .map_err(|e| format!("Failed: {e}"))?;
-    if !resp.status().is_success() {
-        return Err(resp.text().await.unwrap_or_default());
-    }
-    Ok(())
-}
-
-#[tauri::command]
 pub(crate) async fn get_me(state: State<'_, AppState>) -> Result<MeInfo, String> {
     let (hub_url, token) = active_session(&state)?;
     let client = state.http_client.clone();

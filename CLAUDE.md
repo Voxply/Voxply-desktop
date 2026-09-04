@@ -14,7 +14,6 @@ apps/web/           Vite + React 19. THE delivery target and source of truth.
 apps/desktop/       Tauri 2 + React 19, multi-account. src-tauri/ is the Rust shell.
 packages/ui/        ~110 shared components + the single canonical styles.css.
 packages/core/      Platform-agnostic TS: wire types + signing, .wavvon-backup, crypto.
-packages/platform/  TS interface contract hiding Tauri/HTTP/WebSocket differences.
 packages/i18n/      i18next catalogs (en/it/es/de).
 crates/voice/       Rust audio pipeline used by the desktop shell.
 ```
@@ -125,7 +124,6 @@ have an invite to.
 
 - **`core`** — platform-agnostic TypeScript. Wire types + signing (a byte-for-byte mirror of the server's `identity` crate, incl. recovery envelopes), the cross-platform `.wavvon-backup` format (Argon2id + AES-256-GCM, one account per file, shared test vector with the Rust implementations), invite/URL parsing, reconnect backoff, crypto (`@noble/*`, `@scure/bip39`). No React. Has a vitest suite.
 - **`ui`** — THE component home: shared React 19 components (message stream, composer, sidebars, `ContentArea`, `HubAdminPage` + admin sections, `ChannelSettingsModal`, `SettingsShell` + tabs, events/polls/forum, recovery, backup), the single canonical `styles.css`, and shared utils/workers. Has a vitest suite.
-- **`platform`** — TypeScript interface contract hiding Tauri/HTTP/WebSocket differences. Desktop provides `invoke()` -> Tauri; web provides HTTP/WebSocket adapters.
 - **`i18n`** — i18next + i18next-icu, shared catalogs (en/it/es/de).
 
 ### Apps
@@ -158,7 +156,7 @@ encode/decode) -> ringbuf (bridges the real-time audio thread and tokio async)
 This is the part most likely to trip you up.
 
 - **Web is the source of truth.** New components ship straight into `packages/ui`.
-- Components in `packages/ui` are **prop-only**: no closures over App state, no `@wavvon/platform` imports, no app imports. Data access travels in through callback / actions-object props (`ForumActions`, `MessageRowActions`, ...). Platform-bound features are optional props an app may omit.
+- Components in `packages/ui` are **prop-only**: no closures over App state, no app imports, no platform imports. Data access travels in through callback / actions-object props (`ForumActions`, `MessageRowActions`, ...). Platform-bound features are optional props an app may omit.
 - Parity work on an existing component means **hoisting the web copy into `packages/ui`** and adapting desktop — not hand-porting into desktop's own copy.
 - When the two clients diverge on a feature, converge on the **union**. No shipped capability gets dropped.
 - Only `App.tsx` (the real state orchestrator), the `PinnedMessages` pair, and per-app action-wiring wrappers stay app-local.

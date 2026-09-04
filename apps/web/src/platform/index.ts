@@ -7,7 +7,6 @@ export {
   loadSavedHubs,
   saveSavedHubs,
   upsertSavedHub,
-  renameSavedHub,
   removeSavedHub,
   loadActiveHubId,
   saveActiveHubId,
@@ -26,7 +25,6 @@ export {
   pingHub,
   reauthorizeHub,
   upgradeActiveHubIdentity,
-  getHubInfo,
   refreshHubInfo,
   previewHubInfo,
   verifyLanFingerprint,
@@ -59,7 +57,7 @@ export {
 } from "./commands/messages";
 export type { UnreadCount } from "./commands/messages";
 
-export { sendComponentInteraction, sendBotAppJoin, listBotCommands, listBots, getBotProfile } from "./commands/bots";
+export { sendBotAppJoin, listBotCommands, listBots, getBotProfile } from "./commands/bots";
 
 export {
   listConversations,
@@ -100,7 +98,6 @@ export {
   saveCertSettings,
   issueCertManual,
   revokeCert,
-  fetchMyCert,
   getRecoveryContacts,
   setRecoveryContacts,
   removeRecoveryContact,
@@ -167,11 +164,7 @@ export {
   getEvent,
   createEvent,
   rsvpEvent,
-  cancelRsvp,
   deleteEvent,
-  createEventSlot,
-  updateEventSlot,
-  deleteEventSlot,
   getEventRsvps,
   getEventAssignments,
   createEventSquadRooms,
@@ -223,7 +216,7 @@ export {
 } from "./commands/channelPermissions";
 export type { MyChannelPermissions } from "./commands/channelPermissions";
 
-export { fetchAllUsers, searchUsers } from "./commands/users";
+export { fetchAllUsers } from "./commands/users";
 export { listRoles, createRole, updateRole, deleteRole, listUserRoles, assignRoleToUser, removeRoleFromUser } from "./commands/roles";
 export type { RoleCreateInput, RoleUpdateInput } from "./commands/roles";
 
@@ -243,7 +236,7 @@ export { getTalkPower, setTalkPower } from "./commands/talkPower";
 export { listHubIcons, createHubIcon, renameHubIcon, deleteHubIcon } from "./commands/hubIcons";
 export type { HubIcon } from "./commands/hubIcons";
 export {
-  listAlliances, createAlliance, getAlliance, leaveAlliance,
+  listAlliances, createAlliance, leaveAlliance,
   listPendingAllianceInvites, acceptAllianceInvite, declineAllianceInvite,
   listAllianceSharedChannels, shareChannelWithAlliance, unshareChannelFromAlliance,
   setAllianceVoiceRemoteJoin,

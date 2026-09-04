@@ -272,16 +272,6 @@ pub(crate) fn reorder_hubs(hub_ids: Vec<String>) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub(crate) async fn add_hub_by_url(
-    hub_url: String,
-    invite_code: Option<String>,
-    state: State<'_, AppState>,
-    app: AppHandle,
-) -> Result<HubInfo, String> {
-    add_hub(hub_url, invite_code, state, app).await
-}
-
-#[tauri::command]
 pub(crate) async fn get_hub_ws_info(
     hub_id: String,
     state: State<'_, AppState>,

@@ -145,17 +145,6 @@ export async function getBotProfile(pubkey: string): Promise<BotProfile> {
   };
 }
 
-export function sendComponentInteraction(
-  messageId: string,
-  customId: string,
-  values: string[],
-): void {
-  const { ws } = activeSession();
-  if (ws) {
-    ws.send({ type: "component_interaction", message_id: messageId, custom_id: customId, values });
-  }
-}
-
 /** Joins a bot's mini-app / game-modal session (bot-mini-apps.md, bot-capability-layer.md §2). */
 export function sendBotAppJoin(botId: string, channelId: string): void {
   const { ws } = activeSession();

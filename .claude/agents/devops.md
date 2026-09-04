@@ -19,7 +19,7 @@ Dependency rules that keep this workspace sane:
 
 - Shared TS dependencies belong in the package that actually imports them, not hoisted into the root — pnpm's strictness is a feature, and a phantom dependency that works locally breaks in CI.
 - `packages/core` has **no React dependency**. Keep it that way; it is what makes the wire code testable in isolation.
-- `packages/ui` imports no app code and no `@wavvon/platform`. A dependency edge in that direction is an architecture bug, not a build detail.
+- `packages/ui` imports no app code. A dependency edge in that direction is an architecture bug, not a build detail.
 
 ## Release process
 

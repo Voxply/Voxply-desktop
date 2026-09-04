@@ -461,16 +461,6 @@ pub(crate) async fn fetch_dh_key(
     Ok(body["dh_pubkey_hex"].as_str().map(|s| s.to_string()))
 }
 
-#[tauri::command]
-pub(crate) async fn decrypt_dm(
-    conv_id: String,
-    envelope: serde_json::Value,
-) -> Result<String, String> {
-    let identity_path = crate::identity::Identity::default_path().map_err(|e| e.to_string())?;
-    let identity = crate::identity::Identity::load(&identity_path).map_err(|e| e.to_string())?;
-    decrypt_dm_inner(&conv_id, &envelope, &identity)
-}
-
 // ---------------------------------------------------------------------------
 // Group E2E sender-key commands
 // ---------------------------------------------------------------------------
@@ -1060,16 +1050,6 @@ pub(crate) async fn encrypt_group_dm(
     }))
 }
 
-#[tauri::command]
-pub(crate) async fn decrypt_group_dm(
-    conv_id: String,
-    envelope: serde_json::Value,
-) -> Result<String, String> {
-    let identity_path = crate::identity::Identity::default_path().map_err(|e| e.to_string())?;
-    let identity = crate::identity::Identity::load(&identity_path).map_err(|e| e.to_string())?;
-    decrypt_group_dm_inner(&conv_id, &envelope, &identity)
-}
-
 // ---------------------------------------------------------------------------
 // Double Ratchet v2 — session state, KDF helpers, Tauri commands
 // ---------------------------------------------------------------------------
@@ -1438,27 +1418,6 @@ pub(crate) async fn encrypt_dm_dr(
         message_index,
         prev_count,
     })
-}
-
-/// Decrypt a Double Ratchet v2 DM from a JSON-serialised `DrDmEnvelope`.
-///
-/// `sender_dh_pub_hex` (the sender's published static DH key) enables the
-/// responder init when no session exists yet; without it a missing session
-/// returns `Err("dr_session_not_initialised")`.
-#[tauri::command]
-pub(crate) async fn decrypt_dm_dr(
-    conv_id: String,
-    envelope_json: String,
-    sender_dh_pub_hex: Option<String>,
-) -> Result<String, String> {
-    let env: DrDmEnvelope =
-        serde_json::from_str(&envelope_json).map_err(|e| format!("bad envelope: {e}"))?;
-    let result = decrypt_dm_dr_inner(
-        &conv_id,
-        &serde_json::to_value(&env).map_err(|e| e.to_string())?,
-        sender_dh_pub_hex.as_deref(),
-    )?;
-    Ok(result)
 }
 
 /// Inner synchronous DR decrypt used both by `decrypt_dm_dr` and `get_dm_messages`.

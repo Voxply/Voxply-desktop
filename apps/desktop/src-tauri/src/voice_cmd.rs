@@ -1,7 +1,6 @@
 use crate::local_store::{load_voice_gains, load_voice_settings, save_voice_gains_to_disk};
 use crate::state::{active_ws_tx, AppState, VoiceSession, WsCommand, ZoneInfo};
 use crate::types::AudioDeviceList;
-use crate::ws::recompute_proximity_gains;
 use tauri::{AppHandle, Emitter, State};
 
 #[tauri::command]
@@ -306,36 +305,6 @@ pub(crate) fn set_voice_gain(
 }
 
 #[tauri::command]
-pub(crate) fn set_voice_position(
-    zone_id: String,
-    position: Vec<f64>,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
-    let session_data = state.voice.lock().unwrap().as_ref().map(|s| {
-        (
-            s.voice_zones.clone(),
-            s.my_position.clone(),
-            s.roster_map.clone(),
-            s.gain_map.clone(),
-        )
-    });
-    if let Some((voice_zones, my_pos, roster_map, gain_map)) = session_data {
-        my_pos
-            .lock()
-            .unwrap()
-            .insert(zone_id.clone(), position.clone());
-        recompute_proximity_gains(
-            &voice_zones,
-            &my_pos,
-            &roster_map,
-            &gain_map,
-            &load_voice_gains(),
-        );
-    }
-    Ok(())
-}
-
-#[tauri::command]
 pub(crate) fn send_hub_ws_raw(payload: String, state: State<'_, AppState>) -> Result<(), String> {
     let tx = active_ws_tx(&state)?;
     tx.send(WsCommand::Raw(payload))
@@ -477,24 +446,6 @@ pub(crate) fn mic_test_stop(state: State<'_, AppState>) -> Result<(), String> {
         }
     }
     Ok(())
-}
-
-#[tauri::command]
-pub(crate) async fn voice_populations(
-    state: State<'_, AppState>,
-) -> Result<std::collections::HashMap<String, u32>, String> {
-    let (hub_url, token) = crate::state::active_session(&state)?;
-    let resp = state
-        .http_client
-        .get(format!("{hub_url}/voice/populations"))
-        .bearer_auth(&token)
-        .send()
-        .await
-        .map_err(|e| format!("Failed: {e}"))?;
-    if !resp.status().is_success() {
-        return Err(resp.text().await.unwrap_or_default());
-    }
-    resp.json().await.map_err(|e| format!("Invalid: {e}"))
 }
 
 #[tauri::command]

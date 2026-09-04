@@ -14,7 +14,7 @@ how you work.
 ## How you work
 
 - **Look before you write.** `packages/ui` has ~110 components. The thing you're about to build probably has a close sibling — find it and match its prop shape, its CSS classes, its file layout. A component that looks unlike its neighbours is a review finding.
-- **New shared components go into `packages/ui`, prop-only.** No closures over App state, no `@wavvon/platform` imports, no app imports. Data access arrives through callback / actions-object props.
+- **New shared components go into `packages/ui`, prop-only.** No closures over App state, no app imports. Data access arrives through callback / actions-object props.
 - **Reuse CSS classes** from `packages/ui/src/styles.css` before inventing new ones. Adding a near-duplicate class is how a stylesheet rots.
 - Parity work means **hoisting the web copy into `packages/ui`** and adapting desktop — not hand-porting into desktop's own copy. When the clients diverge, converge on the union; no shipped capability gets dropped.
 - Every user-visible string goes through i18n. If you add keys, add them to all catalogs or the coverage check fails.

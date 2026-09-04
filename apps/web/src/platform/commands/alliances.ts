@@ -13,11 +13,6 @@ export async function createAlliance(name: string): Promise<Alliance> {
   return r.json() as Promise<Alliance>;
 }
 
-export async function getAlliance(allianceId: string): Promise<AllianceDetail> {
-  const r = await hubFetch(`/alliances/${allianceId}`);
-  return r.json() as Promise<AllianceDetail>;
-}
-
 export async function leaveAlliance(allianceId: string): Promise<void> {
   await hubFetch(`/alliances/${allianceId}/leave`, { method: "DELETE" });
 }

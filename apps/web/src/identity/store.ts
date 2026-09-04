@@ -323,12 +323,6 @@ export function getPostSwitchReturn(): string | null {
   return postSwitchReturnValue;
 }
 
-export async function generateIdentity(): Promise<IdentityRecord> {
-  const seed = ed25519.utils.randomPrivateKey();
-  const { account } = await resolveOrCreateAccount(bytesToHex(seed));
-  return account;
-}
-
 // A fresh random 32-byte ed25519 seed (hex), not persisted. Used to mint a new
 // device's subkey during pairing.
 export function generateSubkeySeed(): string {

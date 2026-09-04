@@ -1,7 +1,6 @@
 export {
   loadIdentity,
   saveIdentity,
-  generateIdentity,
   generateSubkeySeed,
   bytesToHex,
   hexToBytes,

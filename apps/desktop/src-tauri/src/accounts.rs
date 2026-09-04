@@ -22,8 +22,6 @@
 //     collapsed_categories.json — collapsed-category flags
 //     notification_mutes.json  — per-hub/channel notify mode
 //     unread.json           — unread counts, keyed by hub/channel id
-//     dnd_settings.json     — do-not-disturb toggle
-//     notification_prefs.json — per-hub notify level (legacy key shape)
 //     default_profile.json  — the local default profile card
 //     skin.json             — the active custom-theme skin, if any
 //
@@ -434,16 +432,8 @@ pub(crate) fn active_unread_state_path() -> Result<PathBuf, String> {
     Ok(active_account_dir()?.join("unread.json"))
 }
 
-pub(crate) fn active_dnd_settings_path() -> Result<PathBuf, String> {
-    Ok(active_account_dir()?.join("dnd_settings.json"))
-}
-
 pub(crate) fn active_whisper_optout_path() -> Result<PathBuf, String> {
     Ok(active_account_dir()?.join("whisper_optout.json"))
-}
-
-pub(crate) fn active_notif_prefs_path() -> Result<PathBuf, String> {
-    Ok(active_account_dir()?.join("notification_prefs.json"))
 }
 
 pub(crate) fn active_default_profile_path() -> Result<PathBuf, String> {

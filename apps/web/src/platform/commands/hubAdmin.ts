@@ -99,11 +99,6 @@ export async function revokeCert(subjectPubkey: string): Promise<void> {
   await hubFetch(`/admin/certs/${subjectPubkey}/revoke`, { method: "POST" });
 }
 
-export async function fetchMyCert(hubUrl: string): Promise<unknown> {
-  const r = await rawFetch(`${hubUrl}/certs/me`);
-  return r.json();
-}
-
 // ---- Recovery contacts ----
 
 export async function getRecoveryContacts(): Promise<RecoverySettings> {

@@ -69,11 +69,3 @@ export async function fetchAllUsers(): Promise<User[]> {
   console.warn(`fetchAllUsers: stopped at ${MAX_PAGES} pages (${all.length} members)`);
   return all;
 }
-
-/** Server-side member search (`q` matches display name or public key). One
- *  page — a search narrow enough to be useful will not fill it. */
-export async function searchUsers(q: string): Promise<User[]> {
-  const params = new URLSearchParams({ q, limit: String(PAGE_SIZE) });
-  const r = await hubFetch(`/users?${params}`);
-  return r.json() as Promise<User[]>;
-}

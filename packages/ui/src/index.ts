@@ -154,7 +154,6 @@ export type { PinnedMessageEntry } from "./components/content/PinnedMessagesModa
 export { ErrorBoundary } from "./components/ErrorBoundary";
 export { SortableHubIcon, SortableChannelItem, SortableCategoryItem } from "./components/SortableItems";
 export {
-  PhoneIcon,
   PhoneOffIcon,
   MicOnIcon,
   MicOffIcon,
@@ -164,7 +163,6 @@ export {
   CameraOffIcon,
   PingIcon,
   CHANNEL_ICONS,
-  GamepadIcon,
   ChannelIconGlyph,
   ChannelIcon,
 } from "./components/Icons";
@@ -266,9 +264,7 @@ export type { WhisperInboxEntry } from "./components/voice/WhisperInbox";
 export { SoundboardPopover } from "./components/voice/SoundboardPopover";
 export {
   isSpawnerChannel,
-  isTemporaryChannel,
   resolveOwnerDisplayName,
-  normalizeSpawnerNameTemplate,
 } from "./utils/spawnerChannels";
 export { moveChannelOptions, decideVoiceMove } from "./utils/voiceMove";
 export type { VoiceMovePush, VoiceMoveDecision } from "./utils/voiceMove";

@@ -7,27 +7,6 @@ use tauri::State;
 // recovery and key-rotation commands had only ever been filed here by
 // accident, and they stay.
 
-/// `GET {hub_url}/info` — no auth.
-#[tauri::command]
-pub(crate) async fn get_hub_info(
-    hub_url: String,
-    state: State<'_, AppState>,
-) -> Result<serde_json::Value, String> {
-    let base = hub_url.trim_end_matches('/');
-    let resp = state
-        .http_client
-        .get(format!("{base}/info"))
-        .send()
-        .await
-        .map_err(|e| format!("Request failed: {e}"))?;
-    if !resp.status().is_success() {
-        return Err(resp.text().await.unwrap_or_default());
-    }
-    resp.json()
-        .await
-        .map_err(|e| format!("Invalid response: {e}"))
-}
-
 // =============================================================================
 // Recovery contacts + key rotation
 // =============================================================================

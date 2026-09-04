@@ -30,8 +30,7 @@ clients/
 ├── packages/
 │   ├── core/           @wavvon/core     — crypto, hub-input parsing, shared utils
 │   ├── i18n/           @wavvon/i18n     — locale strings + ICU i18n machinery
-│   ├── ui/             @wavvon/ui       — shared React components + canonical CSS
-│   └── platform/       @wavvon/platform — platform-adapter interface
+│   └── ui/             @wavvon/ui       — shared React components + canonical CSS
 ├── scripts/
 ├── Cargo.toml          Rust workspace: apps/desktop/src-tauri + crates/voice
 ├── package.json        pnpm workspace root

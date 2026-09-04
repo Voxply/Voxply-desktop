@@ -356,18 +356,6 @@ export function connectHubWebSocket(hub_id: string, handlers: WsHandlers): void 
   setSession(hub_id, { ...s, ws, scope: "member" });
 }
 
-export async function getHubInfo(hub_id: string): Promise<Hub | null> {
-  const s = getSession(hub_id);
-  if (!s) return null;
-  return {
-    hub_id: s.hub_id,
-    hub_name: s.hub_name,
-    hub_url: s.hub_url,
-    hub_icon: s.hub_icon,
-    is_active: s.hub_id === getActiveHubId(),
-  };
-}
-
 // LAN fingerprint pinning (lan-mode.md §5): TOFU-verify the hub's
 // self-reported /info fingerprint against the one carried out-of-band in
 // the invite URL. `undefined` expectedFingerprint means the invite carried

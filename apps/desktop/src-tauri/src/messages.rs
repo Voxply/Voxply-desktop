@@ -336,30 +336,6 @@ pub(crate) async fn forum_create_reply(
 }
 
 #[tauri::command]
-pub(crate) async fn forum_get_post_replies(
-    channel_id: String,
-    post_id: String,
-    cursor: Option<String>,
-    state: State<'_, AppState>,
-) -> Result<serde_json::Value, String> {
-    let (hub_url, token) = active_session(&state)?;
-    let mut req = state
-        .http_client
-        .get(format!(
-            "{hub_url}/channels/{channel_id}/posts/{post_id}/replies"
-        ))
-        .bearer_auth(&token);
-    if let Some(c) = cursor {
-        req = req.query(&[("cursor", c)]);
-    }
-    let resp = req.send().await.map_err(|e| e.to_string())?;
-    if !resp.status().is_success() {
-        return Err(resp.text().await.unwrap_or_default());
-    }
-    resp.json().await.map_err(|e| e.to_string())
-}
-
-#[tauri::command]
 pub(crate) async fn forum_pin_post(
     channel_id: String,
     post_id: String,
