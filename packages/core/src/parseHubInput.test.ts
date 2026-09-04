@@ -218,6 +218,44 @@ describe("parseHubInput — path-hosted hub base URLs", () => {
       inviteCode: "abc123",
     });
   });
+
+  // The wavvon:// branch had the host-only bug the http(s) branch was fixed
+  // for, which meant the client could not read the permalinks it writes: on a
+  // farm-hosted hub, "Copy channel link" produces
+  // wavvon://host/hub/<pubkey>/channel/<id>, and pasting it back reached the
+  // farm root with the whole prefix sitting in the invite code. Caught by
+  // driving the real client against a farm-hosted hub.
+  it("splits the prefix out of a wavvon:// channel permalink", () => {
+    expect(parseHubInput("wavvon://host.example.com/hub/pippo/channel/abc123")).toEqual({
+      hubUrl: "https://host.example.com/hub/pippo",
+      inviteCode: "",
+      target: { kind: "channel", channelId: "abc123" },
+    });
+  });
+
+  it("splits the prefix out of a wavvon:// message permalink", () => {
+    expect(
+      parseHubInput("wavvon://host.example.com/hub/pippo/channel/abc123/message/xyz789"),
+    ).toEqual({
+      hubUrl: "https://host.example.com/hub/pippo",
+      inviteCode: "",
+      target: { kind: "message", channelId: "abc123", messageId: "xyz789" },
+    });
+  });
+
+  it("splits the prefix out of a wavvon:// join link", () => {
+    expect(parseHubInput("wavvon://host.example.com/hub/pippo/join/abc123")).toEqual({
+      hubUrl: "https://host.example.com/hub/pippo",
+      inviteCode: "abc123",
+    });
+  });
+
+  it("leaves a wavvon:// link to a hub that owns its origin alone", () => {
+    expect(parseHubInput("wavvon://hub.example.com/abc123")).toEqual({
+      hubUrl: "https://hub.example.com",
+      inviteCode: "abc123",
+    });
+  });
 });
 
 describe("inviteCodeFromPath", () => {

@@ -126,17 +126,24 @@ export function parseHubInput(raw: string): HubInputResult | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
 
-  // wavvon:// deep link: wavvon://host[:port]/[inviteCode][?params]
+  // wavvon:// deep link: wavvon://host[:port][/hub/<slug>]/[inviteCode][?params]
   if (trimmed.startsWith("wavvon://")) {
     const rest = trimmed.slice("wavvon://".length);
     const slashIdx = rest.indexOf("/");
     const hostPart = slashIdx === -1 ? rest : rest.slice(0, slashIdx);
-    const codePart =
+    const pathPart =
       slashIdx === -1 ? "" : rest.slice(slashIdx + 1).split("?")[0];
     if (!hostPart) return null;
     const isLocal =
       hostPart.startsWith("localhost") || hostPart.startsWith("127.");
-    const hubUrl = `${isLocal ? "http" : "https"}://${hostPart}`;
+    // Same `/hub/<slug>` split as the http(s) branch below. Without it the
+    // client could not read the links it writes itself: a channel permalink
+    // for a path-hosted hub is `wavvon://host/hub/<pubkey>/channel/<id>`
+    // (MessageRow.tsx / AppModals.tsx strip only the scheme), and taking the
+    // host alone resolved it to the *farm root* with the whole prefix left
+    // sitting in the invite code.
+    const { prefix, rest: codePart } = splitHubPathPrefix(`/${pathPart}`);
+    const hubUrl = `${isLocal ? "http" : "https"}://${hostPart}${prefix}`;
     // Invite carrying the hub's serial: wavvon://host/i/<hubSerial>/<inviteCode>
     const invite = parseInvitePath(codePart);
     if (invite) {
