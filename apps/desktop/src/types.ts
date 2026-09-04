@@ -37,14 +37,6 @@ export type { SoundboardClip } from "@wavvon/ui";
  *  explicit picks. Free-text custom status was removed (decisions.md 2026-07-12). */
 export type PresenceStatus = "online" | "away" | "dnd" | "invisible";
 
-export interface BotInfo {
-  public_key: string;
-  display_name: string;
-  created_by: string;
-  created_at: number;
-  token?: string;
-}
-
 export interface VoiceParticipant {
   public_key: string;
   display_name: string | null;
@@ -333,33 +325,6 @@ export interface SurveyResponseAdmin {
     choice_label: string | null;
     text_answer: string | null;
   }>;
-}
-
-// ---- Bots ----
-
-export interface BotAdminInfo {
-  public_key: string;
-  display_name: string;
-  created_by: string;
-  created_at: number;
-  webhook_url: string | null;
-}
-
-export interface BotCreatedResult {
-  public_key: string;
-  display_name: string;
-  created_by: string;
-  created_at: number;
-  token: string;
-}
-
-export interface BotSlashCommandInfo {
-  command: string;
-  description: string;
-}
-
-export interface BotDetailInfo extends BotAdminInfo {
-  commands: BotSlashCommandInfo[];
 }
 
 // ---- Bot message types ----

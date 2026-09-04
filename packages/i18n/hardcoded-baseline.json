@@ -1,5 +1,5 @@
 {
-  "total": 210,
+  "total": 196,
   "files": {
     "apps/desktop/src/AccountRoot.tsx": 7,
     "apps/desktop/src/App.tsx": 14,
@@ -9,7 +9,6 @@
     "apps/desktop/src/components/ChannelPalette.tsx": 3,
     "apps/desktop/src/components/DeviceListSection.tsx": 5,
     "apps/desktop/src/components/HomeHubSection.tsx": 10,
-    "apps/desktop/src/components/HubBotsSection.tsx": 14,
     "apps/desktop/src/components/HubBrowser.tsx": 9,
     "apps/desktop/src/components/Lightbox.tsx": 2,
     "apps/desktop/src/components/PairingSection.tsx": 40,

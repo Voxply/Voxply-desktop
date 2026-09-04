@@ -414,33 +414,6 @@ export interface SurveyResponseAdmin {
   }>;
 }
 
-// ---- Bots ----
-
-export interface BotAdminInfo {
-  public_key: string;
-  display_name: string;
-  created_by: string;
-  created_at: number;
-  webhook_url: string | null;
-}
-
-export interface BotCreatedResult {
-  public_key: string;
-  display_name: string;
-  created_by: string;
-  created_at: number;
-  token: string;
-}
-
-export interface BotSlashCommandInfo {
-  command: string;
-  description: string;
-}
-
-export interface BotDetailInfo extends BotAdminInfo {
-  commands: BotSlashCommandInfo[];
-}
-
 // ---- Bot message types ----
 
 export type {

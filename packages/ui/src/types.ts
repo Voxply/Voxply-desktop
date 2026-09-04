@@ -854,32 +854,6 @@ export interface PendingBadgeOffer {
   issuer_url: string;
 }
 
-export interface NativeBot {
-  public_key: string;
-  display_name: string;
-  created_by: string;
-  created_at: number;
-  webhook_url?: string | null;
-}
-
-export interface NativeBotCreated extends NativeBot {
-  token: string;
-}
-
-export interface BotSlashCommandInfo {
-  command: string;
-  description: string;
-}
-
-export interface NativeBotDetail {
-  public_key: string;
-  display_name: string;
-  created_by: string;
-  created_at: number;
-  webhook_url: string | null;
-  commands: BotSlashCommandInfo[];
-}
-
 export interface SoundboardClip {
   id: string;
   name: string;

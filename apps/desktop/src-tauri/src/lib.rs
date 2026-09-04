@@ -14,7 +14,6 @@ mod devices;
 mod discovery;
 mod dm;
 mod events_polls;
-mod recovery;
 mod home_hub;
 mod hub_session;
 mod identity;
@@ -26,6 +25,7 @@ mod mini_app;
 mod pairing;
 mod passkey_cmd;
 mod prefs_blob;
+mod recovery;
 mod screen_share;
 mod soundboard;
 mod state;
@@ -331,9 +331,6 @@ pub fn run() {
             dm::decrypt_dm_dr,
             // Bots / webhooks
             bots::list_bots,
-            bots::create_bot,
-            bots::delete_bot,
-            bots::rotate_bot_token,
             bots::send_component_interaction,
             bots::get_bot_profile,
             bots::admin_list_external_bots,

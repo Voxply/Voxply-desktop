@@ -101,7 +101,8 @@ pub async fn push_prefs_blob(
     client: &reqwest::Client,
 ) -> Result<()> {
     let master_pubkey = master.public_key_hex();
-    let (current_version, current) = fetch_current(&master_pubkey, home_hubs, blob_key, client).await;
+    let (current_version, current) =
+        fetch_current(&master_pubkey, home_hubs, blob_key, client).await;
 
     let blocked = crate::local_store::load_blocked_users().unwrap_or_default();
     let voice = crate::local_store::load_voice_settings();

@@ -1,97 +1,30 @@
-#![allow(dead_code)]
-use crate::state::WsCommand;
-use crate::state::{active_session, AppState};
-use crate::types::BotInfo;
+use crate::state::{AppState, WsCommand};
 use tauri::State;
 
+/// GET /bots -- the member-facing bot directory (bots.md §2). The hub has no
+/// bot-creation route at all: a bot is an external Ed25519 identity an admin
+/// invites by pubkey, so listing is the only member-level bot call there is.
 #[tauri::command]
-pub(crate) async fn list_bots(state: State<'_, AppState>) -> Result<Vec<BotInfo>, String> {
-    let (hub_url, token) = active_session(&state)?;
-    let client = state.http_client.clone();
-    client
-        .get(format!("{hub_url}/bots"))
-        .bearer_auth(&token)
-        .send()
-        .await
-        .map_err(|e| format!("Request failed: {e}"))?
-        .json()
-        .await
-        .map_err(|e| format!("Invalid response: {e}"))
-}
-
-#[tauri::command]
-pub(crate) async fn create_bot(
-    name: String,
+pub(crate) async fn list_bots(
+    hub_url: String,
     state: State<'_, AppState>,
-) -> Result<BotInfo, String> {
-    let (hub_url, token) = active_session(&state)?;
-    let client = state.http_client.clone();
-    let resp = client
-        .post(format!("{hub_url}/bots"))
+) -> Result<Vec<BotProfileResult>, String> {
+    let token = crate::state::session_for_url(&state, &hub_url)?;
+    let base = hub_url.trim_end_matches('/');
+    let resp = state
+        .http_client
+        .get(format!("{base}/bots"))
         .bearer_auth(&token)
-        .json(&serde_json::json!({ "name": name }))
         .send()
         .await
         .map_err(|e| format!("Request failed: {e}"))?;
     if !resp.status().is_success() {
-        let msg = resp.text().await.unwrap_or_default();
-        return Err(msg);
+        return Err(resp.text().await.unwrap_or_default());
     }
     resp.json()
         .await
         .map_err(|e| format!("Invalid response: {e}"))
 }
-
-#[tauri::command]
-pub(crate) async fn delete_bot(
-    public_key: String,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
-    let (hub_url, token) = active_session(&state)?;
-    let client = state.http_client.clone();
-    let resp = client
-        .delete(format!("{hub_url}/bots/{public_key}"))
-        .bearer_auth(&token)
-        .send()
-        .await
-        .map_err(|e| format!("Request failed: {e}"))?;
-    if !resp.status().is_success() {
-        let msg = resp.text().await.unwrap_or_default();
-        return Err(msg);
-    }
-    Ok(())
-}
-
-#[tauri::command]
-pub(crate) async fn rotate_bot_token(
-    public_key: String,
-    state: State<'_, AppState>,
-) -> Result<String, String> {
-    let (hub_url, token) = active_session(&state)?;
-    let client = state.http_client.clone();
-    let resp = client
-        .post(format!("{hub_url}/bots/{public_key}/rotate-token"))
-        .bearer_auth(&token)
-        .send()
-        .await
-        .map_err(|e| format!("Request failed: {e}"))?;
-    if !resp.status().is_success() {
-        let msg = resp.text().await.unwrap_or_default();
-        return Err(msg);
-    }
-    let v: serde_json::Value = resp
-        .json()
-        .await
-        .map_err(|e| format!("Invalid response: {e}"))?;
-    v["token"]
-        .as_str()
-        .map(|s| s.to_string())
-        .ok_or("Missing token in response".to_string())
-}
-
-// ---------------------------------------------------------------------------
-// Admin bot management
-// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Component interactions
@@ -141,27 +74,20 @@ pub(crate) struct BotProfileResult {
     pub commands: Vec<BotCommandDef>,
 }
 
+/// The hub exposes no single-bot route -- `/bots/{pubkey}` is DELETE only --
+/// so the profile card is filtered out of the directory list, as the web
+/// client does.
 #[tauri::command]
 pub(crate) async fn get_bot_profile(
     hub_url: String,
     pubkey: String,
     state: State<'_, AppState>,
 ) -> Result<BotProfileResult, String> {
-    let token = crate::state::session_for_url(&state, &hub_url)?;
-    let base = hub_url.trim_end_matches('/');
-    let resp = state
-        .http_client
-        .get(format!("{base}/bots/{pubkey}"))
-        .bearer_auth(&token)
-        .send()
-        .await
-        .map_err(|e| format!("Request failed: {e}"))?;
-    if !resp.status().is_success() {
-        return Err(resp.text().await.unwrap_or_default());
-    }
-    resp.json()
-        .await
-        .map_err(|e| format!("Invalid response: {e}"))
+    list_bots(hub_url, state)
+        .await?
+        .into_iter()
+        .find(|b| b.pubkey == pubkey)
+        .ok_or_else(|| "Bot not found".to_string())
 }
 
 // ---------------------------------------------------------------------------
@@ -216,18 +142,27 @@ pub(crate) async fn admin_add_external_bot(
     let base = hub_url.trim_end_matches('/');
     let resp = state
         .http_client
-        .post(format!("{base}/admin/bots/external"))
+        .post(format!("{base}/bots"))
         .bearer_auth(&token)
-        .json(&serde_json::json!({ "pubkey": pubkey, "local_note": local_note }))
+        .json(&serde_json::json!({ "pubkey": pubkey, "note": local_note }))
         .send()
         .await
         .map_err(|e| format!("Request failed: {e}"))?;
     if !resp.status().is_success() {
         return Err(resp.text().await.unwrap_or_default());
     }
-    resp.json()
+    #[derive(serde::Deserialize)]
+    struct InviteBotResponse {
+        invite_token: String,
+    }
+    let body: InviteBotResponse = resp
+        .json()
         .await
-        .map_err(|e| format!("Invalid response: {e}"))
+        .map_err(|e| format!("Invalid response: {e}"))?;
+    Ok(ExternalBotInviteResult {
+        bot_invite_token: body.invite_token,
+        pubkey,
+    })
 }
 
 #[tauri::command]
@@ -240,7 +175,7 @@ pub(crate) async fn admin_remove_external_bot(
     let base = hub_url.trim_end_matches('/');
     let resp = state
         .http_client
-        .delete(format!("{base}/admin/bots/external/{pubkey}"))
+        .delete(format!("{base}/bots/{pubkey}"))
         .bearer_auth(&token)
         .send()
         .await

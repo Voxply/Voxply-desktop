@@ -4,9 +4,6 @@ import type {
   RoleCategory,
   InviteInfo,
   PendingUser,
-  BotAdminInfo,
-  BotDetailInfo,
-  BotCreatedResult,
 } from "../types";
 import type {
   RolesSectionActions,

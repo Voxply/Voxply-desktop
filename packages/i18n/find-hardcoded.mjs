@@ -15,7 +15,7 @@
 //   node find-hardcoded.mjs --list     # every finding, file:line
 //   node find-hardcoded.mjs --baseline # accept the current state
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,7 +24,9 @@ const BASELINE = join(dirname(fileURLToPath(import.meta.url)), "hardcoded-baseli
 const repoRoot = execSync("git rev-parse --show-toplevel", { encoding: "utf8" }).trim();
 
 const files = execSync('git ls-files "*.tsx"', { encoding: "utf8", cwd: repoRoot })
-  .split("\n").filter(f => f && !f.includes("__tests__"));
+  // existsSync: a file deleted in the working tree is still tracked, and a
+  // deletion is the direction this check wants — don't crash on it.
+  .split("\n").filter(f => f && !f.includes("__tests__") && existsSync(join(repoRoot, f)));
 
 /** Does this look like something a person reads, rather than code? */
 function looksHuman(s) {

@@ -244,15 +244,6 @@ pub(crate) struct UserInfo {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct BotInfo {
-    pub public_key: String,
-    pub display_name: String,
-    pub created_by: String,
-    pub created_at: i64,
-    pub token: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct FriendInfo {
     pub public_key: String,
     pub display_name: Option<String>,
