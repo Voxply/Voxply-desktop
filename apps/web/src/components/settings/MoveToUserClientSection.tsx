@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { handoverOffer, isHandoverDone, isHandoverReady } from "@wavvon/core";
-import { removeAccount, type IdentityRecord } from "@identity/index";
+import { removeAccount, holdsMasterSeed, type IdentityRecord } from "@identity/index";
 import { USER_CLIENT_URL } from "../../constants";
 import { markMigrated } from "../../utils/migrated";
 
@@ -31,7 +31,7 @@ export function MoveToUserClientSection({ account, activeHubUrl }: Props) {
   const targetOrigin = target ? new URL(target).origin : "";
   // A paired device holds a subkey, not the master seed — there is nothing
   // here that would reconstitute the identity over there.
-  const isPairedDevice = !!account.subkey_cert;
+  const isPairedDevice = !holdsMasterSeed(account);
 
   useEffect(() => {
     if (!target) return;

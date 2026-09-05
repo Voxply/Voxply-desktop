@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { masterSeedHex, buildHomeHubList, masterPubkeyOf, type IdentityRecord } from "@identity/index";
+import { masterSeedHex, buildHomeHubList, masterPubkeyOf, holdsMasterSeed, type IdentityRecord } from "@identity/index";
 import { getHomeHubDesignation, putHomeHubDesignation } from "@platform";
 import { AccountLabelSuffix, PerAccountHint } from "@wavvon/ui";
 
@@ -26,7 +26,7 @@ export function HomeHubsSection({ activeHubUrl, account }: Props) {
   // A paired device's seed is a *subkey* — deriving a master from it yields
   // a wrong identity. It knows the real master pubkey from its cert
   // (read-only view); only an entropy-holding device may publish.
-  const isPairedDevice = !!account.subkey_cert;
+  const isPairedDevice = !holdsMasterSeed(account);
   const pubkey = useMemo(() => masterPubkeyOf(account), [account]);
   const master = useMemo(
     () => (isPairedDevice ? null : { seedHex: masterSeedHex(account.seed_hex), pubkey }),

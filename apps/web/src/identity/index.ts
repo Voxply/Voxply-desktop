@@ -11,6 +11,7 @@ export {
   getActiveAccountId,
   setActiveAccountId,
   masterPubkeyOf,
+  holdsMasterSeed,
   findAccountByPubkey,
   resolveOrCreateAccount,
   removeAccount,

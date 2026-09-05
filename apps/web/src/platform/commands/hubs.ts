@@ -25,7 +25,7 @@ import { publicKeyHex } from "@wavvon/core";
 import type { Hub } from "@shared/types";
 import { probeSessionScope } from "./lobby";
 import { acquireHubToken as authenticate } from "./hubAuth";
-import { ensureHomeHubDesignation } from "./identity";
+import { ensureHomeHubDesignation, ensureSelfDeviceCert } from "./identity";
 
 interface InfoResponse {
   public_key: string;
@@ -160,12 +160,21 @@ export async function addHub(
   const isActive = getActiveHubId() === info.public_key;
 
   // Only for the hub that ends up active: hubFetch inside targets the active
-  // hub, so this reads the designation from — and publishes it to — this very
-  // hub. Fire and forget; a hub too old to serve designations must not fail a
-  // join, and Settings can always publish the list by hand.
+  // hub, so these read from — and publish to — this very hub. Fire and forget;
+  // a hub too old to serve either must not fail a join, and Settings can always
+  // publish both by hand.
+  //
+  // The cert goes first: it is what lets this hub (and every hub it federates
+  // to) resolve our roster pubkey to the master the designation is stored
+  // under, so publishing the designation before the link exists would leave a
+  // list nobody can look up.
   if (isActive && scope !== "lobby") {
     void loadIdentity()
-      .then((id) => id && ensureHomeHubDesignation(id, url))
+      .then(async (id) => {
+        if (!id) return;
+        await ensureSelfDeviceCert(id, url).catch(() => {});
+        await ensureHomeHubDesignation(id, url);
+      })
       .catch(() => {});
   }
 

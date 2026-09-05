@@ -1,6 +1,8 @@
 import type { HomeHubList, RevocationEntry, SignedPrefsBlob, SubkeyCert } from "@shared/types";
 import type { PairingOffer, PairingClaim, PairingComplete, PairingStatus } from "@wavvon/core";
-import { buildHomeHubList, masterSeedHex, masterPublicKeyHex } from "@wavvon/core";
+import { buildHomeHubList, buildSubkeyCert, masterSeedHex, masterPublicKeyHex, publicKeyHex } from "@wavvon/core";
+import i18n from "@wavvon/i18n";
+import { saveIdentity, holdsMasterSeed, type IdentityRecord } from "@identity/index";
 import { hubFetch, rawFetch, HubApiError } from "../http";
 
 // Reads and writes for the personal-axis identity envelopes
@@ -38,7 +40,7 @@ export async function ensureHomeHubDesignation(
   identity: { seed_hex: string; master_pubkey?: string; subkey_cert?: SubkeyCert },
   hubUrl: string,
 ): Promise<void> {
-  if (identity.subkey_cert) return;
+  if (!holdsMasterSeed(identity)) return;
   const pubkey = masterPublicKeyHex(identity.seed_hex);
   if (await getHomeHubDesignation(pubkey)) return;
   const list = buildHomeHubList(
@@ -49,6 +51,43 @@ export async function ensureHomeHubDesignation(
     1,
   );
   await putHomeHubDesignation(list);
+}
+
+/** Every identity gets a device cert the first time it authenticates, not the
+ *  first time its owner opens Settings.
+ *
+ *  The cert is the only thing that links a roster pubkey to the master pubkey a
+ *  home hub list is signed by and stored under. Issuing it from the device
+ *  naming flow made that link conditional on a cosmetic action almost nobody
+ *  performs, so a plain single-device identity had no link on any hub: no hub
+ *  could find its designation, DM mirroring skipped it, and a sender's hub
+ *  declined to fan out — with no error anywhere. Registering at first auth is
+ *  what Matrix does with a device at login; naming stays cosmetic and re-issues
+ *  the cert (DevicesSection).
+ *
+ *  No-op once a cert exists, which also covers a paired device: its cert was
+ *  issued by the pairing device, and it holds no master seed to sign one. */
+export async function ensureSelfDeviceCert(identity: IdentityRecord, hubUrl: string): Promise<void> {
+  if (identity.subkey_cert) return;
+  const masterPubkey = masterPublicKeyHex(identity.seed_hex);
+  const cert = buildSubkeyCert(
+    masterSeedHex(identity.seed_hex),
+    masterPubkey,
+    publicKeyHex(identity.seed_hex),
+    identity.device_label?.trim() || i18n.t("settings.account.devices.default_label"),
+    Math.floor(Date.now() / 1000),
+    null,
+    [hubUrl.replace(/\/+$/, "")],
+  );
+  // Persist before registering: a hub that rejects the cert must not leave this
+  // device without one, since auth presents it from here on.
+  await saveIdentity({
+    ...identity,
+    master_pubkey: masterPubkey,
+    device_label: cert.device_label,
+    subkey_cert: cert,
+  });
+  await registerDeviceCert(cert);
 }
 
 export async function listDeviceCerts(pubkey: string): Promise<SubkeyCert[]> {

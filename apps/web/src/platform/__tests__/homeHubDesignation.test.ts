@@ -1,13 +1,29 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { SubkeyCert } from "@shared/types";
+import { masterPublicKeyHex } from "@wavvon/core";
 import { setSession, setActiveHubId, resetHubSessions } from "../session";
-import { ensureHomeHubDesignation } from "../commands/identity";
+import { ensureHomeHubDesignation, ensureSelfDeviceCert } from "../commands/identity";
 
 const HUB_URL = "https://hub.example";
 const HUB_ID = "hub-pub-key";
 const SEED = "11".repeat(32);
+const OTHER_SEED = "22".repeat(32);
+
+// A cert this device could have signed itself: it names the very master its
+// own seed derives. What a device gets at first auth.
+const selfCert = (seed: string) => ({ master_pubkey: masterPublicKeyHex(seed) }) as SubkeyCert;
+// A cert handed over by the pairing device: it names a master this device's
+// seed cannot derive.
+const pairedCert = () => ({ master_pubkey: masterPublicKeyHex(OTHER_SEED) }) as SubkeyCert;
+
+const saved: unknown[] = [];
+vi.mock("@identity/index", async () => {
+  const actual = await vi.importActual<typeof import("@identity/index")>("@identity/index");
+  return { ...actual, saveIdentity: vi.fn(async (rec: unknown) => { saved.push(rec); }) };
+});
 
 beforeEach(() => {
+  saved.length = 0;
   resetHubSessions();
   setSession(HUB_ID, {
     hub_id: HUB_ID,
@@ -60,8 +76,65 @@ describe("ensureHomeHubDesignation", () => {
     const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await ensureHomeHubDesignation({ seed_hex: SEED, subkey_cert: {} as SubkeyCert }, HUB_URL);
+    await ensureHomeHubDesignation({ seed_hex: SEED, subkey_cert: pairedCert() }, HUB_URL);
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // The regression the self-cert-at-first-auth change nearly caused: holding a
+  // cert used to mean "paired device", and now every device holds one. If this
+  // reverts to a bare `subkey_cert` check, no identity ever publishes a
+  // designation again — and nothing else would say so.
+  it("still publishes for a device holding a cert it signed itself", async () => {
+    const posted: unknown[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => {
+      if ((init?.method ?? "GET") === "GET") return new Response("Not found", { status: 404 });
+      posted.push(JSON.parse(init?.body as string));
+      return new Response("{}", { status: 200 });
+    }));
+
+    await ensureHomeHubDesignation({ seed_hex: SEED, subkey_cert: selfCert(SEED) }, HUB_URL);
+
+    expect(posted).toHaveLength(1);
+  });
+});
+
+describe("ensureSelfDeviceCert", () => {
+  it("issues and registers a master-signed cert for a device that has none", async () => {
+    const posted: { url: string; body: SubkeyCert }[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      posted.push({ url, body: JSON.parse(init?.body as string) as SubkeyCert });
+      return new Response("{}", { status: 200 });
+    }));
+
+    await ensureSelfDeviceCert(
+      { id: "x", seed_hex: SEED, security_nonce: 0, security_level: 0 },
+      `${HUB_URL}/`,
+    );
+
+    expect(posted).toHaveLength(1);
+    expect(posted[0].url).toContain("/devices");
+    const cert = posted[0].body;
+    // The link the whole DM fan-out depends on: this cert names the master the
+    // home hub list is stored under, and the roster pubkey as its subkey.
+    expect(cert.master_pubkey).toBe(masterPublicKeyHex(SEED));
+    expect(cert.signature).toMatch(/^[0-9a-f]{128}$/);
+    expect(cert.fallback_hubs).toEqual([HUB_URL]);
+    // Persisted locally too, or auth would keep presenting nothing.
+    expect(saved).toHaveLength(1);
+    expect((saved[0] as { subkey_cert?: SubkeyCert }).subkey_cert).toEqual(cert);
+  });
+
+  it("does nothing when a cert already exists, paired device included", async () => {
+    const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await ensureSelfDeviceCert(
+      { id: "x", seed_hex: SEED, security_nonce: 0, security_level: 0, subkey_cert: pairedCert() },
+      HUB_URL,
+    );
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(saved).toHaveLength(0);
   });
 });
