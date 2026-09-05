@@ -18,10 +18,10 @@ export interface WsHandlersParams {
   setHubConnected: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   setAssertiveAnnouncement: (msg: string) => void;
   setToast: (msg: string) => void;
-  setTypingEntry: (key: string, name: string) => void;
-  clearTypingEntry: (key: string) => void;
-  setDmTypingEntry: (key: string, name: string) => void;
-  clearDmTypingEntry: (key: string) => void;
+  setTyping: (scopeId: string, pubkey: string, name: string) => void;
+  clearTyping: (scopeId: string, pubkey: string) => void;
+  setDmTyping: (scopeId: string, pubkey: string, name: string) => void;
+  clearDmTyping: (scopeId: string, pubkey: string) => void;
   onDmEvent: (conversationId: string, msg: DmMessage, hubId: string) => void;
   onDmMemberChanged: (payload: {
     hub_id: string;
@@ -65,10 +65,10 @@ export function useWsHandlers({
   setHubConnected,
   setAssertiveAnnouncement,
   setToast,
-  setTypingEntry,
-  clearTypingEntry,
-  setDmTypingEntry,
-  clearDmTypingEntry,
+  setTyping,
+  clearTyping,
+  setDmTyping,
+  clearDmTyping,
   onDmEvent,
   onDmMemberChanged,
   onHubReconnected,
@@ -238,9 +238,9 @@ export function useWsHandlers({
           if (event.payload.sender === publicKeyRef.current) return;
           const name = event.payload.sender_name || formatPubkey(event.payload.sender);
           if (event.payload.typing) {
-            setDmTypingEntry(event.payload.sender, name);
+            setDmTyping(event.payload.conversation_id, event.payload.sender, name);
           } else {
-            clearDmTypingEntry(event.payload.sender);
+            clearDmTyping(event.payload.conversation_id, event.payload.sender);
           }
         })
       );
@@ -269,9 +269,9 @@ export function useWsHandlers({
           if (event.payload.public_key === publicKeyRef.current) return;
           const name = event.payload.display_name || formatPubkey(event.payload.public_key);
           if (event.payload.typing) {
-            setTypingEntry(event.payload.public_key, name);
+            setTyping(event.payload.channel_id, event.payload.public_key, name);
           } else {
-            clearTypingEntry(event.payload.public_key);
+            clearTyping(event.payload.channel_id, event.payload.public_key);
           }
         })
       );

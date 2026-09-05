@@ -354,6 +354,8 @@ export { useVoiceMoveUx } from "./hooks/useVoiceMoveUx";
 export type { VoiceMoveMenuState } from "./hooks/useVoiceMoveUx";
 export { useUnreadCounts } from "./hooks/useUnreadCounts";
 export { useWhisper } from "./hooks/useWhisper";
+export { useTypingIndicators, typingKey, typingForScope } from "./hooks/useTypingIndicators";
+export type { TypingDeps, TypingMap } from "./hooks/useTypingIndicators";
 export type { WhisperDeps, WhisperParams } from "./hooks/useWhisper";
 export type { UnreadCounts, UnreadCountsDeps } from "./hooks/useUnreadCounts";
 export { usePresenceStatus } from "./hooks/usePresenceStatus";

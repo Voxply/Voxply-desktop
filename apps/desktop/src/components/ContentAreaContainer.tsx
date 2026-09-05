@@ -1,4 +1,4 @@
-import { HubStreamsPanel } from "@wavvon/ui";
+import { HubStreamsPanel, typingForScope } from "@wavvon/ui";
 import { ContentArea } from "./ContentArea";
 import { saveDraft } from "../utils/drafts";
 import type { Channel, User, RoleInfo } from "../types";
@@ -104,8 +104,8 @@ export function ContentAreaContainer({
         voiceActiveUsers={voice.voiceActiveUsers}
         hideBirthdays={hideBirthdays}
         inputText={channelMessages.inputText}
-        typingByKey={typing.typingByKey}
-        dmTypingByKey={typing.dmTypingByKey}
+        typingByKey={typingForScope(typing.typingByKey, selectedChannel?.id)}
+        dmTypingByKey={typingForScope(typing.dmTypingByKey, dms.selectedConversation?.id)}
         messagesEndRef={channelMessages.messagesEndRef}
         messagesEndChannelRef={channelMessages.messagesEndChannelRef}
         messagesContainerRef={channelMessages.messagesContainerRef}

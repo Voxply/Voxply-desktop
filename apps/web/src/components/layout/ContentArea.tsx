@@ -28,6 +28,7 @@ import {
   type HubEmoji,
   PinnedMessagesModal,
   ConnectionStatus,
+  typingForScope,
 } from "@wavvon/ui";
 import {
   hubFetch, getPolls, createPoll, getBotProfile, sendBotAppJoin,
@@ -214,25 +215,15 @@ export function ContentArea(props: Props) {
   // Scoped down from the raw typing maps to just this channel/conversation's
   // entries — moved in from App.tsx, whose only reason to compute it was
   // feeding this exact prop.
-  const typingByKey = useMemo(() => {
-    if (!selectedChannel) return {} as Record<string, TypingEntry>;
-    const prefix = `${selectedChannel.id}:`;
-    const out: Record<string, TypingEntry> = {};
-    for (const [k, v] of Object.entries(typing.typingByKey)) {
-      if (k.startsWith(prefix)) out[k] = v;
-    }
-    return out;
-  }, [typing.typingByKey, selectedChannel]);
+  const typingByKey = useMemo(
+    () => typingForScope(typing.typingByKey, selectedChannel?.id),
+    [typing.typingByKey, selectedChannel],
+  );
 
-  const dmTypingByKey = useMemo(() => {
-    if (!selectedConversation) return {} as Record<string, TypingEntry>;
-    const prefix = `${selectedConversation.id}:`;
-    const out: Record<string, TypingEntry> = {};
-    for (const [k, v] of Object.entries(typing.dmTypingByKey)) {
-      if (k.startsWith(prefix)) out[k] = v;
-    }
-    return out;
-  }, [typing.dmTypingByKey, selectedConversation]);
+  const dmTypingByKey = useMemo(
+    () => typingForScope(typing.dmTypingByKey, selectedConversation?.id),
+    [typing.dmTypingByKey, selectedConversation],
+  );
 
   function getEventsAction(params?: { upcoming?: boolean; limit?: number }): Promise<HubEvent[]> {
     return getEvents(params);

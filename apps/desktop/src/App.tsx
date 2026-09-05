@@ -376,10 +376,10 @@ function App() {
 
   const typing = useTypingIndicators(selectedChannelForTypingRef, selectedConversationForTypingRef);
   const {
-    setTypingEntry,
-    clearTypingEntry,
-    setDmTypingEntry,
-    clearDmTypingEntry,
+    setTyping,
+    clearTyping,
+    setDmTyping,
+    clearDmTyping,
     clearAllTyping,
     clearAllDmTyping,
   } = typing;
@@ -825,10 +825,10 @@ function App() {
     setHubConnected,
     setAssertiveAnnouncement,
     setToast,
-    setTypingEntry,
-    clearTypingEntry,
-    setDmTypingEntry,
-    clearDmTypingEntry,
+    setTyping,
+    clearTyping,
+    setDmTyping,
+    clearDmTyping,
     onDmEvent,
     onDmMemberChanged,
     onHubReconnected,
