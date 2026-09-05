@@ -629,6 +629,8 @@
   "friends.empty": "Nessun amico ancora",
   "friends.message": "Messaggio",
   "friends.remove": "Rimuovi",
+  "dm.decryption_failed": "Non è stato possibile decifrare questo messaggio.",
+  "dm.own_message_other_device": "L'hai inviato da un altro dispositivo: solo il dispositivo che l'ha inviato ne conserva una copia leggibile.",
   "dm.header.title": "Messaggi diretti",
   "dm.no_selection": "Seleziona una conversazione",
   "dm.no_conversations": "Nessun messaggio diretto. Clicca su un membro nella lista utenti per iniziare una conversazione.",

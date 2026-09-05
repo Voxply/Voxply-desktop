@@ -789,6 +789,8 @@
   "friends.empty": "No friends yet",
   "friends.message": "Message",
   "friends.remove": "Remove",
+  "dm.decryption_failed": "This message could not be decrypted.",
+  "dm.own_message_other_device": "You sent this from another device — only the device that sent it keeps a readable copy.",
   "dm.header.title": "Direct Messages",
   "dm.no_selection": "Select a conversation",
   "dm.no_conversations": "No direct messages yet. Click a member in the user list to start a conversation.",

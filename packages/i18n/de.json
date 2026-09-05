@@ -629,6 +629,8 @@
   "friends.empty": "No friends yet",
   "friends.message": "Message",
   "friends.remove": "Remove",
+  "dm.decryption_failed": "Diese Nachricht konnte nicht entschlüsselt werden.",
+  "dm.own_message_other_device": "Du hast sie von einem anderen Gerät gesendet — nur das sendende Gerät behält eine lesbare Kopie.",
   "dm.header.title": "Direct Messages",
   "dm.no_selection": "Select a conversation",
   "dm.no_conversations": "Noch keine Direktnachrichten. Klicke auf ein Mitglied in der Benutzerliste, um ein Gespräch zu starten.",

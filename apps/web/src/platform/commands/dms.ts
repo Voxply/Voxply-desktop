@@ -2,6 +2,7 @@ import { hexToBytes, bytesToHex } from "@wavvon/core";
 import { dmFetch } from "../dmHub";
 import { hubFetch, rawFetch } from "../http";
 import { activeSession } from "../session";
+import i18n from "@wavvon/i18n";
 import { loadIdentity } from "../../identity/store";
 import type { IdentityRecord } from "../../identity/store";
 import { getScoped, setScoped } from "../../utils/accountScope";
@@ -57,6 +58,27 @@ export function resolveDmSendAttribution(
     signerCert: identity.subkey_cert,
     dhPriv,
   };
+}
+
+/** Which message to show for an encrypted DM this device could not read.
+ *
+ *  A message *we* sent is not a failure: a ratchet cannot decrypt its own
+ *  envelopes, so the only readable copy is the one the sending device stashed
+ *  locally. Getting here with our own pubkey as sender means this device has
+ *  no such copy — it was sent from another device, or this one's storage was
+ *  cleared. Both are the same fact, and neither is breakage.
+ *
+ *  Saying "decryption failed" for that made a known design limit look like a
+ *  bug every time someone paired a second device. Someone else's message that
+ *  will not open *is* a failure and still says so — as does a message whose
+ *  cert chain did not verify, which this is deliberately not consulted for.
+ *
+ *  Returns the key rather than the text so the decision is testable without a
+ *  translator. */
+export function unreadableDmKey(sender: string, mySenderPubkey: string | null): string {
+  return mySenderPubkey && sender === mySenderPubkey
+    ? "dm.own_message_other_device"
+    : "dm.decryption_failed";
 }
 
 export async function listConversations(): Promise<Conversation[]> {
@@ -137,7 +159,11 @@ export async function getDmMessages(
 
   const identity = await loadIdentity();
   const identitySeed = identity?.seed_hex ?? null;
-  const dhPriv = identity ? resolveDmSendAttribution(identity).dhPriv : null;
+  const attribution = identity ? resolveDmSendAttribution(identity) : null;
+  const dhPriv = attribution?.dhPriv ?? null;
+  const mySenderPubkey = attribution?.senderPubkey ?? null;
+
+  const unreadable = (sender: string) => i18n.t(unreadableDmKey(sender, mySenderPubkey));
 
   const results: DmMessageFull[] = [];
   for (const m of raw) {
@@ -157,7 +183,12 @@ export async function getDmMessages(
         !env.signer_cert || (verifyDmEnvelopeSigner(env) && env.sender_pubkey === m.sender);
 
       if (!envelopeTrusted) {
-        content = "[decryption failed]";
+        // Not `unreadable()`: this is a cert chain that did not verify, which
+        // is a trust failure and stays one even when the envelope claims our
+        // own canonical identity as sender. Softening it to "sent from
+        // another device" would be the reassuring way to hide exactly the
+        // case worth noticing.
+        content = i18n.t("dm.decryption_failed");
       } else if ((env as DrEnvelope).v === 2 && identitySeed) {
         try {
           const senderDhPubHex = await fetchDhKey(m.sender) ?? "";
@@ -172,13 +203,13 @@ export async function getDmMessages(
           saveDrSession(m.conversation_id, updatedSession);
           content = plaintext;
         } catch {
-          content = "[decryption failed]";
+          content = unreadable(m.sender);
         }
       } else if (dhPriv) {
         try {
           content = decryptDm(m.conversation_id, env as DmEnvelope, dhPriv);
         } catch {
-          content = "[decryption failed]";
+          content = unreadable(m.sender);
         }
       }
     } else if (!m.content && m.group_encrypted_envelope) {
