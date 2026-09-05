@@ -41,6 +41,35 @@ Commit to **`develop`**. See `CONTRIBUTING.md`.
 
 ---
 
+## One codebase, two builds: the hub build and the user build
+
+`apps/web` builds twice from the same source. The **user build** (`dist`) is
+the multi-hub one, hosted next to the directory; the **hub build**
+(`dist-hub`) is what a hub serves from its own origin, and it shows one hub
+with no notion of a *list* of hubs. The hub build is the user build **minus**
+entry points, which is why it is a flag and not a second app.
+
+- `MULTI_HUB` in `apps/web/src/constants.ts`, from `VITE_BUILD_TARGET` via
+  `.env.hub` and `--mode hub`. The comparison is a literal, so it folds and
+  the dropped screens leave the bundle. Gate new multi-hub surface on it —
+  and derive from it (`USER_CLIENT_URL`, `DISCOVERY_URL` already do) rather
+  than re-reading the env var.
+- Dropped in the hub build: the `+` menu, AddHubModal, the create-hub wizard,
+  the directory, the home-hub editor. **Kept**: everything cross-hub that
+  routes through the hub itself — alliance channels, messages, forum, *and*
+  alliance voice, which dials the owning hub's relay directly. Defining the
+  flag as "one origin only" breaks alliance voice.
+- `scripts/check-hub-build.mjs` asserts three **code-only** markers are in
+  `dist` and absent from `dist-hub`. i18n keys are useless as markers — the
+  catalogs ship whole in both builds. Some marker classes carry no styling
+  and exist only to be grepped (`home-hubs-section`); renaming one turns the
+  check green and meaningless, and deleting a screen takes its marker with it
+  — that is how the check went red once after the create-hub removal.
+
+Both builds come from one commit, which is what makes "version-matched" true
+by construction. Rationale: the docs wiki's `decisions.md`, "Two web clients:
+one per hub, one per user".
+
 ## A client cannot create a hub, and knows nothing about farms
 
 A hub exists because somebody ran the binary on their own server. There is no
@@ -87,11 +116,13 @@ Web app (`apps/web`):
 
 ```bash
 npm run dev
-npm run build        # tsc && vite build
+npm run build        # tsc && vite build              -> dist      (user build)
+npm run build:hub    # tsc && vite build --mode hub   -> dist-hub  (hub build)
 npm run typecheck
 npm run test
 npm run check-i18n   # translation coverage
 npm run check-hardcoded  # no NEW hardcoded UI strings (baseline-gated)
+node scripts/check-hub-build.mjs   # asserts the hub build really dropped the screens
 ```
 
 Desktop app (`apps/desktop`):
@@ -229,10 +260,14 @@ them.
 
 **Identity is a keypair, not an account.** No email, password, or username.
 Identity = Ed25519 public key (hex). Multi-device via BIP39 master phrase +
-signed subkey certs (QR pairing). Recovery = phrase import (canonical),
-`.wavvon-backup` file (secondary, works cross-client), or per-hub recovery
-contacts (vouch -> admin decides). Both clients are multi-account; account lists
-are device-local and never synced to a hub.
+signed subkey certs (QR pairing). A device certifies **itself** on its first
+hub connect and publishes a `HomeHubList` naming that hub if it has none —
+`ensureSelfDeviceCert` then `ensureHomeHubDesignation`, in that order, since
+the roster→master link has to exist before the list it points at. Naming a
+device in Settings is cosmetic and just re-issues the cert. Recovery = phrase
+import (canonical), `.wavvon-backup` file (secondary, works cross-client), or
+per-hub recovery contacts (vouch -> admin decides). Both clients are
+multi-account; account lists are device-local and never synced to a hub.
 
 ---
 
