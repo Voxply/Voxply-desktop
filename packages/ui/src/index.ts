@@ -354,6 +354,8 @@ export { useVoiceMoveUx } from "./hooks/useVoiceMoveUx";
 export type { VoiceMoveMenuState } from "./hooks/useVoiceMoveUx";
 export { RemoveHubModal } from "./components/RemoveHubModal";
 export { homeHubStatus } from "./utils/homeHubStatus";
+export { resolveStoredPresence, storedPresenceFor } from "./utils/presenceExpiry";
+export type { StoredPresence } from "./utils/presenceExpiry";
 export type { HomeHubStatus } from "./utils/homeHubStatus";
 export { useUnreadCounts } from "./hooks/useUnreadCounts";
 export { useWhisper } from "./hooks/useWhisper";
