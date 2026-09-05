@@ -154,6 +154,42 @@ pub fn get_home_hub_list() -> Option<HomeHubList> {
     read_cached_designation()
 }
 
+/// The first hub an identity signs in to becomes its home hub.
+///
+/// Personal-axis state — the prefs blob, the DM inbox — needs a published list
+/// to live in, and a list only ever created by hand in the Home Hubs screen
+/// stays empty for almost everyone. Then no hub can resolve where to deliver a
+/// DM, and fan-out and mirroring skip the identity in silence.
+///
+/// No-op once a designation exists on that hub, including one the user emptied
+/// on purpose, so this never overrides their own choice. A paired device is
+/// skipped: it holds a subkey, and a subkey cannot sign a `HomeHubList`.
+///
+/// Best-effort by design — a hub too old to serve designations, or simply
+/// unreachable, must not fail a join.
+pub(crate) async fn ensure_designation(hub_url: &str, client: &reqwest::Client) {
+    if crate::pairing::get_paired_identity().is_some() {
+        return;
+    }
+    let Ok(master) = load_master() else { return };
+    let hub_url = hub_url.trim_end_matches('/').to_string();
+
+    let endpoint = format!(
+        "{}/identity/{}/designation",
+        hub_url,
+        master.public_key_hex()
+    );
+    match client.get(&endpoint).send().await {
+        // Anything the hub answers with other than "nothing here" means we
+        // must not write: a 200 is the user's existing list, and a 5xx or a
+        // transport error is a hub we cannot conclude anything about.
+        Ok(resp) if resp.status() == reqwest::StatusCode::NOT_FOUND => {}
+        _ => return,
+    }
+
+    let _ = set_home_hub_list(vec![hub_url]).await;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

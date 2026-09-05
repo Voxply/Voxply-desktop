@@ -35,6 +35,12 @@ pub(crate) async fn add_hub(
         .authenticate(&auth_url, &client, invite_code.as_deref())
         .await?;
 
+    // Auth just told this hub which master we are (the cert rides on
+    // /auth/verify), so the list is now findable — publish it if the identity
+    // has none. Order matters: a designation stored under a master no hub can
+    // resolve is a list nobody looks up.
+    crate::home_hub::ensure_designation(&hub_url, &client).await;
+
     let profile = load_profile();
     if let Some(default_profile) = profile.default_profile.clone() {
         if let Ok(me_resp) = client
