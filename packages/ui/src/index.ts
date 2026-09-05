@@ -353,6 +353,8 @@ export type { RecoveryContactsSectionActions } from "./components/settings/Recov
 export { useVoiceMoveUx } from "./hooks/useVoiceMoveUx";
 export type { VoiceMoveMenuState } from "./hooks/useVoiceMoveUx";
 export { useUnreadCounts } from "./hooks/useUnreadCounts";
+export { useWhisper } from "./hooks/useWhisper";
+export type { WhisperDeps, WhisperParams } from "./hooks/useWhisper";
 export type { UnreadCounts, UnreadCountsDeps } from "./hooks/useUnreadCounts";
 export { usePresenceStatus } from "./hooks/usePresenceStatus";
 export { useHubSetupWizardGate } from "./hooks/useHubSetupWizardGate";
