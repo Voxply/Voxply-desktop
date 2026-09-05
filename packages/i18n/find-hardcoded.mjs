@@ -66,8 +66,11 @@ for (const f of files) {
   // the character class is the whole guard. Matching line by line — the first
   // version of this — missed every multi-line label (`>\n  Remove\n<`) and so
   // reported files as clean that were not.
-  // The lookbehind drops `=> Promise<void>` and `Array<Foo<Bar>>`.
-  for (const m of src.matchAll(/(?<![=)])>([^<>{}]+)</g)) {
+  // The lookbehind drops `=> Promise<void>`, `Array<Foo<Bar>>` and the
+  // `invoke<Foo[]>(…)` calls that fill the desktop app, whose closing `]>`
+  // otherwise pairs with the next call's `<` and reports the code between
+  // them as a label.
+  for (const m of src.matchAll(/(?<![=)\]])>([^<>{}]+)</g)) {
     const text = m[1].replace(/\s+/g, " ").trim();
     if (looksHuman(text)) add(m.index, "jsx-text", text);
   }

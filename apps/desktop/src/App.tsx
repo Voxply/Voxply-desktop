@@ -8,7 +8,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { DISCOVERY_URL } from "./constants";
-import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
@@ -21,28 +20,19 @@ import type {
   User,
   VoiceParticipant,
   Hub,
-  RoleInfo,
   MeInfo,
-  MemberAdminInfo,
   BanInfo,
-  InviteInfo,
-  Friend,
   Conversation,
   DmMessage,
   AllianceInfo,
   AllianceSharedChannel,
   ActiveStream,
   LobbyStatus,
-  SurveySubmitResult,
   BotAppLaunchEvent,
   BotAppOpenEvent,
   BotAppCloseEvent,
-  PublicHubProfile,
-  ForumTagDef,
 } from "./types";
-import { ScreenShareModal } from "./components/ScreenShareModal";
-import { ScreenShareOverlay } from "./components/ScreenShareOverlay";
-import { BotAppLaunchCard, KeyboardShortcuts, DiscoverPage, Lobby, HubSetupWizard, ChannelContextMenu, EventComposer, PollComposer, type CreateEventPayload, type HubEvent, type Poll } from "@wavvon/ui";
+import { BotAppLaunchCard, DiscoverPage, Lobby, type CreateEventPayload, type HubEvent, type Poll } from "@wavvon/ui";
 import { VoiceMoveMenu, VoiceMoveToast, VoiceMovePromptModal, SearchBar, moveChannelOptions, computeDragIntent } from "@wavvon/ui";
 import { useVoiceMoveUx, usePresenceStatus, useHubSetupWizardGate, useSoundboardChips } from "@wavvon/ui";
 import { useWhisperKeybinds, pickReplyPubkey, WhisperInbox } from "@wavvon/ui";
@@ -82,29 +72,19 @@ import { useUpdateBanner } from "./hooks/useUpdateBanner";
 import { useFirstNotify } from "./hooks/useFirstNotify";
 import { buildVideoTiles } from "./utils/buildVideoTiles";
 import { useSlashCommands } from "./hooks/useSlashCommands";
-import { ChannelPalette } from "./components/ChannelPalette";
 import { SettingsPageContainer } from "./components/SettingsPageContainer";
 import { HubAdminContainer } from "./components/HubAdminContainer";
-import { AddHubModal } from "@wavvon/ui";
-import { QuickInviteModal } from "@wavvon/ui";
-import { ChannelSettingsModal, type BannerSource } from "@wavvon/ui";
-import type { HubIcon } from "@wavvon/ui";
-import { FriendsModal } from "@wavvon/ui";
 import { AppModals } from "./components/AppModals";
-import { UserContextMenu } from "@wavvon/ui";
 import { HubSidebar } from "@wavvon/ui";
 import { ChannelSidebarContainer } from "./components/ChannelSidebarContainer";
 import { ContentAreaContainer } from "./components/ContentAreaContainer";
 import { fetchWithTimeout } from "./utils/fetchWithTimeout";
 import { HubBrowser } from "./components/HubBrowser";
 import { WelcomeScreen } from "@wavvon/ui";
-import { BotChallenge } from "./components/BotChallenge";
-import { SurveyComponent } from "./components/Survey";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { setSwitchGuard } from "./accounts/store";
 
 function App() {
-  const { t } = useTranslation();
   const [showQuickInvite, setShowQuickInvite] = useState(false);
   const [pendingSurveyHubId, setPendingSurveyHubId] = useState<string | null>(null);
   const unreadCounts = useUnreadCounts(unreadPersistence);
@@ -538,40 +518,7 @@ function App() {
   const [eventComposerChannelId, setEventComposerChannelId] = useState<string | null>(null);
   const [pollComposerChannelId, setPollComposerChannelId] = useState<string | null>(null);
 
-  const {
-    showCreateChannel,
-    setShowCreateChannel,
-    newChannelParentId,
-    createIsCategory,
-    createChannelLoading,
-    createChannelError,
-    setCreateChannelError,
-    editDescriptionChannel,
-    setEditDescriptionChannel,
-    editDescriptionValue,
-    setEditDescriptionValue,
-    channelSettingsModal,
-    setChannelSettingsModal,
-    channelSettingsSaving,
-    channelSettingsDeleting,
-    channelSettingsError,
-    setChannelSettingsError,
-    bannerEditChannel,
-    setBannerEditChannel,
-    handleRenameChannel,
-    handleCreateChannel,
-    createChannelForWizard,
-    openEditDescription,
-    handleSaveDescription,
-    handleDeleteChannel,
-    handleSaveBannerUrl,
-    handleSaveChannelSettings,
-    handleDeleteChannelSettings,
-    openCreateChannelUnder,
-    channelPermissionsTabActions,
-    channelBansTabActions,
-    channelTalkPowerTabActions,
-  } = useChannelCrud({
+  const channelCrud = useChannelCrud({
     hubs,
     activeHubId,
     selectedChannel: channelMessages.selectedChannel,
@@ -581,6 +528,13 @@ function App() {
     setChannels,
     setError,
   });
+
+  const {
+    setShowCreateChannel,
+    setChannelSettingsModal,
+    openEditDescription,
+    openCreateChannelUnder,
+  } = channelCrud;
 
   // Message edit state — which message id is being edited and its draft
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -737,21 +691,7 @@ function App() {
     }
   });
 
-  const {
-    showAddHub,
-    setShowAddHub,
-    loading,
-    setLoading,
-    hubUrl,
-    setHubUrl,
-    inviteCode,
-    setInviteCode,
-    botChallenge,
-    setBotChallenge,
-    hubPreview,
-    handleHubUrlChange,
-    handleAddHub,
-  } = useAddHubFlow({
+  const addHubFlow = useAddHubFlow({
     showWelcome,
     publicKey,
     activeHubId,
@@ -762,6 +702,18 @@ function App() {
     setPendingSurveyHubId,
     setError,
   });
+
+  const {
+    setShowAddHub,
+    loading,
+    hubUrl,
+    setHubUrl,
+    inviteCode,
+    setInviteCode,
+    hubPreview,
+    handleHubUrlChange,
+    handleAddHub,
+  } = addHubFlow;
 
   const {
     showFriends,
@@ -1778,281 +1730,60 @@ function App() {
           </div>
         )}
 
-        {botChallenge && (
-          <BotChallenge
-            hubUrl={botChallenge.hubUrl}
-            pubkey={botChallenge.pubkey}
-            onPassed={(token) => {
-              setBotChallenge(null);
-              handleAddHub(token);
-            }}
-            onCancel={() => {
-              setBotChallenge(null);
-              setLoading(false);
-            }}
-          />
-        )}
-
-        {pendingSurveyHubId && (() => {
-          const surveyHub = hubs.find((h) => h.hub_id === pendingSurveyHubId);
-          if (!surveyHub) return null;
-          return (
-            <SurveyComponent
-              hubUrl={surveyHub.hub_url}
-              onComplete={(result: SurveySubmitResult) => {
-                setPendingSurveyHubId(null);
-                if (result.next_state === "pending") {
-                  setMyApprovalStatus("pending");
-                }
-              }}
-            />
-          );
-        })()}
-
-        {showAddHub && (
-          <AddHubModal
-            hubUrl={hubUrl}
-            onHubUrlChange={handleHubUrlChange}
-            hubPreview={hubPreview}
-            loading={loading}
-            error={error}
-            onAdd={() => handleAddHub()}
-            onClose={() => { setShowAddHub(false); setHubUrl(""); setInviteCode(""); }}
-            onBrowse={DISCOVERY_URL ? () => { setShowAddHub(false); setShowHubBrowser(true); } : undefined}
-          />
-        )}
-
-        {showQuickInvite && activeHubId && (
-          <QuickInviteModal
-            activeHubUrl={hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? ""}
-            myMaxPriority={myRoles.reduce((m, r) => Math.max(m, r.priority), 0)}
-            onClose={() => setShowQuickInvite(false)}
-            actions={{
-              listRoles: () => invoke<RoleInfo[]>("list_roles"),
-              createInvite: (maxUses, expiresInSeconds, grantRoleId) =>
-                invoke<InviteInfo>("create_invite", { maxUses, expiresInSeconds, grantRoleId }),
-            }}
-          />
-        )}
-
-        {showFriends && (
-          <FriendsModal
-            actions={{
-              listFriends: () => invoke<Friend[]>("list_friends"),
-              listPendingFriendRequests: () => invoke<Friend[]>("list_pending_friends"),
-              sendFriendRequest: (targetPublicKey, hubUrl) =>
-                invoke("send_friend_request", { targetPublicKey, friendHubUrl: hubUrl ?? null, displayName: null }),
-              acceptFriendRequest: (fromPublicKey) => invoke("accept_friend", { fromPublicKey }),
-              removeFriend: (targetPublicKey) => invoke("remove_friend", { targetPublicKey }),
-            }}
-            onMessage={startDmWithAndClose}
-            onClose={() => setShowFriends(false)}
-          />
-        )}
-
-        {eventComposerChannelId && (
-          <EventComposer
-            channelId={eventComposerChannelId}
-            channels={channels}
-            canHubWide={isAdmin}
-            advancedFieldsSupported
-            onSubmit={createEventForComposer}
-            onCreated={() => {}}
-            onClose={() => setEventComposerChannelId(null)}
-          />
-        )}
-
-        {pollComposerChannelId && (
-          <PollComposer
-            channelId={pollComposerChannelId}
-            onCreatePoll={createPollForComposer}
-            onCreated={() => {}}
-            onClose={() => setPollComposerChannelId(null)}
-          />
-        )}
-
-        {contextMenu && (
-          <ChannelContextMenu
-            menu={contextMenu}
-            activeHubId={activeHubId}
-            effectiveNotifyMode={effectiveNotifyMode}
-            onSetNotifyMode={setChannelMode}
-            onClose={() => setContextMenu(null)}
-            onCopyLink={async (channel) => {
-              const hubUrl = hubs.find((h) => h.hub_id === activeHubId)?.hub_url;
-              if (!hubUrl) return;
-              const link = `wavvon://${hubUrl.replace(/^https?:\/\//, "")}/channel/${channel.id}`;
-              try {
-                await navigator.clipboard.writeText(link);
-                setToast(t("message.action.link_copied"));
-              } catch (e) {
-                setToast(String(e));
-              }
-            }}
-            onCreateEvent={isAdmin ? (channel) => setEventComposerChannelId(channel.id) : undefined}
-            onCreatePoll={
-              isAdmin || myRoles.some((r) => r.permissions?.includes("send_messages"))
-                ? (channel) => setPollComposerChannelId(channel.id)
-                : undefined
-            }
-            onRenameTempRoom={
-              contextMenu.channel.is_temporary && contextMenu.channel.owner_pubkey === publicKey && !isAdmin
-                ? handleRenameChannel
-                : undefined
-            }
-            onEditBanner={setBannerEditChannel}
-            onCreateChannelIn={(parentId) => openCreateChannelUnder(parentId)}
-            onCreateChannel={isAdmin ? () => openCreateChannelUnder(null) : undefined}
-            onCreateCategory={isAdmin ? () => openCreateChannelUnder(null, true) : undefined}
-            onEditChannel={setChannelSettingsModal}
-            onDeleteChannel={(channel) => handleDeleteChannel(channel.id)}
-          />
-        )}
-
         <AppModals
+          addHub={addHubFlow}
+          channelCrud={channelCrud}
+          voice={voice}
+          hubs={hubs}
+          activeHubId={activeHubId}
+          channels={channels}
+          users={users}
+          publicKey={publicKey}
+          isAdmin={isAdmin}
+          myRoles={myRoles}
+          error={error}
+          setToast={setToast}
+          setShowHubBrowser={setShowHubBrowser}
+          pendingSurveyHubId={pendingSurveyHubId}
+          setPendingSurveyHubId={setPendingSurveyHubId}
+          setMyApprovalStatus={setMyApprovalStatus}
+          showQuickInvite={showQuickInvite}
+          setShowQuickInvite={setShowQuickInvite}
+          showFriends={showFriends}
+          setShowFriends={setShowFriends}
+          startDmWithAndClose={startDmWithAndClose}
+          eventComposerChannelId={eventComposerChannelId}
+          setEventComposerChannelId={setEventComposerChannelId}
+          pollComposerChannelId={pollComposerChannelId}
+          setPollComposerChannelId={setPollComposerChannelId}
+          createEventForComposer={createEventForComposer}
+          createPollForComposer={createPollForComposer}
+          contextMenu={contextMenu}
+          setContextMenu={setContextMenu}
+          effectiveNotifyMode={effectiveNotifyMode}
+          setChannelMode={setChannelMode}
+          showHubSetupWizard={showHubSetupWizard}
+          closeHubSetupWizard={closeHubSetupWizard}
+          handleHubSetupWizardComplete={handleHubSetupWizardComplete}
+          paletteOpen={paletteOpen}
+          setPaletteOpen={setPaletteOpen}
+          onSelectChannel={channelMessages.selectChannel}
+          userContextMenu={userContextMenu}
+          setUserContextMenu={setUserContextMenu}
+          blockedUsers={blockedUsers}
+          ignoredUsers={ignoredUsers}
+          refreshMembers={refreshMembers}
+          handleUserDm={handleUserDm}
+          handleUserAddFriend={handleUserAddFriend}
+          toggleBlockUser={toggleBlockUser}
+          toggleIgnoreUser={toggleIgnoreUser}
+          handleDiscoverJoin={handleDiscoverJoin}
           lightbox={lightbox}
-          onCloseLightbox={() => setLightbox(null)}
-          editDescriptionChannel={editDescriptionChannel}
-          editDescriptionValue={editDescriptionValue}
-          onDescriptionChange={setEditDescriptionValue}
-          onSaveDescription={handleSaveDescription}
-          onCloseEditDescription={() => setEditDescriptionChannel(null)}
-          bannerEditChannel={bannerEditChannel}
-          onSaveBanner={handleSaveBannerUrl}
-          onCloseBanner={() => setBannerEditChannel(null)}
+          setLightbox={setLightbox}
+          encryptionWarning={encryptionWarning}
+          showKeyboardShortcuts={showKeyboardShortcuts}
+          setShowKeyboardShortcuts={setShowKeyboardShortcuts}
         />
-
-        {(showCreateChannel || channelSettingsModal) && (
-          <ChannelSettingsModal
-            channel={channelSettingsModal}
-            createParentId={newChannelParentId}
-            createParentName={newChannelParentId ? (channels.find((c) => c.id === newChannelParentId)?.name ?? null) : null}
-            createInitialIsCategory={createIsCategory}
-            saving={channelSettingsModal ? channelSettingsSaving : createChannelLoading}
-            deleting={channelSettingsDeleting}
-            error={channelSettingsModal ? channelSettingsError : createChannelError}
-            canManageRoles={isAdmin || myRoles.some((r) => r.permissions?.includes("manage_roles"))}
-            isAdmin={isAdmin}
-            myMaxPriority={myRoles.reduce((m, r) => Math.max(m, r.priority), 0)}
-            hubUrl={hubs.find((h) => h.hub_id === activeHubId)?.hub_url}
-            onSave={channelSettingsModal ? handleSaveChannelSettings : handleCreateChannel}
-            onDelete={handleDeleteChannelSettings}
-            onClose={() => {
-              setShowCreateChannel(false); setCreateChannelError(null);
-              setChannelSettingsModal(null); setChannelSettingsError(null);
-            }}
-            permissionsActions={channelPermissionsTabActions}
-            bansActions={channelBansTabActions}
-            bansUsers={users}
-            bansSupportReason
-            talkPowerActions={channelTalkPowerTabActions}
-            listHubIcons={() => invoke<HubIcon[]>("list_hub_icons")}
-            bannerUploadSupported={true}
-            listForumTags={(channelId) => invoke<ForumTagDef[]>("forum_list_tags", { channelId })}
-            forumTagsActions={{
-              createTag: (channelId, label, color, position) =>
-                invoke<ForumTagDef>("forum_create_tag", { channelId, label, color: color ?? null, position: position ?? null }),
-              editTag: (tagId, updates) =>
-                invoke<ForumTagDef>("forum_edit_tag", {
-                  tagId,
-                  label: updates.label ?? null,
-                  color: updates.color ?? null,
-                  position: updates.position ?? null,
-                }),
-              deleteTag: (tagId) => invoke<void>("forum_delete_tag", { tagId }),
-            }}
-          />
-        )}
-
-        {showHubSetupWizard && activeHubId && (
-          <HubSetupWizard
-            actions={{ onCreateChannel: createChannelForWizard }}
-            onDismiss={() => closeHubSetupWizard(activeHubId)}
-            onComplete={handleHubSetupWizardComplete}
-          />
-        )}
-
-        {paletteOpen && (
-          <ChannelPalette
-            channels={channels.filter((c) => !c.is_category)}
-            onClose={() => setPaletteOpen(false)}
-            onSelect={(c) => { setPaletteOpen(false); channelMessages.selectChannel(c); }}
-          />
-        )}
-
-        {userContextMenu && (
-          <UserContextMenu
-            user={userContextMenu.user}
-            publicKey={publicKey}
-            isAdmin={isAdmin}
-            canManageRoles={isAdmin || myRoles.some((r) => r.permissions?.includes("manage_roles"))}
-            myMaxPriority={myRoles.reduce((m, r) => Math.max(m, r.priority), 0)}
-            blockedUsers={blockedUsers}
-            ignoredUsers={ignoredUsers}
-            position={{ x: userContextMenu.x, y: userContextMenu.y }}
-            onClose={() => setUserContextMenu(null)}
-            onToast={setToast}
-            onRolesChanged={() => { void refreshMembers(); }}
-            actions={{
-              listRoles: () => invoke<RoleInfo[]>("list_roles"),
-              listUserRoles: async (pubkey) => {
-                const [all, members] = await Promise.all([
-                  invoke<RoleInfo[]>("list_roles"),
-                  invoke<MemberAdminInfo[]>("list_hub_members"),
-                ]);
-                const ids = new Set(members.find((m) => m.public_key === pubkey)?.roles.map((r) => r.id) ?? []);
-                return all.filter((r) => ids.has(r.id));
-              },
-              assignRole: (pubkey, roleId) => invoke("assign_role", { targetPublicKey: pubkey, roleId }),
-              removeRole: (pubkey, roleId) => invoke("unassign_role", { targetPublicKey: pubkey, roleId }),
-              muteUser: (pubkey) => invoke("mute_user_cmd", { targetPublicKey: pubkey, reason: null }),
-              kickUser: (pubkey) => invoke("kick_user_cmd", { targetPublicKey: pubkey, reason: null }),
-              banUser: (pubkey) => invoke("ban_user_cmd", { targetPublicKey: pubkey, reason: null }),
-              dm: handleUserDm,
-              addFriend: handleUserAddFriend,
-              toggleBlock: toggleBlockUser,
-              toggleIgnore: toggleIgnoreUser,
-              fetchPublicProfile: (pubkey) => invoke<PublicHubProfile | null>("fetch_public_profile", {
-                hubUrl: hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "",
-                pubkey,
-              }),
-              joinHub: handleDiscoverJoin,
-            }}
-          />
-        )}
-
-        <ScreenShareOverlay
-          ref={voice.screenShareViewerRef}
-          streams={[...voice.activeScreenShares, ...voice.crossChannelStreams]}
-          mediaOutputDeviceId={voice.mediaOutputDeviceId || undefined}
-        />
-
-        {voice.showSharePicker && (
-          <ScreenShareModal
-            onStart={voice.handleShareStart}
-            onCancel={() => voice.setShowSharePicker(false)}
-          />
-        )}
-
-        {encryptionWarning && (
-          <div className="modal-overlay">
-            <div className="modal encryption-warning-modal">
-              <p>{encryptionWarning.message}</p>
-              <div className="modal-actions">
-                {encryptionWarning.onConfirm && (
-                  <button onClick={encryptionWarning.onConfirm}>Send anyway</button>
-                )}
-                <button onClick={encryptionWarning.onCancel}>
-                  {encryptionWarning.onConfirm ? "Cancel" : "Dismiss"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {showKeyboardShortcuts && (
-          <KeyboardShortcuts onClose={() => setShowKeyboardShortcuts(false)} />
-        )}
 
       </>
     </div>
