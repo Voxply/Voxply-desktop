@@ -52,20 +52,30 @@ export function useUnreadCounts({
   const [unreadDms, setUnreadDms] = useState<Record<string, boolean>>({});
 
   // Persisting from inside a state updater — which is what desktop did — runs
-  // twice under StrictMode and writes during render. Doing it in an effect
-  // needs this guard, or restoring the saved map immediately writes it back.
-  const restored = useRef(!loadPersisted);
+  // twice under StrictMode and writes during render, so it happens in an
+  // effect instead. That effect then has to not write back the very map it
+  // just restored, and a "have we loaded yet" flag cannot tell: the promise
+  // settles before React re-renders, so the flag is already true by the time
+  // the effect sees the restored value. The value itself is the reliable
+  // marker — nothing else can produce that object.
+  // Two guards, and both are needed. `loaded` keeps the empty initial state
+  // from being written over the saved one before the read comes back —
+  // without it the first effect run clobbers exactly what is being restored.
+  const loaded = useRef(!loadPersisted);
+  const justRestored = useRef<Record<string, Record<string, boolean>> | null>(null);
+
   useEffect(() => {
     if (!loadPersisted) return;
     let cancelled = false;
     void loadPersisted()
       .then((saved) => {
-        if (cancelled) return;
-        if (saved) setUnreadByChannel(saved);
+        if (cancelled || !saved) return;
+        justRestored.current = saved;
+        setUnreadByChannel(saved);
       })
       .catch(() => {})
       .finally(() => {
-        if (!cancelled) restored.current = true;
+        if (!cancelled) loaded.current = true;
       });
     return () => {
       cancelled = true;
@@ -73,7 +83,11 @@ export function useUnreadCounts({
   }, [loadPersisted]);
 
   useEffect(() => {
-    if (!persist || !restored.current) return;
+    if (!persist || !loaded.current) return;
+    if (justRestored.current === unreadByChannel) {
+      justRestored.current = null;
+      return;
+    }
     persist(unreadByChannel);
   }, [persist, unreadByChannel]);
 

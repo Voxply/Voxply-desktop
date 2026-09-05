@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useTypingIndicators as useSharedTyping } from "@wavvon/ui";
 import { sendTypingEvent, sendDmTypingEvent } from "../platform/commands/messages";
 
@@ -10,10 +10,18 @@ export function useTypingIndicators(
   getSelectedConversationId: () => string | undefined,
   getMyPublicKey: () => string | null,
 ) {
+  // App.tsx passes these as inline arrows, so a memo keyed on them would
+  // rebuild every render and the hook's callbacks with it. Read through refs
+  // instead: the getters are only ever called, never compared.
+  const getChannel = useRef(getSelectedChannelId);
+  getChannel.current = getSelectedChannelId;
+  const getConversation = useRef(getSelectedConversationId);
+  getConversation.current = getSelectedConversationId;
+
   const deps = useMemo(
     () => ({
-      getChannelId: getSelectedChannelId,
-      getConversationId: getSelectedConversationId,
+      getChannelId: () => getChannel.current(),
+      getConversationId: () => getConversation.current(),
       sendTyping: (channelId: string, typing: boolean) => {
         try {
           sendTypingEvent(channelId, typing);
@@ -29,7 +37,7 @@ export function useTypingIndicators(
         }
       },
     }),
-    [getSelectedChannelId, getSelectedConversationId],
+    [],
   );
 
   const typing = useSharedTyping(deps);
