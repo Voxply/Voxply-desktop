@@ -69,14 +69,22 @@ export function useTypingIndicators({
   // One sweep for every entry, rather than web's per-entry setTimeout: a busy
   // channel scheduled a timer per keystroke-burst per person, all of them
   // holding a closure over the map.
+  //
+  // Only while there is something to sweep, which neither copy got right:
+  // desktop ran the interval forever, waking an idle app once a second, and
+  // web's per-entry timers meant an idle tab had none. Nobody is typing most
+  // of the time.
+  const idle =
+    Object.keys(typingByKey).length === 0 && Object.keys(dmTypingByKey).length === 0;
   useEffect(() => {
+    if (idle) return;
     const handle = setInterval(() => {
       const cutoff = Date.now() - STALE_AFTER_MS;
       setTypingByKey((prev) => dropStale(prev, cutoff));
       setDmTypingByKey((prev) => dropStale(prev, cutoff));
     }, SWEEP_EVERY_MS);
     return () => clearInterval(handle);
-  }, []);
+  }, [idle]);
 
   const setTyping = useCallback((scopeId: string, pubkey: string, name: string) => {
     setTypingByKey((prev) => ({ ...prev, [typingKey(scopeId, pubkey)]: { name, ts: Date.now() } }));
