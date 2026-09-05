@@ -18,10 +18,13 @@ const SHORTCUT_IDS = [
   "composer", "messages", "lists", "collapse", "expand", "home_end",
 ];
 
+const THEME_IDS = ["calm", "classic", "linear", "light", "custom"];
+
 const FAMILIES: { name: string; prefix: string; ids: string[] }[] = [
   { name: "role permissions", prefix: "hub.admin.roles.perm", ids: ALL_PERMISSIONS },
   { name: "channel icons", prefix: "channel.icon", ids: CHANNEL_ICONS.map((d) => d.id) },
   { name: "keyboard shortcuts", prefix: "shortcuts.action", ids: SHORTCUT_IDS },
+  { name: "theme tagline", prefix: "settings.theme.tagline", ids: THEME_IDS },
 ];
 
 describe("template-built labels", () => {

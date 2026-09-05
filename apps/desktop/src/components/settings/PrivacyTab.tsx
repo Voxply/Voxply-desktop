@@ -26,10 +26,10 @@ export function PrivacyTab({ blocks, ignores, onUnblock, onUnignore, knownNames,
         knownNames={knownNames}
       />
       <div className="settings-section">
-        <label className="settings-label">Birthdays</label>
+        <label className="settings-label">{t("settings.privacy.birthdays.label")}</label>
         <label className="checkbox-label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <input type="checkbox" checked={hideBirthdays} onChange={onToggleHideBirthdays} />
-          Hide the 🎂 badge on members' birthdays
+          {t("settings.privacy.birthdays.hide")}
         </label>
       </div>
     </section>

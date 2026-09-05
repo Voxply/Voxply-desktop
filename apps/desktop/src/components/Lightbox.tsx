@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { FocusTrap } from "@wavvon/ui";
 
 export function Lightbox({
@@ -10,6 +11,7 @@ export function Lightbox({
   alt: string;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -30,8 +32,8 @@ export function Lightbox({
         <button
           className="lightbox-close"
           onClick={onClose}
-          title="Close (Esc)"
-          aria-label="Close"
+          title={t("lightbox.close_title")}
+          aria-label={t("modal.close")}
         >
           ×
         </button>

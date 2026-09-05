@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { FocusTrap } from "@wavvon/ui";
 import type { Channel } from "@wavvon/core";
 
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function BannerEditModal({ channel, onSave, onClose }: Props) {
+  const { t } = useTranslation();
   const [url, setUrl] = useState(channel.banner_url ?? "");
 
   useEffect(() => {
@@ -23,10 +25,10 @@ export function BannerEditModal({ channel, onSave, onClose }: Props) {
     <div className="modal-overlay" onClick={onClose}>
       <FocusTrap>
         <div className="modal" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
-          <h3>Edit Banner</h3>
+          <h3>{t("channel.banner.edit_title")}</h3>
           <div className="settings-section">
             <label className="settings-label" htmlFor="banner-url-input">
-              Image URL
+              {t("channel.create.banner_source_url")}
             </label>
             <input
               id="banner-url-input"
@@ -40,7 +42,7 @@ export function BannerEditModal({ channel, onSave, onClose }: Props) {
             {url && (
               <img
                 src={url}
-                alt="Preview"
+                alt={t("channel.banner.preview_alt")}
                 style={{ marginTop: 8, width: "100%", height: "auto", borderRadius: 4, display: "block" }}
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                 onLoad={(e) => { (e.target as HTMLImageElement).style.display = "block"; }}
@@ -48,12 +50,12 @@ export function BannerEditModal({ channel, onSave, onClose }: Props) {
             )}
           </div>
           <div className="modal-actions">
-            <button className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button className="btn-secondary" onClick={onClose}>{t("modal.cancel")}</button>
             <button
               onClick={() => { onSave(channel.id, url.trim()); onClose(); }}
               disabled={!url.trim()}
             >
-              Save
+              {t("modal.save")}
             </button>
           </div>
         </div>

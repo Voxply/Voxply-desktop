@@ -78,7 +78,7 @@ export function ManageAccountsTab({ hubs, activeHubUrl, isAdmin, accounts, recov
     async exportToPath(accountId, passphrase) {
       const path = await save({
         defaultPath: suggestBackupFilename(backupAccounts.find((a) => a.id === accountId)?.label ?? accountId),
-        filters: [{ name: "Wavvon backup", extensions: ["wavvon-backup"] }],
+        filters: [{ name: t("settings.account.identity_backup.file_filter"), extensions: ["wavvon-backup"] }],
       });
       if (!path) throw new Error("export_cancelled");
       await invoke("export_account_backup", { id: accountId, passphrase, path });
@@ -86,7 +86,7 @@ export function ManageAccountsTab({ hubs, activeHubUrl, isAdmin, accounts, recov
     async pickImportPath() {
       const path = await open({
         multiple: false,
-        filters: [{ name: "Wavvon backup", extensions: ["wavvon-backup"] }],
+        filters: [{ name: t("settings.account.identity_backup.file_filter"), extensions: ["wavvon-backup"] }],
       });
       return typeof path === "string" ? path : null;
     },

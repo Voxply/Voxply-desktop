@@ -7,6 +7,7 @@
 // - Event handlers use camelCase: onClick, onChange, onSubmit
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { DISCOVERY_URL } from "./constants";
 import { invoke } from "@tauri-apps/api/core";
 import type { DragEndEvent } from "@dnd-kit/core";
@@ -85,6 +86,7 @@ import { UpdateBanner } from "./components/UpdateBanner";
 import { setSwitchGuard } from "./accounts/store";
 
 function App() {
+  const { t } = useTranslation();
   const [showQuickInvite, setShowQuickInvite] = useState(false);
   const [pendingSurveyHubId, setPendingSurveyHubId] = useState<string | null>(null);
   const unreadCounts = useUnreadCounts(unreadPersistence);
@@ -587,9 +589,11 @@ function App() {
   // App.tsx switch guard, decisions.md "Account switching is an in-place
   // key-remount, guarded, not a reload").
   useEffect(() => {
-    setSwitchGuard(() => (voice.voiceChannelId ? "Leave the voice channel before switching accounts." : null));
+    setSwitchGuard(() =>
+      voice.voiceChannelId ? t("settings.account.accounts.switch_blocked_voice") : null,
+    );
     return () => setSwitchGuard(null);
-  }, [voice.voiceChannelId]);
+  }, [voice.voiceChannelId, t]);
 
   const video = useVideo({
     activeHubId,
@@ -1522,9 +1526,9 @@ function App() {
                 />
               ) : (
                 <div className="empty-state">
-                  <p className="muted">No hubs connected.</p>
+                  <p className="muted">{t("app.no_hubs")}</p>
                   <button className="primary" onClick={() => setShowAddHub(true)}>
-                    Add hub
+                    {t("app.add_hub")}
                   </button>
                 </div>
               )
@@ -1541,7 +1545,9 @@ function App() {
                 onPromoted={() => {
                   setHubScope((prev) => ({ ...prev, [activeHubId]: "member" }));
                   loadHubData();
-                  setToast(`You're in. Welcome to ${hubs.find((h) => h.hub_id === activeHubId)?.hub_name ?? "the hub"}.`);
+                  setToast(t("app.welcome_toast", {
+                    hub: hubs.find((h) => h.hub_id === activeHubId)?.hub_name ?? t("app.the_hub"),
+                  }));
                   const resolvedUrl = hubs.find((h) => h.hub_id === activeHubId)?.hub_url ?? "";
                   invoke<{ id: string } | null>("survey_current", { hubUrl: resolvedUrl })
                     .then((survey) => { if (survey) setPendingSurveyHubId(activeHubId); })
@@ -1551,24 +1557,20 @@ function App() {
             ) : myApprovalStatus === "pending" ? (
               <div className="empty-state pending-approval">
                 <div className="pending-approval-icon">⏳</div>
-                <h1>Waiting for approval</h1>
+                <h1>{t("app.approval.title")}</h1>
                 <p>
-                  <strong>
-                    {hubs.find((h) => h.hub_id === activeHubId)?.hub_name ?? "This hub"}
-                  </strong>{" "}
-                  requires admin approval before new members can join in.
+                  {t("app.approval.hub_requires", {
+                    hub: hubs.find((h) => h.hub_id === activeHubId)?.hub_name
+                      ?? t("app.approval.this_hub"),
+                  })}
                 </p>
-                <p className="muted">
-                  You'll get access automatically once an admin approves your
-                  request — feel free to leave the app open or come back later.
-                </p>
+                <p className="muted">{t("app.approval.wait_hint")}</p>
                 <button onClick={loadHubData} className="primary">
-                  Check again
+                  {t("app.approval.check_again")}
                 </button>
                 {hubs.length > 1 && (
                   <p className="muted" style={{ marginTop: "var(--space-4)" }}>
-                    Switch to another hub from the sidebar if you'd like to keep
-                    chatting elsewhere in the meantime.
+                    {t("app.approval.switch_hint")}
                   </p>
                 )}
               </div>
@@ -1670,7 +1672,7 @@ function App() {
                       video.pinnedPubkey,
                     )}
                     selfStream={video.processedStream}
-                    selfName={myDisplayName ?? "You"}
+                    selfName={myDisplayName ?? t("voice.pip.you")}
                     onPin={video.setPinnedPubkey}
                     onUnpin={() => video.setPinnedPubkey(null)}
                   />

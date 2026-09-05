@@ -98,8 +98,8 @@ export function BotChallenge({ hubUrl, pubkey, onPassed, onCancel }: BotChalleng
         } else {
           setWrongMsg(
             remaining !== null
-              ? `Wrong answer, ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`
-              : "Wrong answer. Try again."
+              ? t("bot.challenge.wrong_remaining", { count: remaining })
+              : t("bot.challenge.wrong_retry")
           );
           setPhase("puzzle");
         }
