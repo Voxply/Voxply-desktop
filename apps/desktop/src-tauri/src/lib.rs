@@ -23,6 +23,7 @@ mod local_store;
 mod messages;
 mod mini_app;
 mod pairing;
+mod paging;
 mod passkey_cmd;
 mod prefs_blob;
 mod recovery;

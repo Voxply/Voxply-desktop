@@ -115,15 +115,14 @@ pub(crate) async fn list_conversations(
 ) -> Result<Vec<ConversationInfo>, String> {
     let (hub_url, token) = active_session(&state)?;
     let client = state.http_client.clone();
-    client
-        .get(format!("{hub_url}/conversations"))
-        .bearer_auth(&token)
-        .send()
-        .await
-        .map_err(|e| format!("Failed: {e}"))?
-        .json()
-        .await
-        .map_err(|e| format!("Invalid: {e}"))
+    crate::paging::fetch_all_pages_as(
+        &client,
+        &token,
+        &format!("{hub_url}/conversations"),
+        "id",
+        "list_conversations",
+    )
+    .await
 }
 
 #[tauri::command]
@@ -620,15 +619,16 @@ pub(crate) async fn push_group_sender_key(
     let (hub_url, token) = active_session(&state)?;
     let client = state.http_client.clone();
 
-    let convs: Vec<serde_json::Value> = client
-        .get(format!("{hub_url}/conversations"))
-        .bearer_auth(&token)
-        .send()
-        .await
-        .map_err(|e| format!("Failed: {e}"))?
-        .json()
-        .await
-        .map_err(|e| format!("Invalid: {e}"))?;
+    // Walked to exhaustion: this looks a conversation up by id, and a single
+    // page would silently miss it for anyone with more DM partners than fit.
+    let convs = crate::paging::fetch_all_pages(
+        &client,
+        &token,
+        &format!("{hub_url}/conversations"),
+        "id",
+        "conversation lookup",
+    )
+    .await?;
 
     let members: Vec<String> = convs
         .iter()
@@ -748,15 +748,16 @@ pub(crate) async fn rotate_group_sender_key(
     let (hub_url, token) = active_session(&state)?;
     let client = state.http_client.clone();
 
-    let convs: Vec<serde_json::Value> = client
-        .get(format!("{hub_url}/conversations"))
-        .bearer_auth(&token)
-        .send()
-        .await
-        .map_err(|e| format!("Failed: {e}"))?
-        .json()
-        .await
-        .map_err(|e| format!("Invalid: {e}"))?;
+    // Walked to exhaustion: this looks a conversation up by id, and a single
+    // page would silently miss it for anyone with more DM partners than fit.
+    let convs = crate::paging::fetch_all_pages(
+        &client,
+        &token,
+        &format!("{hub_url}/conversations"),
+        "id",
+        "conversation lookup",
+    )
+    .await?;
 
     let members: Vec<String> = convs
         .iter()

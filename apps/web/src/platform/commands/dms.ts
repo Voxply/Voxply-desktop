@@ -1,5 +1,6 @@
 import { hexToBytes, bytesToHex } from "@wavvon/core";
-import { dmFetch } from "../dmHub";
+import { dmFetch, dmSession } from "../dmHub";
+import { fetchAllPages, LIST_CURSOR_CAP, LIST_MAX_PAGES, LIST_PAGE_SIZE } from "./paged";
 import { hubFetch, rawFetch } from "../http";
 import { activeSession } from "../session";
 import i18n from "@wavvon/i18n";
@@ -82,8 +83,22 @@ export function unreadableDmKey(sender: string, mySenderPubkey: string | null): 
 }
 
 export async function listConversations(): Promise<Conversation[]> {
-  const res = await dmFetch("/conversations");
-  return res.json() as Promise<Conversation[]>;
+  // The DM hub, not the active one — this is the only list read against a hub
+  // the user may not be looking at, so its capabilities come from the session
+  // `dmFetch` routes to rather than from `activeHubCapabilities`.
+  const caps = (await dmSession()).capabilities ?? null;
+  return fetchAllPages<Conversation>({
+    capabilities: caps,
+    capability: LIST_CURSOR_CAP,
+    pageSize: LIST_PAGE_SIZE,
+    maxPages: LIST_MAX_PAGES,
+    cursorOf: (c) => c.id,
+    fetchPage: async (params) =>
+      (await (
+        await dmFetch(params ? `/conversations?${params}` : "/conversations")
+      ).json()) as Conversation[],
+    label: "listConversations",
+  });
 }
 
 export async function createConversation(member_pubkeys: string[]): Promise<Conversation> {

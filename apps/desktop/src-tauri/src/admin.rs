@@ -532,16 +532,14 @@ pub(crate) async fn list_pending_members(
 ) -> Result<Vec<PendingUser>, String> {
     let (hub_url, token) = active_session(&state)?;
     let client = state.http_client.clone();
-    let resp = client
-        .get(format!("{hub_url}/hub/pending"))
-        .bearer_auth(&token)
-        .send()
-        .await
-        .map_err(|e| format!("Failed: {e}"))?;
-    if !resp.status().is_success() {
-        return Err(resp.text().await.unwrap_or_default());
-    }
-    resp.json().await.map_err(|e| format!("Invalid: {e}"))
+    crate::paging::fetch_all_pages_as(
+        &client,
+        &token,
+        &format!("{hub_url}/hub/pending"),
+        "public_key",
+        "list_pending_members",
+    )
+    .await
 }
 
 #[tauri::command]
@@ -1078,16 +1076,14 @@ pub(crate) struct BanInfo {
 pub(crate) async fn list_bans(state: State<'_, AppState>) -> Result<Vec<BanInfo>, String> {
     let (hub_url, token) = active_session(&state)?;
     let client = state.http_client.clone();
-    let resp = client
-        .get(format!("{hub_url}/moderation/bans"))
-        .bearer_auth(&token)
-        .send()
-        .await
-        .map_err(|e| format!("Failed: {e}"))?;
-    if !resp.status().is_success() {
-        return Err(resp.text().await.unwrap_or_default());
-    }
-    resp.json().await.map_err(|e| format!("Invalid: {e}"))
+    crate::paging::fetch_all_pages_as(
+        &client,
+        &token,
+        &format!("{hub_url}/moderation/bans"),
+        "target_public_key",
+        "list_bans",
+    )
+    .await
 }
 
 #[tauri::command]
@@ -1125,16 +1121,14 @@ pub(crate) struct InviteInfo {
 pub(crate) async fn list_invites(state: State<'_, AppState>) -> Result<Vec<InviteInfo>, String> {
     let (hub_url, token) = active_session(&state)?;
     let client = state.http_client.clone();
-    let resp = client
-        .get(format!("{hub_url}/invites"))
-        .bearer_auth(&token)
-        .send()
-        .await
-        .map_err(|e| format!("Failed: {e}"))?;
-    if !resp.status().is_success() {
-        return Err(resp.text().await.unwrap_or_default());
-    }
-    resp.json().await.map_err(|e| format!("Invalid: {e}"))
+    crate::paging::fetch_all_pages_as(
+        &client,
+        &token,
+        &format!("{hub_url}/invites"),
+        "code",
+        "list_invites",
+    )
+    .await
 }
 
 #[tauri::command]

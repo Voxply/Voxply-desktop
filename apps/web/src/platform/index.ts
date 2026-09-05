@@ -117,6 +117,7 @@ export {
   createInvite,
   getHubListingStatus,
   setHubListed,
+  listInvites,
 } from "./commands/hubAdmin";
 
 export {
@@ -206,6 +207,7 @@ export {
   voiceMuteMember,
   voiceUnmuteMember,
   listVoiceMutes,
+  listBans,
 } from "./commands/moderation";
 export type { VoiceMuteInfo } from "./commands/moderation";
 

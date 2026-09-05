@@ -1,4 +1,6 @@
 import { hubFetch, rawFetch } from "../http";
+import { activeHubCapabilities } from "../session";
+import { fetchAllPages, LIST_CURSOR_CAP, LIST_MAX_PAGES, LIST_PAGE_SIZE } from "./paged";
 import type {
   HubSelfTagSettings,
   HubBadge,
@@ -362,5 +364,19 @@ export async function setHubListed(listed: boolean): Promise<void> {
   await hubFetch("/admin/settings/listing", {
     method: "PATCH",
     body: JSON.stringify({ listed }),
+  });
+}
+
+/** Every active invite on this hub, walked to exhaustion. */
+export async function listInvites(): Promise<InviteInfo[]> {
+  return fetchAllPages<InviteInfo>({
+    capabilities: activeHubCapabilities(),
+    capability: LIST_CURSOR_CAP,
+    pageSize: LIST_PAGE_SIZE,
+    maxPages: LIST_MAX_PAGES,
+    cursorOf: (i) => i.code,
+    fetchPage: async (params) =>
+      (await (await hubFetch(params ? `/invites?${params}` : "/invites")).json()) as InviteInfo[],
+    label: "listInvites",
   });
 }

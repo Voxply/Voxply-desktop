@@ -775,14 +775,15 @@ pub(crate) async fn get_pinned_messages(
         hub_url.trim_end_matches('/'),
         channel_id
     );
-    let res = state
-        .http_client
-        .get(&url)
-        .bearer_auth(&token)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-    res.json().await.map_err(|e| e.to_string())
+    let rows = crate::paging::fetch_all_pages(
+        &state.http_client,
+        &token,
+        &url,
+        "message_id",
+        "get_pinned_messages",
+    )
+    .await?;
+    Ok(serde_json::Value::Array(rows))
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]

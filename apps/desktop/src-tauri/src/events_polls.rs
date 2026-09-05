@@ -421,14 +421,9 @@ pub(crate) async fn get_channel_polls(
         hub_url.trim_end_matches('/'),
         channel_id
     );
-    let res = state
-        .http_client
-        .get(&url)
-        .bearer_auth(&token)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-    res.json().await.map_err(|e| e.to_string())
+    let rows =
+        crate::paging::fetch_all_pages(&state.http_client, &token, &url, "id", "list_polls").await?;
+    Ok(serde_json::Value::Array(rows))
 }
 
 #[tauri::command]
