@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { useTranslation } from "react-i18next";
 import { useUnreadCounts } from "@wavvon/ui";
 import { useNotificationPrefs } from "./hooks/useNotificationPrefs";
+import { useRemoveHubConfirm } from "./hooks/useRemoveHubConfirm";
 import { useTypingIndicators } from "./hooks/useTypingIndicators";
 
 import { useHubConnection } from "./hooks/useHubConnection";
@@ -169,6 +170,10 @@ export default function App({ initialView }: AppProps = {}) {
     handleSwitchHub,
     handleRemoveHub,
   } = hubLifecycle;
+  // Removing a hub is local and reversible, but a removed *home* hub keeps
+  // receiving this user's DMs — so the sidebar asks first rather than acting
+  // (decisions.md, "Leave hub does not leave").
+  const removeHubConfirm = useRemoveHubConfirm(handleRemoveHub);
   const hubConnection = useHubConnection();
   const { hubConnected, reconnectingHubs, handleStatusChange } = hubConnection;
   const [assertiveAnnouncement, setAssertiveAnnouncement] = useState("");
@@ -1413,7 +1418,7 @@ export default function App({ initialView }: AppProps = {}) {
         hasActiveHub={!!activeHubId}
         onSwitchToDms={() => setView("dms")}
         onSwitchHub={handleSwitchHub}
-        onRemoveHub={handleRemoveHub}
+        onRemoveHub={(hubId: string) => removeHubConfirm.requestRemoveHub(hubId, hubs)}
         onSetHubNotifyMode={(hubId, mode) =>
           setHubNotifyMode((prev) => { const n = { ...prev }; if (mode === "all") delete n[hubId]; else n[hubId] = mode; return n; })
         }
@@ -1429,6 +1434,7 @@ export default function App({ initialView }: AppProps = {}) {
         voiceMoveUx={voiceMoveUx}
         notifyPrefs={notifyPrefs}
         hubLifecycle={hubLifecycle}
+        onRequestRemoveHub={(hubId: string) => removeHubConfirm.requestRemoveHub(hubId, hubs)}
         unreadCounts={unreadCounts}
         dms={dms}
         alliances={alliances}
@@ -1573,6 +1579,12 @@ export default function App({ initialView }: AppProps = {}) {
       </MobileShell>
 
       <AppModals
+        removeHub={removeHubConfirm}
+        onOpenHomeHubSettings={() => {
+          removeHubConfirm.cancel();
+          settingsProfile.setSettingsTab("accounts");
+          setShowSettings(true);
+        }}
         showBackupPrompt={showBackupPrompt}
         onBackupPromptShowPhrase={() => {
           setShowBackupPrompt(false);

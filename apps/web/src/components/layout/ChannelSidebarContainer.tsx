@@ -46,6 +46,7 @@ export interface ChannelSidebarContainerProps {
   voiceMoveUx: VoiceMoveUxState;
   notifyPrefs: NotifyPrefsState;
   hubLifecycle: HubLifecycleState;
+  onRequestRemoveHub: (hubId: string) => void;
   unreadCounts: UnreadCountsState;
   dms: DmsState;
   alliances: AlliancesState;
@@ -84,7 +85,7 @@ export interface ChannelSidebarContainerProps {
 // (decisions.md state-access-design.md Phase 1). Also owns the two bits of
 // UI-local state (hub dropdown, whisper panel) that only this component reads.
 export function ChannelSidebarContainer({
-  voice, video, whisper, voiceMoveUx, notifyPrefs, hubLifecycle, unreadCounts,
+  voice, video, whisper, voiceMoveUx, notifyPrefs, hubLifecycle, unreadCounts, onRequestRemoveHub,
   dms, alliances, presence, screenShare, channelCrud, channelMessages, hubAdmin,
   view, channels, channelTree, users, publicKey, isAdmin, canCreateInvites,
   canManageRoles, canMoveMembers, canUseSoundboard, silencedChannelIds,
@@ -102,7 +103,7 @@ export function ChannelSidebarContainer({
   const allianceVoice = activeHubSupports("voice.alliance");
 
   const { selectedChannel, handleSelectChannel, handleSelectAllianceChannel } = channelMessages;
-  const { activeHubId, hubs, activeHubTimezone, pingByHub, handleRemoveHub } = hubLifecycle;
+  const { activeHubId, hubs, activeHubTimezone, pingByHub } = hubLifecycle;
 
   return (
     <ChannelSidebar
@@ -149,7 +150,7 @@ export function ChannelSidebarContainer({
       }
       onToggleHideSilenced={notifyPrefs.toggleHideSilenced}
       onClearHubUnread={unreadCounts.clearHubUnread}
-      onRemoveHub={handleRemoveHub}
+      onRemoveHub={onRequestRemoveHub}
       onOpenHubAdmin={() => void hubAdmin.openHubAdmin()}
       onOpenHubAdminInvites={() => { void hubAdmin.openHubAdmin(); hubAdmin.setHubAdminTab("invites"); }}
       onOpenQuickInvite={onOpenQuickInvite}

@@ -352,6 +352,9 @@ export type { RecoveryContactsSectionActions } from "./components/settings/Recov
 // Shared app-orchestration hooks (used by both web and desktop App.tsx).
 export { useVoiceMoveUx } from "./hooks/useVoiceMoveUx";
 export type { VoiceMoveMenuState } from "./hooks/useVoiceMoveUx";
+export { RemoveHubModal } from "./components/RemoveHubModal";
+export { homeHubStatus } from "./utils/homeHubStatus";
+export type { HomeHubStatus } from "./utils/homeHubStatus";
 export { useUnreadCounts } from "./hooks/useUnreadCounts";
 export { useWhisper } from "./hooks/useWhisper";
 export { useTypingIndicators, typingKey, typingForScope } from "./hooks/useTypingIndicators";

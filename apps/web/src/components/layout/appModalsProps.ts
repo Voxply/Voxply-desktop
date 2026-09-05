@@ -21,7 +21,14 @@ type AddHubFlow = ReturnType<typeof useAddHubFlow>;
 type HubAdmin = ReturnType<typeof useHubAdmin>;
 type NotifyPrefs = ReturnType<typeof useNotificationPrefs>;
 
+import type { useRemoveHubConfirm } from "../../hooks/useRemoveHubConfirm";
+
 export interface AppModalsProps {
+  // Remove-a-hub confirmation. The dialog only reports; the decision of what
+  // it may say lives in the hook (decisions.md, "Leave hub does not leave").
+  removeHub: ReturnType<typeof useRemoveHubConfirm>;
+  onOpenHomeHubSettings: () => void;
+
   // Hub admin
   showHubAdmin: boolean;
   setShowHubAdmin: (v: boolean) => void;

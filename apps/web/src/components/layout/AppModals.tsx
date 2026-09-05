@@ -9,6 +9,7 @@ import {
   HubSetupWizard,
   PollComposer,
   QuickInviteModal,
+  RemoveHubModal,
 } from "@wavvon/ui";
 import {
   createEvent,
@@ -38,6 +39,7 @@ import { IdentityBackupPrompt } from "@components/identity/IdentityBackupPrompt"
 // The props are named after the values they carry, so the JSX below is the
 // original text unchanged — a move, not a rewrite, and reviewable as one.
 export function AppModals(p: AppModalsProps) {
+  const { removeHub, onOpenHomeHubSettings } = p;
   const {
     activeHubId,
     addHubError,
@@ -345,6 +347,16 @@ export function AppModals(p: AppModalsProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {removeHub.pending && (
+        <RemoveHubModal
+          hubName={removeHub.pending.hubName}
+          homeHub={removeHub.homeHub}
+          onOpenHomeHubSettings={onOpenHomeHubSettings}
+          onConfirm={() => void removeHub.confirm()}
+          onCancel={removeHub.cancel}
+        />
       )}
     </>
   );
