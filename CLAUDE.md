@@ -186,6 +186,14 @@ key the hub knows the user by — NOT the derived multi-device master key. The
 master signs only multi-device material (subkey certs, etc.). Getting this
 backwards was a real bug on both clients.
 
+**Holding a `subkey_cert` does NOT mean "this is a paired device".** Every
+device self-certifies at its first hub auth (`ensureSelfDeviceCert`), so the
+entropy-holding device has one too. Use `holdsMasterSeed(account)` — a paired
+device's seed derives a *different* master than the cert it was handed names.
+`!!account.subkey_cert` was the old proxy in four places, and it inverts under
+the new behaviour: read as "paired", it would silently stop every identity from
+publishing a home hub designation.
+
 **Tauri command shape**: `#[tauri::command]`, return `Result<T, String>`, never
 unwrap inside. JS calls use camelCase. **Omitted-vs-null trap**: Tauri collapses
 "arg omitted" and "arg explicitly null" into the same Rust `None` — for hub PATCH
