@@ -10,6 +10,7 @@ import {
 } from "../session";
 import { HubWebSocket, type WsHandlers } from "../ws";
 import {
+  loadSavedHubs,
   upsertSavedHub,
   removeSavedHub,
   updateSavedHub,
@@ -141,6 +142,10 @@ export async function addHub(
   };
   setSession(info.public_key, session);
 
+  // Read before upsertSavedHub below: "does this identity already know a hub"
+  // is the question, and a moment later this hub is one of them.
+  const isFirstHub = !loadSavedHubs().some((h) => h.hub_id !== info.public_key);
+
   if (!getActiveHubId()) {
     setActiveHubId(info.public_key);
     saveActiveHubId(info.public_key);
@@ -173,7 +178,7 @@ export async function addHub(
       .then(async (id) => {
         if (!id) return;
         await ensureSelfDeviceCert(id, url).catch(() => {});
-        await ensureHomeHubDesignation(id, url);
+        if (isFirstHub) await ensureHomeHubDesignation(id, url);
       })
       .catch(() => {});
   }

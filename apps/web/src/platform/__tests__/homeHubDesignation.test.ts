@@ -138,3 +138,28 @@ describe("ensureSelfDeviceCert", () => {
     expect(saved).toHaveLength(0);
   });
 });
+
+// The guard that keeps joining a second hub from resetting the first.
+// `ensureHomeHubDesignation` publishes a list naming only the hub it was
+// handed, and it is called on every join — so without an "is this the
+// identity's first hub" check at the call site, hub B answers 404, gets a
+// single-hub list, and now two hubs disagree about where this user lives.
+// Sequence cannot break the tie: both are 1.
+describe("publishing a designation is a first-hub-only act", () => {
+  it("would overwrite the list with a single hub if called on a later join", async () => {
+    const posted: { hubs: string[]; sequence: number }[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => {
+      if ((init?.method ?? "GET") === "GET") return new Response("Not found", { status: 404 });
+      posted.push(JSON.parse(init?.body as string));
+      return new Response("{}", { status: 200 });
+    }));
+
+    // A hub that has never seen this identity's designation answers 404
+    // whether or not one exists elsewhere, so this call cannot tell.
+    await ensureHomeHubDesignation({ seed_hex: SEED }, "https://second.example");
+
+    expect(posted).toHaveLength(1);
+    expect(posted[0].hubs).toEqual(["https://second.example"]);
+    expect(posted[0].sequence).toBe(1);
+  });
+});

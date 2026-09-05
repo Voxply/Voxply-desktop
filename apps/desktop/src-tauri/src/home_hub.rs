@@ -161,14 +161,25 @@ pub fn get_home_hub_list() -> Option<HomeHubList> {
 /// stays empty for almost everyone. Then no hub can resolve where to deliver a
 /// DM, and fan-out and mirroring skip the identity in silence.
 ///
-/// No-op once a designation exists on that hub, including one the user emptied
-/// on purpose, so this never overrides their own choice. A paired device is
-/// skipped: it holds a subkey, and a subkey cannot sign a `HomeHubList`.
+/// Only for an identity that has **no list at all**. A paired device is
+/// skipped (a subkey cannot sign a `HomeHubList`), and so is a device that
+/// already holds one locally — joining a hub that has not seen your list yet
+/// is not a reason to replace it.
+///
+/// That second guard is load-bearing, not defensive. `set_home_hub_list` signs
+/// with `cached sequence + 1`, and consumers take the highest sequence, so
+/// publishing a single-hub list from here would *win* against the user's real
+/// one everywhere — turning "I joined another hub" into "my home hub list was
+/// silently reset to that hub". The hub answering 404 means only that this hub
+/// has not seen the designation; it says nothing about whether one exists.
 ///
 /// Best-effort by design — a hub too old to serve designations, or simply
 /// unreachable, must not fail a join.
 pub(crate) async fn ensure_designation(hub_url: &str, client: &reqwest::Client) {
     if crate::pairing::get_paired_identity().is_some() {
+        return;
+    }
+    if read_cached_designation().is_some() {
         return;
     }
     let Ok(master) = load_master() else { return };
