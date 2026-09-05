@@ -19,6 +19,11 @@ export interface DmsParams {
   clearPendingAttachments: () => void;
   setError: (msg: string) => void;
   clearAllDmTyping: () => void;
+  // DM unread lives with channel unread in the shared useUnreadCounts, not
+  // here: web has always kept the two together, and one owner is what lets
+  // the tray badge and the document title see the whole picture.
+  unreadDms: Record<string, boolean>;
+  setUnreadDms: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
 }
 
 export interface DmsReturn {
@@ -32,8 +37,6 @@ export interface DmsReturn {
   setSelectedConversation: (conv: Conversation | null) => void;
   selectedConversationIdRef: RefObject<string | null>;
   dmMessages: Record<string, DmMessage[]>;
-  unreadDms: Record<string, boolean>;
-  setUnreadDms: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   encryptionWarning: EncryptionWarning | null;
   setEncryptionWarning: React.Dispatch<React.SetStateAction<EncryptionWarning | null>>;
   loadConversations: () => Promise<void>;
@@ -60,6 +63,8 @@ export function useDms({
   clearPendingAttachments,
   setError,
   clearAllDmTyping,
+  unreadDms,
+  setUnreadDms,
 }: DmsParams): DmsReturn {
   const [view, setViewState] = useState<"channels" | "dms">("channels");
   const viewRef = useRef<"channels" | "dms">("channels");
@@ -90,7 +95,6 @@ export function useDms({
   }
 
   const [dmMessages, setDmMessages] = useState<Record<string, DmMessage[]>>({});
-  const [unreadDms, setUnreadDms] = useState<Record<string, boolean>>({});
   const [encryptionWarning, setEncryptionWarning] = useState<EncryptionWarning | null>(null);
 
   async function loadConversations() {
@@ -344,8 +348,6 @@ export function useDms({
     setSelectedConversation,
     selectedConversationIdRef,
     dmMessages,
-    unreadDms,
-    setUnreadDms,
     encryptionWarning,
     setEncryptionWarning,
     loadConversations,

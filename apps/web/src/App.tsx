@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { useUnreadCounts } from "./hooks/useUnreadCounts";
+import { useUnreadCounts } from "@wavvon/ui";
 import { useNotificationPrefs } from "./hooks/useNotificationPrefs";
 import { useTypingIndicators } from "./hooks/useTypingIndicators";
 
@@ -202,7 +202,7 @@ export default function App({ initialView }: AppProps = {}) {
   // === Unread / notifications ===
   const unreadCounts = useUnreadCounts();
   const {
-    unreadByChannel, unreadDms, setUnreadDms,
+    unreadByChannel, unreadByHub, unreadDms, setUnreadDms,
     bumpUnread, clearUnread, seedUnreadFromServer,
   } = unreadCounts;
 
@@ -525,20 +525,6 @@ export default function App({ initialView }: AppProps = {}) {
       setReady("ok");
     });
   }
-
-  // Document title (unread count)
-  const unreadByHub = useMemo<Record<string, number>>(() => {
-    const out: Record<string, number> = {};
-    for (const [hub, m] of Object.entries(unreadByChannel)) {
-      out[hub] = Object.keys(m).length;
-    }
-    return out;
-  }, [unreadByChannel]);
-
-  useEffect(() => {
-    const total = Object.values(unreadByHub).reduce((n, v) => n + v, 0);
-    document.title = total > 0 ? `(${total > 99 ? "99+" : total}) Wavvon` : "Wavvon";
-  }, [unreadByHub]);
 
   // === Typing ===
   const selectedConvIdRef = useRef<string | undefined>(undefined);

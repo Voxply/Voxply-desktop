@@ -352,6 +352,8 @@ export type { RecoveryContactsSectionActions } from "./components/settings/Recov
 // Shared app-orchestration hooks (used by both web and desktop App.tsx).
 export { useVoiceMoveUx } from "./hooks/useVoiceMoveUx";
 export type { VoiceMoveMenuState } from "./hooks/useVoiceMoveUx";
+export { useUnreadCounts } from "./hooks/useUnreadCounts";
+export type { UnreadCounts, UnreadCountsDeps } from "./hooks/useUnreadCounts";
 export { usePresenceStatus } from "./hooks/usePresenceStatus";
 export { useHubSetupWizardGate } from "./hooks/useHubSetupWizardGate";
 export { useSoundboardChips, parseSoundboardPlayedEvent } from "./hooks/useSoundboardChips";

@@ -2,7 +2,7 @@ import type React from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { ChannelSidebar } from "@wavvon/ui";
-import type { VoiceMoveMenuState, SoundboardChip, WhisperReplyBind } from "@wavvon/ui";
+import type { VoiceMoveMenuState, SoundboardChip, WhisperReplyBind, UnreadCounts } from "@wavvon/ui";
 import { formatPubkey, type TreeNode } from "@wavvon/core";
 import { hasDraft } from "../utils/drafts";
 import type {
@@ -20,7 +20,6 @@ import type { useSoundboard } from "../hooks/useSoundboard";
 import type { useNotificationPrefs } from "../hooks/useNotificationPrefs";
 import type { useHubLifecycle } from "../hooks/useHubLifecycle";
 import type { useChannelMessages } from "../hooks/useChannelMessages";
-import type { useUnreadCounts } from "../hooks/useUnreadCounts";
 import type { useDms } from "../hooks/useDms";
 
 interface Props {
@@ -72,7 +71,7 @@ interface Props {
   notifyPrefs: ReturnType<typeof useNotificationPrefs>;
   hubLifecycle: ReturnType<typeof useHubLifecycle>;
   channelMessages: ReturnType<typeof useChannelMessages>;
-  unreadCounts: ReturnType<typeof useUnreadCounts>;
+  unreadCounts: UnreadCounts;
   dms: ReturnType<typeof useDms>;
 }
 
@@ -136,7 +135,7 @@ export function ChannelSidebarContainer({
       selectedAllianceChannel={channelMessages.selectedAllianceChannel}
       conversations={dms.conversations}
       selectedConversation={dms.selectedConversation}
-      unreadDms={dms.unreadDms}
+      unreadDms={unreadCounts.unreadDms}
       channelTree={channelTree}
       effectiveNotifyMode={effectiveNotifyMode}
       onToggleCategoryCollapsed={onToggleCategoryCollapsed}

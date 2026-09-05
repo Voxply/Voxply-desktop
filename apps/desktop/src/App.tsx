@@ -66,7 +66,8 @@ import {
 } from "@wavvon/core";
 import { parseHubInput } from "@wavvon/core";
 import { useNotificationPrefs } from "./hooks/useNotificationPrefs";
-import { useUnreadCounts } from "./hooks/useUnreadCounts";
+import { useUnreadCounts } from "@wavvon/ui";
+import { unreadPersistence } from "./unreadPersistence";
 import { useTypingIndicators } from "./hooks/useTypingIndicators";
 import { useHubConnections } from "./hooks/useHubConnections";
 import { useHubLifecycle } from "./hooks/useHubLifecycle";
@@ -106,10 +107,12 @@ function App() {
   const { t } = useTranslation();
   const [showQuickInvite, setShowQuickInvite] = useState(false);
   const [pendingSurveyHubId, setPendingSurveyHubId] = useState<string | null>(null);
-  const unreadCounts = useUnreadCounts();
+  const unreadCounts = useUnreadCounts(unreadPersistence);
   const {
     unreadByChannel,
     unreadByHub,
+    unreadDms,
+    setUnreadDms,
     bumpUnread,
     clearUnread,
     clearHubUnread,
@@ -403,6 +406,8 @@ function App() {
     clearPendingAttachments: () => clearPendingAttachmentsRef.current(),
     setError,
     clearAllDmTyping,
+    unreadDms,
+    setUnreadDms,
   });
   const {
     view,
@@ -412,8 +417,6 @@ function App() {
     conversationsRef,
     setSelectedConversation,
     selectedConversationIdRef,
-    unreadDms,
-    setUnreadDms,
     encryptionWarning,
     setEncryptionWarning,
     loadConversations,
