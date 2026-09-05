@@ -33,6 +33,7 @@ import { PhoneOffIcon, ChannelIcon, PingIcon, MicOnIcon, MicOffIcon, DeafenIcon,
 import { HubClock } from "../HubClock";
 import { SortableCategoryItem, SortableChannelItem } from "../SortableItems";
 import { HoverSubmenu } from "../HoverSubmenu";
+import { HubMenuItems } from "./HubMenuItems";
 import { SoundboardPopover } from "../voice/SoundboardPopover";
 import { WhisperPanel } from "../voice/WhisperPanel";
 import {
@@ -487,60 +488,25 @@ export function ChannelSidebar({
           </button>
           {hubDropdownOpen && (
             <div className="hub-dropdown">
-              {(canCreateInvites ?? isAdmin) && (
-                <button className="hub-dropdown-item" onClick={() => { onHubDropdownOpenChange(false); isAdmin ? onOpenHubAdminInvites() : onOpenQuickInvite?.(); }}>
-                  {t("hub.invite_people")}
-                </button>
-              )}
-              {isAdmin && (
-                <button className="hub-dropdown-item" onClick={() => { onHubDropdownOpenChange(false); onOpenHubAdmin(); }}>
-                  {t("hub.settings")}
-                </button>
-              )}
-              {isAdmin && (
-                <button className="hub-dropdown-item" onClick={() => { onHubDropdownOpenChange(false); onOpenCreateChannel(null, false); }}>
-                  {t("hub.create_channel")}
-                </button>
-              )}
-              <HoverSubmenu
-                trigger={<button className="hub-dropdown-item hub-dropdown-submenu-trigger">{t("hub.notifications")} ▸</button>}
-              >
-                {activeHubId && (() => {
-                  const cur = hubNotifyMode[activeHubId] ?? "all";
-                  return (["all", "mentions", "silent"] as NotifyMode[]).map((mode) => (
-                    <button key={mode} className="hub-dropdown-item hub-dropdown-subitem"
-                      onClick={() => { onHubDropdownOpenChange(false); onSetHubMode(activeHubId, mode); }}>
-                      {cur === mode ? "✓ " : "   "}{notifyModeLabels[mode]}
-                    </button>
-                  ));
-                })()}
-              </HoverSubmenu>
-              <button
-                className="hub-dropdown-item"
-                onClick={() => { onHubDropdownOpenChange(false); onToggleHideSilenced?.(); }}
-              >
-                {hideSilenced ? "✓ " : ""}{t("hub.hide_silenced")}
-              </button>
-              {activeHubId && Object.keys(unreadByChannel[activeHubId] ?? {}).length > 0 && (
-                <button
-                  className="hub-dropdown-item"
-                  onClick={() => {
-                    onHubDropdownOpenChange(false);
-                    onClearHubUnread(activeHubId);
-                  }}
-                >
-                  {t("hub.mark_all_read")}
-                </button>
-              )}
-              <button
-                className="hub-dropdown-item danger"
-                onClick={() => {
-                  onHubDropdownOpenChange(false);
-                  if (activeHubId) onRemoveHub(activeHubId);
-                }}
-              >
-                {t("hub.leave")}
-              </button>
+              <HubMenuItems
+                variant="dropdown"
+                onDone={() => onHubDropdownOpenChange(false)}
+                activeHubId={activeHubId}
+                isAdmin={isAdmin}
+                canCreateInvites={canCreateInvites}
+                hideSilenced={hideSilenced}
+                hubNotifyMode={hubNotifyMode}
+                notifyModeLabels={notifyModeLabels}
+                unreadByChannel={unreadByChannel}
+                onOpenHubAdmin={onOpenHubAdmin}
+                onOpenHubAdminInvites={onOpenHubAdminInvites}
+                onOpenQuickInvite={onOpenQuickInvite}
+                onOpenCreateChannel={onOpenCreateChannel}
+                onSetHubMode={onSetHubMode}
+                onToggleHideSilenced={onToggleHideSilenced}
+                onClearHubUnread={onClearHubUnread}
+                onRemoveHub={onRemoveHub}
+              />
             </div>
           )}
         </div>
@@ -807,48 +773,25 @@ export function ChannelSidebar({
             style={{ top: hubCtxMenu.y, left: hubCtxMenu.x }}
             onClick={(e) => e.stopPropagation()}
           >
-            {isAdmin && (
-              <button className="context-menu-item" onClick={() => { setHubCtxMenu(null); onOpenCreateChannel(null, false); }}>
-                {t("hub.create_channel")}
-              </button>
-            )}
-            {(canCreateInvites ?? isAdmin) && (
-              <button className="context-menu-item" onClick={() => { setHubCtxMenu(null); isAdmin ? onOpenHubAdminInvites() : onOpenQuickInvite?.(); }}>
-                {t("hub.invite_people")}
-              </button>
-            )}
-            {isAdmin && (
-              <button className="context-menu-item" onClick={() => { setHubCtxMenu(null); onOpenHubAdmin(); }}>
-                {t("hub.settings")}
-              </button>
-            )}
-            <button
-              className="context-menu-item"
-              onClick={() => { setHubCtxMenu(null); onToggleHideSilenced?.(); }}
-            >
-              {hideSilenced ? "✓ " : ""}{t("hub.hide_silenced")}
-            </button>
-            <HoverSubmenu
-              trigger={<button className="context-menu-item context-menu-submenu-trigger">{t("hub.notifications")} ▸</button>}
-            >
-              {activeHubId && (() => {
-                const cur = hubNotifyMode[activeHubId] ?? "all";
-                return (["all", "mentions", "silent"] as NotifyMode[]).map((mode) => (
-                  <button key={mode} className="context-menu-item context-menu-subitem"
-                    onClick={() => { setHubCtxMenu(null); onSetHubMode(activeHubId, mode); }}>
-                    {cur === mode ? "✓ " : "   "}{notifyModeLabels[mode]}
-                  </button>
-                ));
-              })()}
-            </HoverSubmenu>
-            {activeHubId && Object.keys(unreadByChannel[activeHubId] ?? {}).length > 0 && (
-              <button className="context-menu-item" onClick={() => { setHubCtxMenu(null); if (activeHubId) onClearHubUnread(activeHubId); }}>
-                {t("hub.mark_all_read")}
-              </button>
-            )}
-            <button className="context-menu-item danger" onClick={() => { setHubCtxMenu(null); if (activeHubId) onRemoveHub(activeHubId); }}>
-              {t("hub.leave")}
-            </button>
+            <HubMenuItems
+              variant="context"
+              onDone={() => setHubCtxMenu(null)}
+              activeHubId={activeHubId}
+              isAdmin={isAdmin}
+              canCreateInvites={canCreateInvites}
+              hideSilenced={hideSilenced}
+              hubNotifyMode={hubNotifyMode}
+              notifyModeLabels={notifyModeLabels}
+              unreadByChannel={unreadByChannel}
+              onOpenHubAdmin={onOpenHubAdmin}
+              onOpenHubAdminInvites={onOpenHubAdminInvites}
+              onOpenQuickInvite={onOpenQuickInvite}
+              onOpenCreateChannel={onOpenCreateChannel}
+              onSetHubMode={onSetHubMode}
+              onToggleHideSilenced={onToggleHideSilenced}
+              onClearHubUnread={onClearHubUnread}
+              onRemoveHub={onRemoveHub}
+            />
           </div>
         </div>
       )}
