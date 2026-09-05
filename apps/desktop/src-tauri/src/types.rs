@@ -82,6 +82,8 @@ pub(crate) struct InfoResponse {
     #[serde(default)]
     pub welcome_label: Option<String>,
     #[serde(default)]
+    pub farewell_label: Option<String>,
+    #[serde(default)]
     pub welcome_invite_url: Option<String>,
     #[serde(default)]
     pub timezone: Option<String>,
@@ -145,6 +147,8 @@ pub(crate) struct HubBranding {
     pub icon: Option<String>,
     #[serde(default)]
     pub welcome_label: Option<String>,
+    #[serde(default)]
+    pub farewell_label: Option<String>,
     #[serde(default)]
     pub welcome_invite_url: Option<String>,
     /// Member-facing (unlike the rest of this admin-overview struct): read by

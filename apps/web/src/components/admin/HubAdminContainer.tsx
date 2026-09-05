@@ -69,6 +69,8 @@ export function HubAdminContainer({
         onWelcomeLabelChange={hubAdmin.setHubAdminWelcomeLabel}
         welcomeInviteUrl={hubAdmin.hubAdminWelcomeInviteUrl}
         onWelcomeInviteUrlChange={hubAdmin.setHubAdminWelcomeInviteUrl}
+        farewellLabel={hubAdmin.hubAdminFarewellLabel}
+        onFarewellLabelChange={hubAdmin.setHubAdminFarewellLabel}
         timezone={hubAdmin.hubAdminTimezone}
         onTimezoneChange={hubAdmin.setHubAdminTimezone}
         birthdaysEnabled={hubAdmin.hubAdminBirthdaysEnabled}

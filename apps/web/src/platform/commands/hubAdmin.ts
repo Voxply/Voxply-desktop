@@ -242,6 +242,7 @@ export async function saveHubSettings(settings: {
   min_security_level?: number;
   max_channel_depth?: number;
   welcome_label?: string;
+  farewell_label?: string;
   welcome_invite_url?: string;
   /** Role auto-granted at invite redemption when the invite carries no
    *  explicit grant_role_id. null clears it (newcomers get only @everyone). */
@@ -273,6 +274,7 @@ export async function getHubSettings(): Promise<{
   min_security_level: number;
   max_channel_depth: number;
   welcome_label: string;
+  farewell_label: string;
   welcome_invite_url: string;
   default_invite_role_id: string | null;
   timezone: string;
@@ -301,6 +303,7 @@ export async function getHubSettings(): Promise<{
       description?: string | null;
       icon?: string | null;
       welcome_label?: string | null;
+      farewell_label?: string | null;
       welcome_invite_url?: string | null;
     }>),
   ]);
@@ -312,6 +315,7 @@ export async function getHubSettings(): Promise<{
     min_security_level: settingsRes.min_security_level,
     max_channel_depth: settingsRes.max_channel_depth,
     welcome_label: infoRes.welcome_label ?? "",
+    farewell_label: infoRes.farewell_label ?? "",
     welcome_invite_url: infoRes.welcome_invite_url ?? "",
     default_invite_role_id: settingsRes.default_invite_role_id ?? null,
     timezone: settingsRes.timezone ?? "",

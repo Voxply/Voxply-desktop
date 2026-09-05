@@ -35,6 +35,7 @@ export function useHubAdmin({
   const [adminHubDescription, setAdminHubDescription] = useState("");
   const [adminHubIcon, setAdminHubIcon] = useState("");
   const [adminWelcomeLabel, setAdminWelcomeLabel] = useState("");
+  const [adminFarewellLabel, setAdminFarewellLabel] = useState("");
   const [adminWelcomeInviteUrl, setAdminWelcomeInviteUrl] = useState("");
   const [adminMembers, setAdminMembers] = useState<MemberAdminInfo[]>([]);
   const [adminBans, setAdminBans] = useState<BanInfo[]>([]);
@@ -66,12 +67,14 @@ export function useHubAdmin({
         description: string | null;
         icon: string | null;
         welcome_label: string | null;
+        farewell_label: string | null;
         welcome_invite_url: string | null;
       }>("get_hub_branding");
       setAdminHubName(branding.name);
       setAdminHubDescription(branding.description ?? "");
       setAdminHubIcon(branding.icon ?? "");
       setAdminWelcomeLabel(branding.welcome_label ?? "");
+      setAdminFarewellLabel(branding.farewell_label ?? "");
       setAdminWelcomeInviteUrl(branding.welcome_invite_url ?? "");
 
       const settings = await invoke<{
@@ -123,6 +126,7 @@ export function useHubAdmin({
         minSecurityLevel,
         maxChannelDepth,
         welcomeLabel: adminWelcomeLabel,
+        farewellLabel: adminFarewellLabel,
         welcomeInviteUrl: adminWelcomeInviteUrl,
         timezone: hubTimezone,
         birthdaysEnabled,
@@ -324,6 +328,8 @@ export function useHubAdmin({
     adminHubIcon,
     setAdminHubIcon,
     adminWelcomeLabel,
+    adminFarewellLabel,
+    setAdminFarewellLabel,
     setAdminWelcomeLabel,
     adminWelcomeInviteUrl,
     setAdminWelcomeInviteUrl,

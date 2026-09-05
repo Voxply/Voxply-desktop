@@ -63,6 +63,8 @@ export interface HubAdminPageProps {
   onWelcomeLabelChange: (v: string) => void;
   welcomeInviteUrl: string;
   onWelcomeInviteUrlChange: (v: string) => void;
+  farewellLabel: string;
+  onFarewellLabelChange: (v: string) => void;
   /** IANA name, or "" for unset — matches the empty-string-clears convention
    *  used across the rest of this page's PATCH-backed fields. */
   timezone: string;
@@ -474,6 +476,20 @@ export function HubAdminPage(props: HubAdminPageProps) {
                         onChange={(e) => props.onWelcomeInviteUrlChange(e.target.value)}
                       />
                     </div>
+                  </div>
+                  <div>
+                    <label className="settings-label" htmlFor="admin-farewell-label">{t("hub.admin.overview.farewell_label")}</label>
+                    <textarea
+                      id="admin-farewell-label"
+                      rows={2}
+                      maxLength={280}
+                      value={props.farewellLabel}
+                      placeholder={t("hub.admin.overview.farewell_label_placeholder")}
+                      onChange={(e) => props.onFarewellLabelChange(e.target.value)}
+                    />
+                    <p className="muted" style={{ fontSize: "var(--text-xs)" }}>
+                      {t("hub.admin.overview.farewell_label_hint")}
+                    </p>
                   </div>
                   {(props.welcomeLabel.trim() || props.welcomeInviteUrl.trim()) && (
                     <p className="muted">{t("hub.admin.overview.welcome_preview", {

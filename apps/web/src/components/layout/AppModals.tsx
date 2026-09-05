@@ -353,6 +353,7 @@ export function AppModals(p: AppModalsProps) {
         <RemoveHubModal
           hubName={removeHub.pending.hubName}
           homeHub={removeHub.homeHub}
+          hubFarewell={removeHub.farewell}
           onOpenHomeHubSettings={onOpenHomeHubSettings}
           onConfirm={() => void removeHub.confirm()}
           onCancel={removeHub.cancel}

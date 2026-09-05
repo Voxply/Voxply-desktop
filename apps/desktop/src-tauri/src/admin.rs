@@ -134,6 +134,7 @@ pub(crate) async fn get_hub_branding(state: State<'_, AppState>) -> Result<HubBr
         description: info.description,
         icon: info.icon,
         welcome_label: info.welcome_label,
+        farewell_label: info.farewell_label,
         welcome_invite_url: info.welcome_invite_url,
         timezone: info.timezone,
     })
@@ -149,6 +150,7 @@ pub(crate) async fn update_hub_branding(
     min_security_level: Option<u32>,
     max_channel_depth: Option<u32>,
     welcome_label: Option<String>,
+    farewell_label: Option<String>,
     welcome_invite_url: Option<String>,
     default_invite_role_id: Option<String>,
     timezone: Option<String>,
@@ -172,6 +174,7 @@ pub(crate) async fn update_hub_branding(
             "min_security_level": min_security_level,
             "max_channel_depth": max_channel_depth,
             "welcome_label": welcome_label,
+            "farewell_label": farewell_label,
             "welcome_invite_url": welcome_invite_url,
             "default_invite_role_id": default_invite_role_id,
             "timezone": timezone,

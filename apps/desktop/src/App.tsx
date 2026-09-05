@@ -279,6 +279,8 @@ function App() {
     adminHubIcon,
     setAdminHubIcon,
     adminWelcomeLabel,
+    adminFarewellLabel,
+    setAdminFarewellLabel,
     setAdminWelcomeLabel,
     adminWelcomeInviteUrl,
     setAdminWelcomeInviteUrl,
@@ -1455,6 +1457,8 @@ function App() {
             onMaxChannelDepthChange={setMaxChannelDepth}
             welcomeLabel={adminWelcomeLabel}
             onWelcomeLabelChange={setAdminWelcomeLabel}
+            farewellLabel={adminFarewellLabel}
+            onFarewellLabelChange={setAdminFarewellLabel}
             welcomeInviteUrl={adminWelcomeInviteUrl}
             onWelcomeInviteUrlChange={setAdminWelcomeInviteUrl}
             timezone={hubTimezone}

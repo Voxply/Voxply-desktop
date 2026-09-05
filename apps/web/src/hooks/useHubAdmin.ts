@@ -29,6 +29,7 @@ export function useHubAdmin({ activeHubId, onSaved }: UseHubAdminParams) {
   const [hubAdminRequireApproval, setHubAdminRequireApproval] = useState(false);
   const [hubAdminMinLevel, setHubAdminMinLevel] = useState(0);
   const [hubAdminWelcomeLabel, setHubAdminWelcomeLabel] = useState("");
+  const [hubAdminFarewellLabel, setHubAdminFarewellLabel] = useState("");
   const [hubAdminWelcomeInviteUrl, setHubAdminWelcomeInviteUrl] = useState("");
   const [hubAdminTimezone, setHubAdminTimezone] = useState("");
   const [hubAdminBirthdaysEnabled, setHubAdminBirthdaysEnabled] = useState(true);
@@ -59,6 +60,7 @@ export function useHubAdmin({ activeHubId, onSaved }: UseHubAdminParams) {
       setHubAdminMinLevel(s.min_security_level ?? 0);
       setMaxChannelDepth(s.max_channel_depth ?? 0);
       setHubAdminWelcomeLabel(s.welcome_label ?? "");
+      setHubAdminFarewellLabel(s.farewell_label ?? "");
       setHubAdminWelcomeInviteUrl(s.welcome_invite_url ?? "");
       setHubAdminTimezone(s.timezone ?? "");
       setHubAdminBirthdaysEnabled(s.birthdays_enabled ?? true);
@@ -144,6 +146,7 @@ export function useHubAdmin({ activeHubId, onSaved }: UseHubAdminParams) {
         min_security_level: hubAdminMinLevel,
         max_channel_depth: maxChannelDepth,
         welcome_label: hubAdminWelcomeLabel,
+        farewell_label: hubAdminFarewellLabel,
         welcome_invite_url: hubAdminWelcomeInviteUrl,
         timezone: hubAdminTimezone,
         birthdays_enabled: hubAdminBirthdaysEnabled,
@@ -186,6 +189,8 @@ export function useHubAdmin({ activeHubId, onSaved }: UseHubAdminParams) {
     hubAdminMinLevel,
     setHubAdminMinLevel,
     hubAdminWelcomeLabel,
+    hubAdminFarewellLabel,
+    setHubAdminFarewellLabel,
     setHubAdminWelcomeLabel,
     hubAdminWelcomeInviteUrl,
     setHubAdminWelcomeInviteUrl,

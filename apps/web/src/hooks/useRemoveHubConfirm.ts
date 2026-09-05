@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { loadIdentity, masterPubkeyOf } from "@identity/index";
 import { getHomeHubDesignation } from "@platform";
+import { rawFetch } from "../platform/http";
 import { homeHubStatus } from "@wavvon/ui";
 import type { Hub } from "@shared/types";
 
@@ -24,11 +25,24 @@ interface Pending {
 export function useRemoveHubConfirm(removeHub: (hubId: string) => Promise<void>) {
   const [pending, setPending] = useState<Pending | null>(null);
   const [homeHub, setHomeHub] = useState<{ isHomeHub: boolean; isLast: boolean } | null>(null);
+  const [farewell, setFarewell] = useState<string | null>(null);
 
   const requestRemoveHub = useCallback((hubId: string, hubs: Hub[]) => {
     const hub = hubs.find((h) => h.hub_id === hubId);
     setHomeHub(null);
+    setFarewell(null);
     setPending({ hubId, hubName: hub?.hub_name ?? hub?.hub_url ?? hubId });
+
+    // Read the farewell now rather than from the cached SavedHub: the operator
+    // may have changed it since this client last looked, and this is the one
+    // moment it is shown. A hub that is unreachable or predates the field
+    // simply has none.
+    if (hub?.hub_url) {
+      void rawFetch(`${hub.hub_url.replace(/\/+$/, "")}/info`)
+        .then((r) => r.json() as Promise<{ farewell_label?: string | null }>)
+        .then((info) => setFarewell(info.farewell_label ?? null))
+        .catch(() => {});
+    }
 
     void (async () => {
       try {
@@ -46,6 +60,7 @@ export function useRemoveHubConfirm(removeHub: (hubId: string) => Promise<void>)
   const cancel = useCallback(() => {
     setPending(null);
     setHomeHub(null);
+    setFarewell(null);
   }, []);
 
   const confirm = useCallback(async () => {
@@ -53,8 +68,9 @@ export function useRemoveHubConfirm(removeHub: (hubId: string) => Promise<void>)
     const { hubId } = pending;
     setPending(null);
     setHomeHub(null);
+    setFarewell(null);
     await removeHub(hubId);
   }, [pending, removeHub]);
 
-  return { pending, homeHub, requestRemoveHub, cancel, confirm };
+  return { pending, homeHub, farewell, requestRemoveHub, cancel, confirm };
 }
