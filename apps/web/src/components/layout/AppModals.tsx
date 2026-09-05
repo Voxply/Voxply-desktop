@@ -354,6 +354,8 @@ export function AppModals(p: AppModalsProps) {
           hubName={removeHub.pending.hubName}
           homeHub={removeHub.homeHub}
           hubFarewell={removeHub.farewell}
+          onLeaveHub={removeHub.canLeave ? () => void removeHub.leave() : undefined}
+          leaveNeedsInvite={removeHub.leaveNeedsInvite}
           onOpenHomeHubSettings={onOpenHomeHubSettings}
           onConfirm={() => void removeHub.confirm()}
           onCancel={removeHub.cancel}

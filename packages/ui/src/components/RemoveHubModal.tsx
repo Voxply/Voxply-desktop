@@ -12,6 +12,13 @@ interface Props {
    *  secondary: this is the one moment a hub has an incentive to mislead. */
   hubFarewell?: string | null;
   onOpenHomeHubSettings: () => void;
+  /** Offered only where the hub advertises `hub.leave`. Removing is local and
+   *  reversible; leaving is neither, so it sits here as a secondary action
+   *  rather than a second primary button. */
+  onLeaveHub?: () => void;
+  /** Whether the hub would need a fresh invite to let this person back in.
+   *  Leaving drops the roles, and the invite gate is "has no roles". */
+  leaveNeedsInvite?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -33,6 +40,8 @@ export function RemoveHubModal({
   homeHub,
   hubFarewell,
   onOpenHomeHubSettings,
+  onLeaveHub,
+  leaveNeedsInvite,
   onConfirm,
   onCancel,
 }: Props) {
@@ -69,6 +78,18 @@ export function RemoveHubModal({
               </span>
               <p className="muted" style={{ fontSize: "var(--text-sm)" }}>{farewell}</p>
             </blockquote>
+          )}
+
+          {onLeaveHub && (
+            <div className="settings-section">
+              <p className="muted" style={{ fontSize: "var(--text-sm)" }}>
+                {t("hub.remove.leave_instead")}
+                {leaveNeedsInvite ? ` ${t("hub.remove.leave_needs_invite")}` : ""}
+              </p>
+              <button className="btn-small btn-secondary danger" onClick={onLeaveHub}>
+                {t("hub.remove.leave_button")}
+              </button>
+            </div>
           )}
 
           <div className="modal-actions">

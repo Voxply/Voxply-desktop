@@ -518,3 +518,24 @@ export async function restorePersistedHubs(handlers: WsHandlers): Promise<Hub[]>
 
   return result;
 }
+
+/** Leave a hub for real: the hub clears this identity's profile and roles
+ *  (`DELETE /me`), then the client forgets it locally like any removal.
+ *
+ *  Distinct from `removeHub`, which only forgets. Gated on the `hub.leave`
+ *  capability at the call site — a hub without it answers 404, and offering
+ *  the action there would leave someone believing they left.
+ *
+ *  Ordering matters on failure: the hub goes first, and a rejection (the owner
+ *  gets 409) leaves the client untouched, so a refused leave is not silently
+ *  half-done. */
+export async function leaveHub(hub_id: string): Promise<void> {
+  const s = getSession(hub_id);
+  if (!s) throw new Error("Hub not connected");
+  const res = await rawFetch(`${s.hub_url}/me`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${s.token}` },
+  });
+  if (!res.ok) throw new Error(await res.text());
+  await removeHub(hub_id);
+}
