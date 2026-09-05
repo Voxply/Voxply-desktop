@@ -1,5 +1,5 @@
 {
-  "total": 196,
+  "total": 195,
   "files": {
     "apps/desktop/src/AccountRoot.tsx": 7,
     "apps/desktop/src/App.tsx": 14,
@@ -25,7 +25,6 @@
     "apps/desktop/src/components/TrustedDevicesSection.tsx": 6,
     "apps/desktop/src/components/UpdateBanner.tsx": 4,
     "apps/desktop/src/components/VideoGrid.tsx": 2,
-    "apps/web/src/App.tsx": 1,
     "apps/web/src/components/admin/BotCapabilitiesPanel.tsx": 1,
     "apps/web/src/components/identity/IdentitySetupScreen.tsx": 1,
     "apps/web/src/components/settings/tabs/AppearanceTab.tsx": 4,
