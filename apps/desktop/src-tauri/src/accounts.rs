@@ -59,6 +59,15 @@ fn now_secs() -> u64 {
 }
 
 fn wavvon_dir() -> Result<PathBuf, String> {
+    // An e2e harness drives the real app, so without a way to move this root
+    // it would read and write the developer's own ~/.wavvon — its accounts,
+    // its DM ratchet state, its home hub list. Empty means unset, matching how
+    // the hub reads WAVVON_WEB_CLIENT_DIR.
+    if let Ok(dir) = std::env::var("WAVVON_DESKTOP_HOME") {
+        if !dir.is_empty() {
+            return Ok(PathBuf::from(dir));
+        }
+    }
     let home = dirs::home_dir().ok_or("No home directory")?;
     Ok(home.join(".wavvon"))
 }

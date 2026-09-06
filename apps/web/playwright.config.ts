@@ -24,7 +24,7 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
-      testIgnore: ["**/live/**", "**/capture/**"],
+      testIgnore: ["**/live/**", "**/desktop/**", "**/capture/**"],
     },
     // Live tests against a real local hub (see e2e/live/README.md).
     {
@@ -50,6 +50,21 @@ export default defineConfig({
             "--autoplay-policy=no-user-gesture-required",
           ],
         },
+      },
+    },
+    // Web ↔ desktop tests. Same live hub, but one side is the real Tauri app
+    // driven over CDP (e2e/desktop/README.md). Never in CI: it builds and
+    // opens a desktop window, and the desktop client is not the delivery
+    // target — this is the harness for verifying by hand what only breaks
+    // between two different clients.
+    {
+      name: "desktop",
+      testMatch: "**/desktop/**/*.spec.ts",
+      dependencies: ["live-setup"],
+      fullyParallel: false,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "e2e/.auth/owner.json",
       },
     },
   ],

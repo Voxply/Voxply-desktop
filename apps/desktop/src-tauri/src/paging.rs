@@ -69,7 +69,10 @@ pub(crate) async fn fetch_all_pages(
         }
     }
 
-    eprintln!("{label}: stopped at {LIST_MAX_PAGES} pages ({} rows)", all.len());
+    eprintln!(
+        "{label}: stopped at {LIST_MAX_PAGES} pages ({} rows)",
+        all.len()
+    );
     Ok(all)
 }
 

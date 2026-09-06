@@ -421,8 +421,8 @@ pub(crate) async fn get_channel_polls(
         hub_url.trim_end_matches('/'),
         channel_id
     );
-    let rows =
-        crate::paging::fetch_all_pages(&state.http_client, &token, &url, "id", "list_polls").await?;
+    let rows = crate::paging::fetch_all_pages(&state.http_client, &token, &url, "id", "list_polls")
+        .await?;
     Ok(serde_json::Value::Array(rows))
 }
 
