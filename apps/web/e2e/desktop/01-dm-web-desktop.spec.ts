@@ -111,6 +111,15 @@ test.describe("web ↔ desktop", () => {
     if (await warning.isVisible().catch(() => false)) {
       throw new Error(`desktop refused to send: ${await warning.innerText()}`);
     }
+    // A send that reached the hub and was rejected surfaces as the app's own
+    // error toast and nowhere else — five seconds, then gone. Reading it here
+    // is the difference between "the reply never arrived" and the hub's own
+    // reason for refusing it.
+    const toast = desktop.page.locator(".toast");
+    await toast.waitFor({ state: "visible", timeout: 5_000 }).catch(() => {});
+    if (await toast.isVisible().catch(() => false)) {
+      throw new Error(`desktop reported: ${await toast.innerText()}`);
+    }
     await expect(page.getByText(fromDesktop).first()).toBeVisible({ timeout: 60_000 });
   });
 });

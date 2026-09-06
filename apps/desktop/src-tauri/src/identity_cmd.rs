@@ -44,16 +44,30 @@ pub(crate) fn recover_identity_from_phrase(
     Ok(new_pubkey)
 }
 
-#[tauri::command]
-pub(crate) fn get_my_public_key() -> Result<String, String> {
+/// This device's own signing pubkey, whatever any hub calls us.
+pub(crate) fn device_public_key() -> Result<String, String> {
     let path = Identity::default_path().map_err(|e| e.to_string())?;
     let (identity, _) = Identity::load_or_create(&path).map_err(|e| e.to_string())?;
     Ok(identity.public_key_hex())
 }
 
+/// Who we are *to the hub we are looking at* — the pubkey that appears in its
+/// roster, authors our messages and names our conversations. It is this
+/// device's own key on most hubs and the master on any hub that first met this
+/// identity through its self-signed cert (see HubSession::canonical_pubkey),
+/// so the UI cannot use the device key to answer "is this mine". Web does the
+/// same thing with IdentityRecord::canonical_pubkey (App.tsx).
 #[tauri::command]
-pub(crate) fn get_my_pubkey() -> Result<String, String> {
-    get_my_public_key()
+pub(crate) fn get_my_public_key(state: State<'_, AppState>) -> Result<String, String> {
+    if let Some(canonical) = crate::state::active_canonical_pubkey(&state) {
+        return Ok(canonical);
+    }
+    device_public_key()
+}
+
+#[tauri::command]
+pub(crate) fn get_my_pubkey(state: State<'_, AppState>) -> Result<String, String> {
+    get_my_public_key(state)
 }
 
 pub(crate) fn load_master_identity() -> Result<crate::identity::MasterIdentity, String> {

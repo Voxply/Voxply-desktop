@@ -31,9 +31,10 @@ pub(crate) async fn add_hub(
     let hub_icon = info.icon.clone();
     let auth_url = info.farm_url.as_deref().unwrap_or(&hub_url).to_string();
 
-    let token = creds
+    let auth = creds
         .authenticate(&auth_url, &client, invite_code.as_deref())
         .await?;
+    let token = auth.token;
 
     // Auth just told this hub which master we are (the cert rides on
     // /auth/verify), so the list is now findable — publish it if the identity
@@ -98,6 +99,7 @@ pub(crate) async fn add_hub(
         hub_url: hub_url.clone(),
         hub_icon: hub_icon.clone(),
         token,
+        canonical_pubkey: auth.canonical_pubkey,
         ws_tx: cmd_tx,
         ws_task,
     };

@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -46,6 +46,23 @@ export async function launchDesktopApp(opts?: {
   const timeoutMs = opts?.timeoutMs ?? 300_000;
   const home = mkdtempSync(join(tmpdir(), "wavvon-desktop-e2e-"));
 
+  // A window left over from an earlier run still holds the debug port, and
+  // connectOverCDP would attach to *it* — a spec would then drive an app with
+  // the previous run's accounts and none of the build under test, and report
+  // whatever that app does. Refuse instead of lying.
+  if (await cdpPortAnswers(port)) {
+    throw new Error(
+      "something is already listening on the desktop debug port " + port + ". " +
+        "A leftover wavvon-desktop window from an earlier run is the usual cause — " +
+        "close it (taskkill /f /im wavvon-desktop.exe), or move the port with " +
+        "WAVVON_DESKTOP_CDP_PORT.",
+    );
+  }
+
+  // Which app processes existed before we started, so kill() can tell ours
+  // from the developer's own open copy.
+  const preexisting = appPids();
+
   const child: ChildProcess = spawn("npm", ["run", "dev"], {
     cwd: DESKTOP_DIR,
     shell: true,
@@ -66,13 +83,27 @@ export async function launchDesktopApp(opts?: {
   child.stderr?.on("data", (d) => { log += String(d); });
 
   const kill = () => {
-    if (child.pid === undefined) return;
     // tauri dev spawns cargo, which spawns the app: killing the shell alone
-    // leaves the window (and the debug port) behind for the next run.
-    try {
-      spawn("taskkill", ["/pid", String(child.pid), "/f", "/t"], { stdio: "ignore" });
-    } catch {
-      child.kill("SIGKILL");
+    // leaves the window (and the debug port) behind for the next run. Killing
+    // the tree is still not enough — the app outlived /t often enough to leave
+    // three windows behind in one afternoon, and the next run then attached to
+    // one of them — so any app process that appeared since launch is killed by
+    // pid too. By pid, not by image name: the developer's own copy of the app
+    // has to survive a test run.
+    if (child.pid !== undefined) {
+      try {
+        spawn("taskkill", ["/pid", String(child.pid), "/f", "/t"], { stdio: "ignore" });
+      } catch {
+        child.kill("SIGKILL");
+      }
+    }
+    for (const pid of appPids()) {
+      if (preexisting.has(pid)) continue;
+      try {
+        execFileSync("taskkill", ["/pid", String(pid), "/f", "/t"], { stdio: "ignore" });
+      } catch {
+        /* already gone */
+      }
     }
   };
 
@@ -151,4 +182,32 @@ async function appPage(browser: Browser, timeoutMs: number): Promise<Page> {
     await new Promise((r) => setTimeout(r, 500));
   }
   throw new Error("connected to the webview but it never showed an http page");
+}
+
+/** PIDs of every running desktop app, so a run can kill only what it started. */
+function appPids(): Set<number> {
+  try {
+    const out = execFileSync(
+      "tasklist",
+      ["/fi", "imagename eq wavvon-desktop.exe", "/nh", "/fo", "csv"],
+      { encoding: "utf8" },
+    );
+    return new Set(
+      [...out.matchAll(/"wavvon-desktop.exe","(d+)"/g)].map((m) => Number(m[1])),
+    );
+  } catch {
+    return new Set();
+  }
+}
+
+/** Whether anything answers CDP on this port already. */
+async function cdpPortAnswers(port: number): Promise<boolean> {
+  try {
+    const res = await fetch("http://127.0.0.1:" + port + "/json/version", {
+      signal: AbortSignal.timeout(2_000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }

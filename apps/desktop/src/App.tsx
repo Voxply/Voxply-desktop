@@ -984,6 +984,19 @@ function App() {
     if (hubs.length > 0) setShowWelcome(false);
   }, [hubs.length]);
 
+  // Who we are is a per-hub answer, and the first read happens before any hub
+  // is connected. A hub that met this identity through its self-signed cert
+  // seats the master rather than this device's key (see the Rust
+  // HubSession::canonical_pubkey), and every "is this mine" in the UI —
+  // message authorship, the other member of a DM, the roster row that is us —
+  // compares against this value.
+  useEffect(() => {
+    if (!activeHubId) return;
+    invoke<string>("get_my_public_key")
+      .then(setPublicKey)
+      .catch(() => {});
+  }, [activeHubId]);
+
   // Suppress the webview's default right-click menu (Reload / Inspect /
   // Back). Tauri 2 still enables it by default and a stray right-click
   // anywhere on the chrome would let the user accidentally reload the app.

@@ -666,12 +666,14 @@ pub(crate) async fn reauth_session(
         .await
         .map_err(|e| format!("reauth info decode: {e}"))?;
     let auth_url = info.farm_url.as_deref().unwrap_or(&hub_url).to_string();
-    let new_token = creds.authenticate(&auth_url, &client, None).await?;
+    let reauth = creds.authenticate(&auth_url, &client, None).await?;
+    let new_token = reauth.token;
 
     let (old_task, hub_id_clone) = {
         let mut hubs = state.hubs.lock().unwrap();
         let session = hubs.get_mut(hub_id).ok_or("Hub vanished mid-reauth")?;
         session.token = new_token.clone();
+        session.canonical_pubkey = reauth.canonical_pubkey;
         let old_task = std::mem::replace(&mut session.ws_task, tokio::spawn(async {}));
         (old_task, session.hub_id.clone())
     };

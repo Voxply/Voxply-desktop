@@ -62,6 +62,11 @@ export default defineConfig({
       testMatch: "**/desktop/**/*.spec.ts",
       dependencies: ["live-setup"],
       fullyParallel: false,
+      // `beforeAll` gets the test timeout, and launching the app compiles the
+      // Rust shell on a cold target directory — minutes, not seconds. The
+      // helper already waits 300s for the debug port; without this the hook
+      // was killed at the 30s default long before it could.
+      timeout: 600_000,
       use: {
         ...devices["Desktop Chrome"],
         storageState: "e2e/.auth/owner.json",

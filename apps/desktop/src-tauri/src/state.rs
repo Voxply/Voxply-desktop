@@ -34,6 +34,14 @@ pub(crate) struct HubSession {
     pub hub_url: String,
     pub hub_icon: Option<String>,
     pub token: String,
+    /// The identity this hub attributes our actions to, as /auth/verify
+    /// reported it. Not always this device's own pubkey: an entropy-holding
+    /// identity presents a self-signed cert at auth, and a hub that has never
+    /// seen it before seats the *master* as the user (the hub's
+    /// resolve_canonical_identity). Everything the hub verifies — a DM
+    /// envelope's signature, the owner of a published DH key — is checked
+    /// against this, so it is what we sign and claim as.
+    pub canonical_pubkey: String,
     pub ws_tx: mpsc::UnboundedSender<WsCommand>,
     pub ws_task: JoinHandle<()>,
 }
@@ -128,6 +136,22 @@ pub(crate) fn active_session(state: &AppState) -> Result<(String, String), Strin
     let hubs = state.hubs.lock().unwrap();
     let s = hubs.get(&active_id).ok_or("Active hub not connected")?;
     Ok((s.hub_url.clone(), s.token.clone()))
+}
+
+/// The canonical pubkey of the active session, if a hub has told us one.
+pub(crate) fn active_canonical_pubkey(state: &AppState) -> Option<String> {
+    let active_id = state.active_hub.lock().unwrap().clone()?;
+    let hubs = state.hubs.lock().unwrap();
+    hubs.get(&active_id).map(|s| s.canonical_pubkey.clone())
+}
+
+/// The canonical pubkey for one hub URL, if a session for it exists.
+pub(crate) fn canonical_for_url(state: &AppState, hub_url: &str) -> Option<String> {
+    let normalized = hub_url.trim_end_matches('/').to_string();
+    let hubs = state.hubs.lock().unwrap();
+    hubs.values()
+        .find(|s| s.hub_url.trim_end_matches('/') == normalized)
+        .map(|s| s.canonical_pubkey.clone())
 }
 
 /// Look up a session by hub_url (for commands that receive an explicit hub_url parameter).
