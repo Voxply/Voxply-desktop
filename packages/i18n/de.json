@@ -1052,6 +1052,8 @@
   "identity_setup.pair.waiting_hint": "Bestätige dieses Gerät auf deinem anderen Gerät, um fortzufahren.",
   "identity_setup.pair.error_invalid_code": "Dieser Kopplungscode ist ungültig. Kopiere ihn erneut von deinem anderen Gerät.",
   "identity_setup.pair.error_expired_unapproved": "Das Kopplungsangebot ist abgelaufen, bevor es bestätigt wurde.",
+  "identity_setup.pair.error_unreachable": "Kein Hub aus diesem Kopplungscode war erreichbar. Prüfe, ob das andere Gerät online ist, und versuche es erneut.",
+  "identity_setup.pair.error_wrong_identity": "Dieser Hub hat mit einer anderen Identität geantwortet als der Kopplungscode nennt. Es wurde nichts gekoppelt.",
   "identity_setup.pair.error_expired": "Das Kopplungsangebot ist abgelaufen.",
   "hub.add_modal.title": "Hub hinzufügen",
   "hub.add_modal.intro": "Füge eine Hub-Adresse oder einen <code>wavvon://</code>-Einladungslink ein.",

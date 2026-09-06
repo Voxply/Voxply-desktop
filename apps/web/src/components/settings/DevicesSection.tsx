@@ -44,7 +44,7 @@ interface Derived {
 
 type OfferState =
   | { phase: "idle" }
-  | { phase: "waiting"; token: string; hubUrl: string }
+  | { phase: "waiting"; token: string; hubUrl: string; code: string }
   | { phase: "claimed"; token: string; hubUrl: string; subkeyPubkey: string; label: string }
   | { phase: "completing" }
   | { phase: "done"; label: string }
@@ -196,7 +196,7 @@ export function DevicesSection({ activeHubUrl, account }: Props) {
       const issuedAt = Math.floor(Date.now() / 1000);
       const offerEnvelope = buildPairingOffer(d.masterSeed, d.masterPubkey, [hubUrl], token, issuedAt, issuedAt + 300);
       await postPairingOffer(hubUrl, offerEnvelope);
-      setOffer({ phase: "waiting", token, hubUrl });
+      setOffer({ phase: "waiting", token, hubUrl, code: JSON.stringify(offerEnvelope) });
       startPolling(token, hubUrl);
     } catch (e) {
       setOffer({ phase: "error", message: e instanceof Error ? e.message : String(e) });
@@ -258,10 +258,14 @@ export function DevicesSection({ activeHubUrl, account }: Props) {
     setOffer({ phase: "idle" });
   }
 
-  const pairingCode =
-    offer.phase === "waiting"
-      ? btoa(JSON.stringify({ hub: offer.hubUrl, token: offer.token }))
-      : null;
+  // The code is the signed offer, verbatim — decisions.md, "The pairing code
+  // is the signed offer itself, not a pointer to it". A shorter
+  // base64({hub, token}) lived here until 2026-09-06 and was two things at
+  // once: the desktop client could not read it (it wants this JSON, and the
+  // spec in multi-device.md always said so), and it left the master pubkey to
+  // be learned from the hub rather than from the screen the user is looking
+  // at.
+  const pairingCode = offer.phase === "waiting" ? offer.code : null;
 
   return (
     <div className="settings-section" style={{ marginTop: 20 }}>

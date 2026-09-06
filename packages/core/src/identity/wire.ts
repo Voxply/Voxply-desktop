@@ -310,6 +310,29 @@ export function buildPairingOffer(
   };
 }
 
+/** Verify a PairingOffer's master signature.
+ *
+ *  The claiming device checks this before it claims: the offer is what carries
+ *  the master pubkey over the out-of-band channel (the screen the user is
+ *  looking at), and checking it there is the whole reason the pairing code is
+ *  the signed offer rather than a pointer to one — decisions.md, "The pairing
+ *  code is the signed offer itself, not a pointer to it". Without it the only
+ *  claim about *whose* identity this is comes from the hub. */
+export function verifyPairingOffer(offer: PairingOffer): boolean {
+  try {
+    const sb = pairingOfferSigningBytes(
+      offer.master_pubkey,
+      offer.home_hubs,
+      offer.pairing_token,
+      offer.issued_at,
+      offer.expires_at,
+    );
+    return ed25519.verify(hexToBytes(offer.signature), sb, hexToBytes(offer.master_pubkey));
+  } catch {
+    return false;
+  }
+}
+
 // --- PairingClaim (signed by the NEW device's subkey, not the master) ---
 
 export function pairingClaimSigningBytes(

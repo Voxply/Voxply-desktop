@@ -1052,6 +1052,8 @@
   "identity_setup.pair.waiting_hint": "Approva questo dispositivo dall'altro dispositivo per completare.",
   "identity_setup.pair.error_invalid_code": "Il codice di abbinamento non è valido. Copialo di nuovo dall'altro dispositivo.",
   "identity_setup.pair.error_expired_unapproved": "L'offerta di abbinamento è scaduta prima di essere approvata.",
+  "identity_setup.pair.error_unreachable": "Nessun hub del codice di abbinamento è raggiungibile. Controlla che l'altro dispositivo sia online e riprova.",
+  "identity_setup.pair.error_wrong_identity": "L'hub ha risposto con un'identità diversa da quella indicata nel codice. Non è stato abbinato nulla.",
   "identity_setup.pair.error_expired": "L'offerta di abbinamento è scaduta.",
   "hub.add_modal.title": "Aggiungi hub",
   "hub.add_modal.intro": "Incolla un indirizzo hub o un link di invito <code>wavvon://</code>.",

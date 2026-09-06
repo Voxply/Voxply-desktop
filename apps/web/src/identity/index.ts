@@ -32,6 +32,7 @@ export {
   buildSubkeyCert,
   buildRevocation,
   buildPairingOffer,
+  verifyPairingOffer,
   buildPairingClaim,
   wrapBlobKey,
   unwrapBlobKey,

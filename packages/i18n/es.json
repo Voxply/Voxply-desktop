@@ -1052,6 +1052,8 @@
   "identity_setup.pair.waiting_hint": "Aprueba este dispositivo desde tu otro dispositivo para terminar.",
   "identity_setup.pair.error_invalid_code": "Ese código de vinculación no es válido. Cópialo de nuevo desde tu otro dispositivo.",
   "identity_setup.pair.error_expired_unapproved": "La oferta de vinculación caducó antes de ser aprobada.",
+  "identity_setup.pair.error_unreachable": "No se pudo contactar con ningún hub de ese código de vinculación. Comprueba que el otro dispositivo esté conectado e inténtalo de nuevo.",
+  "identity_setup.pair.error_wrong_identity": "Ese hub respondió con una identidad distinta de la que indica el código. No se vinculó nada.",
   "identity_setup.pair.error_expired": "La oferta de vinculación ha caducado.",
   "hub.add_modal.title": "Añadir hub",
   "hub.add_modal.intro": "Pega una dirección de hub o un enlace de invitación <code>wavvon://</code>.",

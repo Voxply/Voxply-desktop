@@ -8,6 +8,7 @@ import {
   phraseToSeed,
   validatePhrase,
   buildPairingClaim,
+  verifyPairingOffer,
   resolveOrCreateAccount,
   setActiveAccountId,
   unwrapBlobKey,
@@ -15,7 +16,7 @@ import {
   saveIdentity,
   listAccounts,
 } from "@identity/index";
-import type { IdentityRecord } from "@identity/index";
+import type { IdentityRecord, PairingOffer } from "@identity/index";
 import { ProfileSetupStep } from "@components/onboarding/ProfileSetupStep";
 import { encryptBackup, suggestBackupFilename } from "@wavvon/core";
 import { inviteCodeFromPath } from "@wavvon/core";
@@ -154,20 +155,48 @@ export function IdentitySetupScreen({ variant = "initial", onComplete, onCancel 
   async function doPair() {
     setError(null);
     const label = pairLabel.trim() || "New device";
-    let decoded: { hub: string; token: string };
+    // The code is the master-signed offer itself (decisions.md, "The pairing
+    // code is the signed offer itself, not a pointer to it"), so the master
+    // pubkey arrives over the channel the user trusts — their other device's
+    // screen — rather than from whichever hub answers.
+    let offer: PairingOffer;
     try {
-      decoded = JSON.parse(atob(pairCode.trim()));
-      if (!decoded.hub || !decoded.token) throw new Error("bad code");
+      offer = JSON.parse(pairCode.trim()) as PairingOffer;
+      if (!offer?.pairing_token || !offer.master_pubkey || !offer.home_hubs?.length) {
+        throw new Error("bad code");
+      }
+      if (!verifyPairingOffer(offer)) throw new Error("bad signature");
     } catch {
       setError(t("identity_setup.pair.error_invalid_code"));
+      return;
+    }
+    if (offer.expires_at * 1000 <= Date.now()) {
+      setError(t("identity_setup.pair.error_expired"));
       return;
     }
     setPairStatus("claiming");
     try {
       const subkeySeed = generateSubkeySeed();
       const subkeyPubkey = publicKeyHex(subkeySeed);
-      const claim = buildPairingClaim(subkeySeed, decoded.token, subkeyPubkey, label);
-      await postPairingClaim(decoded.hub, claim);
+      const claim = buildPairingClaim(subkeySeed, offer.pairing_token, subkeyPubkey, label);
+      // Every home hub holds the offer, so any of them can take the claim —
+      // which is what keeps one unreachable or hostile hub from blocking
+      // pairing (multi-device.md, "Security properties").
+      let claimedHub = "";
+      for (const hub of offer.home_hubs) {
+        try {
+          await postPairingClaim(hub, claim);
+          claimedHub = hub;
+          break;
+        } catch {
+          // Try the next one; the last failure surfaces as "unreachable".
+        }
+      }
+      if (!claimedHub) {
+        setError(t("identity_setup.pair.error_unreachable"));
+        setPairStatus("idle");
+        return;
+      }
       setPairStatus("waiting");
 
       const started = Date.now();
@@ -177,8 +206,16 @@ export function IdentitySetupScreen({ variant = "initial", onComplete, onCancel 
           setPairStatus("idle");
           return;
         }
-        const status = await getPairingStatus(decoded.hub, decoded.token).catch(() => null);
+        const status = await getPairingStatus(claimedHub, offer.pairing_token).catch(() => null);
         if (status && status.state === "complete") {
+          // The cert has to name the master the code named. Without this check
+          // the hub picks which identity this device joins, which is exactly
+          // what carrying the signed offer out of band is for.
+          if (status.cert.master_pubkey !== offer.master_pubkey) {
+            setError(t("identity_setup.pair.error_wrong_identity"));
+            setPairStatus("idle");
+            return;
+          }
           // Unwrap the canonical DM DH scalar (decisions.md "DH capability
           // via a wrapped canonical scalar") so this device can agree on
           // E2E DM keys as the canonical identity — it never holds the

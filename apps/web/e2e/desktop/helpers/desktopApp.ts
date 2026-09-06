@@ -50,7 +50,9 @@ export async function launchDesktopApp(opts?: {
   // connectOverCDP would attach to *it* — a spec would then drive an app with
   // the previous run's accounts and none of the build under test, and report
   // whatever that app does. Refuse instead of lying.
-  if (await cdpPortAnswers(port)) {
+  // A spec file that just finished is the common case, and taskkill takes a
+  // moment to land, so give the port a chance to clear before refusing.
+  if (!(await waitForPortFree(port, 15_000))) {
     throw new Error(
       "something is already listening on the desktop debug port " + port + ". " +
         "A leftover wavvon-desktop window from an earlier run is the usual cause — " +
@@ -126,6 +128,10 @@ export async function launchDesktopApp(opts?: {
     async close() {
       await browser.close().catch(() => {});
       kill();
+      // The next spec file launches as soon as this returns, and it refuses to
+      // start while the port still answers — so wait for the window to
+      // actually be gone rather than for taskkill to have been called.
+      await waitForPortFree(port, 15_000);
       rmSync(home, { recursive: true, force: true });
     },
   };
@@ -210,4 +216,14 @@ async function cdpPortAnswers(port: number): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** Poll until nothing answers CDP on this port. False if it never clears. */
+async function waitForPortFree(port: number, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!(await cdpPortAnswers(port))) return true;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return !(await cdpPortAnswers(port));
 }

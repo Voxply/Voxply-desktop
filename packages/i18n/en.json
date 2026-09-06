@@ -67,6 +67,8 @@
   "identity_setup.pair.waiting_hint": "Approve this device on your other device to finish.",
   "identity_setup.pair.error_invalid_code": "That pairing code isn't valid. Copy it again from your other device.",
   "identity_setup.pair.error_expired_unapproved": "The pairing offer expired before it was approved.",
+  "identity_setup.pair.error_unreachable": "No hub in that pairing code could be reached. Check the other device is online and try again.",
+  "identity_setup.pair.error_wrong_identity": "That hub answered with a different identity than the pairing code names. Nothing was paired.",
   "identity_setup.pair.error_expired": "The pairing offer expired.",
   "welcome.tagline": "Decentralized voice chat. Your identity, every hub.",
   "welcome.join": "Join hub",

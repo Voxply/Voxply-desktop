@@ -12,6 +12,8 @@ import {
   verifyPrefsBlob,
   buildHomeHubList,
   buildPairingClaim,
+  buildPairingOffer,
+  verifyPairingOffer,
   recoveryRequestSigningBytes,
   recoveryAttestationSigningBytes,
   signRecoveryRequest,
@@ -108,6 +110,25 @@ describe("wire signing-bytes vectors", () => {
     const sb = pairingOfferSigningBytes(MASTER_PUB, ["https://hub.example"], "tok123", TS, TS + 300);
     expect(bytesToHex(sb)).toBe(PAIRING_OFFER_SIGNING_BYTES);
     expect(signHex(sb, MASTER_SEED)).toBe(PAIRING_OFFER_SIG);
+  });
+
+  it("a pairing offer verifies, and a tampered one does not", () => {
+    // The claiming device checks this before it claims: the offer is the only
+    // thing telling it whose identity it is joining, and it arrives over the
+    // user's own screen rather than from the hub.
+    const offer = buildPairingOffer(
+      MASTER_SEED,
+      MASTER_PUB,
+      ["https://hub.example"],
+      "tok123",
+      TS,
+      TS + 300,
+    );
+    expect(verifyPairingOffer(offer)).toBe(true);
+    // A hub swapping in its own master is the attack the signature stops.
+    expect(verifyPairingOffer({ ...offer, master_pubkey: SUBKEY_PUB })).toBe(false);
+    expect(verifyPairingOffer({ ...offer, home_hubs: ["https://evil.example"] })).toBe(false);
+    expect(verifyPairingOffer({ ...offer, pairing_token: "tok124" })).toBe(false);
   });
 
   it("PairingClaim (signed by subkey)", () => {
