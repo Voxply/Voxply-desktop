@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { inviteLink, pubkeyLabel } from "./helpers/hubLinks";
+import { inviteLink } from "./helpers/hubLinks";
 import { channelButton, expectInHub, hubApi, HUB_URL, uniqueName } from "../live/helpers/live";
 import { launchDesktopApp, type DesktopApp } from "./helpers/desktopApp";
 import { createDesktopIdentity, joinHub } from "./helpers/onboardDesktop";
@@ -53,16 +53,14 @@ test.describe("web ↔ desktop", () => {
     await createDesktopIdentity(desktop.page, desktopName);
     await joinHub(desktop.page, desktopName, inviteLink(HUB_URL, invite.code));
 
-    // Which member the desktop app became, by difference. It is not findable
-    // by name: desktop has no onboarding nickname step and no display-name
-    // prompt (both web-only), so a fresh desktop identity reaches the hub with
-    // an empty display_name and renders as its pubkey.
-    let desktopPubkey = "";
+    // Which member the desktop app became, by difference — the roster is the
+    // hub's answer to "who did that app authenticate as", and a desktop
+    // identity is seated under the master its self-signed cert names rather
+    // than the device key the app shows anywhere.
     await expect(async () => {
       const now = await hubApi<{ public_key: string }[]>(page, "/users");
       const fresh = now.find((u) => !before.has(u.public_key));
       expect(fresh, "the desktop app never appeared in the roster").toBeTruthy();
-      desktopPubkey = fresh!.public_key;
     }).toPass({ timeout: 60_000 });
 
     // Owner reloads to pick up the new member, and opens a channel: the
@@ -71,10 +69,10 @@ test.describe("web ↔ desktop", () => {
     await expectInHub(page);
     await channelButton(page, channel).click();
 
-    // Web opens the DM from the member list.
-    const memberRow = page.locator("li.user-list-item", {
-      hasText: pubkeyLabel(desktopPubkey),
-    });
+    // Web opens the DM from the member list. By name: desktop asks for a
+    // display name on its first hub now, so the roster no longer shows a
+    // pubkey slice.
+    const memberRow = page.locator("li.user-list-item", { hasText: desktopName });
     await expect(memberRow).toBeVisible({ timeout: 30_000 });
     await memberRow.click({ button: "right" });
     await page.locator(".context-menu").getByText("Direct message").click();

@@ -50,6 +50,7 @@ export type { PassphraseStrength } from "./utils/passphraseStrength";
 export { BotAppLaunchCard } from "./components/BotAppLaunchCard";
 export { BotCard } from "./components/BotCard";
 export { ErrorRetry } from "./components/ErrorRetry";
+export { DisplayNamePrompt } from "./components/DisplayNamePrompt";
 export { FocusTrap } from "./components/FocusTrap";
 export { GameCard } from "./components/GameCard";
 export { GameModal } from "./components/GameModal";

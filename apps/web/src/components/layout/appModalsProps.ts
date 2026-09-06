@@ -116,9 +116,7 @@ export interface AppModalsProps {
   closeHubSetupWizard: (hubId: string) => void;
   showDisplayNamePrompt: boolean;
   setShowDisplayNamePrompt: (v: boolean) => void;
-  firstRunName: string;
-  setFirstRunName: (v: string) => void;
-  handleSaveFirstRunName: () => void | Promise<void>;
+  handleSaveFirstRunName: (name: string) => void | Promise<void>;
 
   // Channel context menu
   channelCtxMenu: React.ComponentProps<

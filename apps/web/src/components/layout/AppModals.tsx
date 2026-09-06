@@ -3,6 +3,7 @@ import {
   AddHubModal,
   ChannelContextMenu,
   ChannelSettingsModal,
+  DisplayNamePrompt,
   EditDescriptionModal,
   EventComposer,
   FocusTrap,
@@ -66,7 +67,6 @@ export function AppModals(p: AppModalsProps) {
     effectiveNotifyMode,
     eventComposerChannelId,
     fingerprintMatch,
-    firstRunName,
     handleAddHub,
     handleAddHubWithPasskey,
     handleCreateChannel,
@@ -101,7 +101,6 @@ export function AppModals(p: AppModalsProps) {
     setEditDescValue,
     setEventComposerChannelId,
     setFingerprintMatch,
-    setFirstRunName,
     setHubPreview,
     setInviteCode,
     setPollComposerChannelId,
@@ -322,31 +321,10 @@ export function AppModals(p: AppModalsProps) {
       )}
 
       {showDisplayNamePrompt && (
-        <div className="modal-overlay" onClick={() => setShowDisplayNamePrompt(false)}>
-          <div className="modal" style={{ maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
-            <h3>{t("onboarding.display_name.title")}</h3>
-            <p className="muted" style={{ marginBottom: 12, fontSize: "var(--text-sm)" }}>
-              {t("onboarding.display_name.hint")}
-            </p>
-            <input
-              type="text"
-              value={firstRunName}
-              onChange={(e) => setFirstRunName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") void handleSaveFirstRunName(); if (e.key === "Escape") setShowDisplayNamePrompt(false); }}
-              placeholder={t("onboarding.display_name.placeholder")}
-              style={{ width: "100%", marginBottom: 12 }}
-              autoFocus
-            />
-            <div className="modal-actions">
-              <button className="btn-secondary" onClick={() => setShowDisplayNamePrompt(false)}>
-                {t("onboarding.display_name.skip")}
-              </button>
-              <button onClick={() => void handleSaveFirstRunName()} disabled={!firstRunName.trim()}>
-                {t("onboarding.display_name.save")}
-              </button>
-            </div>
-          </div>
-        </div>
+        <DisplayNamePrompt
+          onSave={handleSaveFirstRunName}
+          onSkip={() => setShowDisplayNamePrompt(false)}
+        />
       )}
 
       {removeHub.pending && (

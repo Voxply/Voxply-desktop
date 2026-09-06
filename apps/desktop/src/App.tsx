@@ -84,6 +84,8 @@ import { HubBrowser } from "./components/HubBrowser";
 import { WelcomeScreen } from "@wavvon/ui";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { setSwitchGuard } from "./accounts/store";
+import { loadDefaultProfileAsync } from "./utils/profileEditorActions";
+import { DisplayNamePrompt } from "@wavvon/ui";
 
 function App() {
   const { t } = useTranslation();
@@ -997,6 +999,41 @@ function App() {
       .catch(() => {});
   }, [activeHubId]);
 
+  // Ask for a display name once, on the first hub this identity joins with
+  // none. Without it a fresh desktop identity sat in every roster as a slice
+  // of its pubkey: the nickname step and this prompt were both web-only
+  // (found 2026-09-06 by the web-desktop harness, which could not find its own
+  // member by name).
+  const [showDisplayNamePrompt, setShowDisplayNamePrompt] = useState(false);
+  const me = users.find((u) => u.public_key === publicKey);
+  useEffect(() => {
+    if (hubs.length !== 1 || !me || me.display_name) return;
+    // A default profile means the user already said who they want to be —
+    // apply it instead of asking again, the same way web does.
+    void loadDefaultProfileAsync()
+      .then((def) => {
+        if (def?.display_name?.trim()) return saveDisplayName(def.display_name.trim());
+        setShowDisplayNamePrompt(true);
+      })
+      .catch(() => setShowDisplayNamePrompt(true));
+    // Only when the answer changes, not on every roster update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me?.display_name, hubs.length]);
+
+  async function saveDisplayName(name: string) {
+    setShowDisplayNamePrompt(false);
+    const hubUrl = hubs.find((h) => h.hub_id === activeHubId)?.hub_url;
+    if (!hubUrl) return;
+    try {
+      await invoke("update_my_profile_on_hub", { hubUrl, profile: { display_name: name } });
+      setUsers((prev) =>
+        prev.map((u) => (u.public_key === publicKey ? { ...u, display_name: name } : u)),
+      );
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
   // Suppress the webview's default right-click menu (Reload / Inspect /
   // Back). Tauri 2 still enables it by default and a stray right-click
   // anywhere on the chrome would let the user accidentally reload the app.
@@ -1743,6 +1780,13 @@ function App() {
               </>
             )}
           </div>
+        )}
+
+        {showDisplayNamePrompt && (
+          <DisplayNamePrompt
+            onSave={saveDisplayName}
+            onSkip={() => setShowDisplayNamePrompt(false)}
+          />
         )}
 
         <AppModals

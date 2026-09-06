@@ -403,7 +403,6 @@ export default function App({ initialView }: AppProps = {}) {
   const [showDiscover, setShowDiscover] = useState(false);
   const [showSearchBar, setShowSearchBar] = useState(false);
   const [showDisplayNamePrompt, setShowDisplayNamePrompt] = useState(false);
-  const [firstRunName, setFirstRunName] = useState("");
   const [userContextMenu, setUserContextMenu] = useState<{
     user: User;
     position: { x: number; y: number };
@@ -961,8 +960,8 @@ export default function App({ initialView }: AppProps = {}) {
     setShowAddHub(true);
   }, [publicKey, hubsRestored]);
 
-  async function handleSaveFirstRunName() {
-    const name = firstRunName.trim();
+  async function handleSaveFirstRunName(typed: string) {
+    const name = typed.trim();
     if (!name) { setShowDisplayNamePrompt(false); return; }
     try {
       await hubFetch("/me", { method: "PATCH", body: JSON.stringify({ display_name: name }) });
@@ -1617,7 +1616,6 @@ export default function App({ initialView }: AppProps = {}) {
         effectiveNotifyMode={effectiveNotifyMode}
         eventComposerChannelId={eventComposerChannelId}
         fingerprintMatch={fingerprintMatch}
-        firstRunName={firstRunName}
         handleAddHub={handleAddHub}
         handleAddHubWithPasskey={handleAddHubWithPasskey}
         handleCreateChannel={handleCreateChannel}
@@ -1652,7 +1650,6 @@ export default function App({ initialView }: AppProps = {}) {
         setEditDescValue={setEditDescValue}
         setEventComposerChannelId={setEventComposerChannelId}
         setFingerprintMatch={setFingerprintMatch}
-        setFirstRunName={setFirstRunName}
         setHubPreview={setHubPreview}
         setInviteCode={setInviteCode}
         setPollComposerChannelId={setPollComposerChannelId}
