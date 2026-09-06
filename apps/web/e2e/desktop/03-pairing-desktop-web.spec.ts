@@ -43,7 +43,13 @@ test.describe("desktop → web pairing", () => {
     await desktop.page.locator(".btn-icon-gear").first().click();
     await desktop.page.getByRole("button", { name: "Devices", exact: true }).click();
     await desktop.page.getByRole("button", { name: "Pair a new device…" }).click();
-    await desktop.page.locator(".pairing-hub-list input[type=checkbox]").first().check();
+    // The hub list re-renders as the app settles, and a click that lands mid
+    // re-render is swallowed by the controlled input — so click until it takes.
+    const hubBox = desktop.page.locator(".pairing-hub-list input[type=checkbox]").first();
+    await expect(async () => {
+      await hubBox.click();
+      await expect(hubBox).toBeChecked({ timeout: 2_000 });
+    }).toPass({ timeout: 30_000 });
     await desktop.page.getByRole("button", { name: "Generate pairing code" }).click();
     const codeArea = desktop.page.locator("textarea.pairing-code-area");
     await expect(codeArea).toBeVisible({ timeout: 30_000 });
